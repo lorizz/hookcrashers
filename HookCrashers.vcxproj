@@ -149,46 +149,50 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h" />
-    <ClInclude Include="hooks.h" />
-    <ClInclude Include="hooks\BaseHook.h" />
-    <ClInclude Include="hooks\CustomSWFFunctions.h" />
-    <ClInclude Include="hooks\CallSWFFunctionHook.h" />
-    <ClInclude Include="hooks\HookCrashers.h" />
-    <ClInclude Include="hooks\NativeHooks.h" />
-    <ClInclude Include="hooks\RegisterAllSWFFunctions.h" />
-    <ClInclude Include="hooks\RegisterSWFFunctionHook.h" />
-    <ClInclude Include="logger.h" />
-    <ClInclude Include="pch.h" />
-    <ClInclude Include="stdafx.h" />
-    <ClInclude Include="structs\SWFArgument.h" />
-    <ClInclude Include="structs\SWFFunctionIDs.h" />
-    <ClInclude Include="structs\SWFReturn.h" />
-    <ClInclude Include="targetver.h" />
+    <ClInclude Include="src\framework.h" />
+    <ClInclude Include="include\HookCrashersAPI.h" />
+    <ClInclude Include="src\pch.h" />
+    <ClInclude Include="src\Core\BaseHook.h" />
+    <ClInclude Include="src\Core\CallSWFFunctionHook.h" />
+    <ClInclude Include="src\Core\HookManager.h" />
+    <ClInclude Include="src\Core\RegisterAllSWFFunctionsHook.h" />
+    <ClInclude Include="src\Core\RegisterSWFFunctionHook.h" />
+    <ClInclude Include="src\Native\NativeCaller.h" />
+    <ClInclude Include="src\Native\NativeFunctions.h" />
+    <ClInclude Include="src\stdafx.h" />
+    <ClInclude Include="src\SWF\Custom\CustomFunctions.h" />
+    <ClInclude Include="src\SWF\Data\SWFArgument.h" />
+    <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h" />
+    <ClInclude Include="src\SWF\Data\SWFFunctionIDs.h" />
+    <ClInclude Include="src\SWF\Data\SWFReturn.h" />
+    <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h" />
+    <ClInclude Include="src\SWF\Override\Overrides.h" />
+    <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
+    <ClInclude Include="src\Util\Logger.h" />
+    <ClInclude Include="src\targetver.h" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="dllmain.cpp" />
-    <ClCompile Include="hooks.cpp" />
-    <ClCompile Include="hooks\BaseHook.cpp" />
-    <ClCompile Include="hooks\CustomSWFFunctions.cpp" />
-    <ClCompile Include="hooks\CallSWFFunctionHook.cpp" />
-    <ClCompile Include="hooks\HookCrashers.cpp" />
-    <ClCompile Include="hooks\NativeHooks.cpp" />
-    <ClCompile Include="hooks\RegisterAllSWFFunctions.cpp" />
-    <ClCompile Include="hooks\RegisterSWFFunctionHook.cpp" />
-    <ClCompile Include="logger.cpp" />
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
     </ClCompile>
-    <ClCompile Include="stdafx.cpp" />
-    <ClCompile Include="structs\SWFArgument.cpp" />
-    <ClCompile Include="structs\SWFReturn.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="hooks\TODO.txt" />
+    <ClCompile Include="src\Core\BaseHook.cpp" />
+    <ClCompile Include="src\Core\CallSWFFunctionHook.cpp" />
+    <ClCompile Include="src\Core\HookManager.cpp" />
+    <ClCompile Include="src\Core\RegisterAllSWFFunctionsHook.cpp" />
+    <ClCompile Include="src\Core\RegisterSWFFunctionHook.cpp" />
+    <ClCompile Include="src\dllmain.cpp" />
+    <ClCompile Include="src\Native\NativeFunctions.cpp" />
+    <ClCompile Include="src\stdafx.cpp" />
+    <ClCompile Include="src\SWF\Custom\CustomFunctions.cpp" />
+    <ClCompile Include="src\SWF\Data\SWFReturn.cpp" />
+    <ClCompile Include="src\SWF\Helpers\SWFArgumentReader.cpp" />
+    <ClCompile Include="src\SWF\Helpers\SWFReturnHelper.cpp" />
+    <ClCompile Include="src\SWF\Override\Overrides.cpp" />
+    <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
+    <ClCompile Include="src\Util\Logger.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
