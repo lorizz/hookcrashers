@@ -15,100 +15,118 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="framework.h">
+    <ClInclude Include="src\framework.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="pch.h">
+    <ClInclude Include="src\pch.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="logger.h">
+    <ClInclude Include="src\stdafx.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="stdafx.h">
+    <ClInclude Include="src\targetver.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="targetver.h">
+    <ClInclude Include="include\HookCrashersAPI.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks.h">
+    <ClInclude Include="src\Util\Logger.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\RegisterSWFFunctionHook.h">
+    <ClInclude Include="src\Native\NativeCaller.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\CallSWFFunctionHook.h">
+    <ClInclude Include="src\Native\NativeFunctions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\RegisterAllSWFFunctions.h">
+    <ClInclude Include="src\SWF\Data\SWFFunctionIDs.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\CustomSWFFunctions.h">
+    <ClInclude Include="src\SWF\Data\SWFArgument.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\BaseHook.h">
+    <ClInclude Include="src\SWF\Data\SWFReturn.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\HookCrashers.h">
+    <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="hooks\NativeHooks.h">
+    <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="structs\SWFArgument.h">
+    <ClInclude Include="src\SWF\Override\Overrides.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="structs\SWFReturn.h">
+    <ClInclude Include="src\SWF\Custom\CustomFunctions.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="structs\SWFFunctionIDs.h">
+    <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\BaseHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\RegisterSWFFunctionHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\RegisterAllSWFFunctionsHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\CallSWFFunctionHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Core\HookManager.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="pch.cpp">
+    <ClCompile Include="src\pch.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="logger.cpp">
+    <ClCompile Include="src\stdafx.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="dllmain.cpp">
+    <ClCompile Include="src\Util\Logger.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="stdafx.cpp">
+    <ClCompile Include="src\Native\NativeFunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks.cpp">
+    <ClCompile Include="src\SWF\Data\SWFReturn.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\RegisterSWFFunctionHook.cpp">
+    <ClCompile Include="src\SWF\Helpers\SWFArgumentReader.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\CallSWFFunctionHook.cpp">
+    <ClCompile Include="src\SWF\Helpers\SWFReturnHelper.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\RegisterAllSWFFunctions.cpp">
+    <ClCompile Include="src\SWF\Override\Overrides.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\CustomSWFFunctions.cpp">
+    <ClCompile Include="src\SWF\Custom\CustomFunctions.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\BaseHook.cpp">
+    <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\HookCrashers.cpp">
+    <ClCompile Include="src\Core\BaseHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="hooks\NativeHooks.cpp">
+    <ClCompile Include="src\Core\RegisterSWFFunctionHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="structs\SWFArgument.cpp">
+    <ClCompile Include="src\Core\RegisterAllSWFFunctionsHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="structs\SWFReturn.cpp">
+    <ClCompile Include="src\Core\CallSWFFunctionHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="hooks\TODO.txt" />
+    <ClCompile Include="src\Core\HookManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\dllmain.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
 </Project>
