@@ -6,7 +6,7 @@ namespace HookCrashers {
 	namespace SWF {
 		namespace Data {
 			struct SWFArgument {
-				int unknown0; // Offset 0x0
+				int unknown0;
 
 				enum class Type : int {
 					Unknown = 0,
@@ -16,7 +16,7 @@ namespace HookCrashers {
 					Float = 0x10,
 				} type;
 
-				int unknown8; // Offset 0x8 (Padding or metadata?)
+				int unknown8;
 
 				union {
 					uint8_t boolValue;

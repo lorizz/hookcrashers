@@ -15,6 +15,7 @@ namespace HookCrashers {
 			virtual void Initialize(uintptr_t moduleBase);
 
 			bool IsInitialized() const { return m_moduleBase != 0; }
+
 		protected:
 			uint16_t m_id;
 			uintptr_t m_moduleBase;
