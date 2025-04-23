@@ -16,7 +16,7 @@ namespace HookCrashers {
 					Float = 0x10,
 				} type;
 
-				uint32_t padding; // Offset 0x8: Seems consistently zeroed
+				uint32_t padding;
 
 				union {
 					uint8_t boolValue;

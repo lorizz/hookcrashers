@@ -78,20 +78,19 @@ namespace HookCrashers {
 				}
 
 				try {
-					// Call the registered std::function
 					it->second(paramCount, swfArgs, swfReturn);
 
 					L.Get()->debug("Custom function '{}' executed.", funcName);
 					L.Get()->flush();
-					return true; // Indicate handled successfully
+					return true;
 				}
 				catch (const std::exception& e) {
 					L.Get()->error("Exception caught in custom function '{}' (ID: {}): {}", funcName, functionId, e.what());
 					if (swfReturn) {
-						swfReturn->SetFailure(); // Set failure on exception
+						swfReturn->SetFailure(); 
 					}
 					L.Get()->flush();
-					return true; // Indicate handled (even though it failed) to prevent calling original
+					return true;
 				}
 				catch (...) {
 					L.Get()->error("Unknown exception caught in custom function '{}' (ID: {})", funcName, functionId);
@@ -99,7 +98,7 @@ namespace HookCrashers {
 						swfReturn->SetFailure();
 					}
 					L.Get()->flush();
-					return true; // Indicate handled
+					return true;
 				}
 			}
 
@@ -117,16 +116,14 @@ namespace HookCrashers {
 				if (it != g_customFunctionNames.end()) {
 					return it->second;
 				}
-				return "UnknownCustomFunc_" + std::to_string(id); // Fallback name
+				return "UnknownCustomFunc_" + std::to_string(id);
 			}
 
 
 			void InitializeSystem() {
 				L.Get()->info("Initializing Custom SWF Functions system...");
 
-				// Register built-in custom functions here using the named registration
-				Register(Data::ToValue(Data::SWFFunctionID::HelloWorld), "HelloWorld", HelloWorldHandler);
-				// Register(...) other custom functions
+				// Register(Data::ToValue(Data::SWFFunctionID::HelloWorld), "HelloWorld", HelloWorldHandler);
 
 				L.Get()->info("Custom SWF Functions system initialized.");
 				L.Get()->flush();
@@ -145,14 +142,9 @@ namespace HookCrashers {
 				L.Get()->debug("Found {} custom function IDs to register.", idsToRegister.size());
 				
 				for (uint16_t id : idsToRegister) {
-					L.Get()->debug("--- Loop iteration: Processing ID value = {} (0x{:X})", id, id); // <-- AGGIUNGI QUESTO LOG
 					std::string name = GetRegisteredName(id);
-					L.Get()->debug("--> Attempting to register with game: '{}' (ID: {}) using thisPtr 0x:{X}", name, id,
-						reinterpret_cast<uintptr_t>(gameThisPtr));
-
 					try {
 						Core::DetouredRegisterSWFFunction(gameThisPtr, nullptr, id, name.c_str());
-						L.Get()->debug("<-- Successfully called DetouredRegisterSWFFunction for '{}' (ID: {})", name, id);
 						count++;
 					}
 					catch (const std::exception& e) {

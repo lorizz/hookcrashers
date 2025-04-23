@@ -1,3 +1,4 @@
+E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Core\AddStringHook.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\AddStringHook.obj
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\pch.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\pch.obj
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Core\BaseHook.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\BaseHook.obj
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Core\CallSWFFunctionHook.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\CallSWFFunctionHook.obj
@@ -14,3 +15,5 @@ E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrash
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\SWF\Override\Overrides.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\Overrides.obj
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\SWF\Dispatcher\Dispatcher.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\Dispatcher.obj
 E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Util\Logger.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\Logger.obj
+E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Util\StringCache.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\StringCache.obj
+E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\src\Util\StringUtils.cpp;E:\Programming\CastleCrashersRemaster\ASI modding\ilVonBurzaAsiModding\HookCrashers\Release\StringUtils.obj

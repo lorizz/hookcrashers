@@ -149,6 +149,7 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="src\Core\AddStringHook.h" />
     <ClInclude Include="src\framework.h" />
     <ClInclude Include="include\HookCrashersAPI.h" />
     <ClInclude Include="src\pch.h" />
@@ -170,8 +171,11 @@
     <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
     <ClInclude Include="src\Util\Logger.h" />
     <ClInclude Include="src\targetver.h" />
+    <ClInclude Include="src\Util\StringCache.h" />
+    <ClInclude Include="src\Util\StringUtils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\Core\AddStringHook.cpp" />
     <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -193,6 +197,8 @@
     <ClCompile Include="src\SWF\Override\Overrides.cpp" />
     <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
     <ClCompile Include="src\Util\Logger.cpp" />
+    <ClCompile Include="src\Util\StringCache.cpp" />
+    <ClCompile Include="src\Util\StringUtils.cpp" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

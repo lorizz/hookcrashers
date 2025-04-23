@@ -1,5 +1,5 @@
 #include "RegisterSWFFunctionHook.h"
-#include "../Util/Logger.h" // Use namespaced logger
+#include "../Util/Logger.h"
 
 namespace HookCrashers {
     namespace Core {
@@ -19,7 +19,7 @@ namespace HookCrashers {
             if (thisPtr != nullptr && functionId == ID_FOR_THISPTR_CAPTURE && functionName != nullptr && strcmp(functionName, NAME_FOR_THISPTR_CAPTURE) == 0) {
                 static void* lastLoggedPtr = nullptr;
                 if (lastLoggedPtr != thisPtr) {
-                    g_correctThisPtr = thisPtr; // Aggiorna il puntatore globale
+                    g_correctThisPtr = thisPtr; 
                     L.Get()->info("Updated/Captured correct 'this' pointer: 0x{:X} (from '{}' ID:{:#x})",
                         reinterpret_cast<uintptr_t>(g_correctThisPtr), NAME_FOR_THISPTR_CAPTURE, ID_FOR_THISPTR_CAPTURE);
                     lastLoggedPtr = g_correctThisPtr;
@@ -32,7 +32,7 @@ namespace HookCrashers {
                 try {
                     g_originalFunction(thisPtr, functionId, functionName);
                 }
-                catch (const std::exception& e) { // Logga eccezioni specifiche se possibile
+                catch (const std::exception& e) {
                     L.Get()->error("!!! std::exception in original RegisterSWFFunction (ID={:#x}, Name={}): {} !!!",
                         functionId, functionName ? functionName : "NULL", e.what());
                 }
@@ -42,7 +42,6 @@ namespace HookCrashers {
                 }
             }
             else {
-                // Questo è un errore critico, il gioco probabilmente non funzionerà
                 L.Get()->error("Original RegisterSWFFunction pointer is null! Cannot call original for ID={:#x}, Name={}.",
                     functionId, functionName ? functionName : "NULL");
             }
@@ -60,7 +59,6 @@ namespace HookCrashers {
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
-            // Assicurati che Detours gestisca correttamente la conversione da __thiscall a __fastcall
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredRegisterSWFFunction);
             if (error != NO_ERROR) {
                 L.Get()->error("DetourAttach failed for RegisterSWFFunction: {}", error);
@@ -71,9 +69,7 @@ namespace HookCrashers {
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
                 L.Get()->error("DetourTransactionCommit failed for RegisterSWFFunction: {}", error);
-                // L'hook potrebbe essere attivo ma Detours instabile. Consideriamo un fallimento.
-                // Potrebbe essere necessario un DetourDetach qui in caso di errore di commit.
-                g_originalFunction = nullptr; // Reset pointer
+                g_originalFunction = nullptr;
                 return false;
             }
 
