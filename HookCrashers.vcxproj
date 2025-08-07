@@ -111,7 +111,7 @@
       <AdditionalLibraryDirectories>$(SolutionDir)\External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
-      <Command>copy "$(TargetDir)*.asi" "E:\SteamLibrary\steamapps\common\CastleCrashers\scripts"  /y</Command>
+      <Command>copy "$(TargetDir)HookCrashers.asi" "E:\SteamLibrary\steamapps\common\CastleCrashers"  /y</Command>
     </PostBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -149,7 +149,13 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\HookCrashers\Public\Types.h" />
     <ClInclude Include="src\Core\AddStringHook.h" />
+    <ClInclude Include="src\Core\ChangeMenuStateHook.h" />
+    <ClInclude Include="src\Core\MainMenuSystemHook.h" />
+    <ClInclude Include="src\Core\ModLoader.h" />
+    <ClInclude Include="src\Core\SceneConstructorHook.h" />
+    <ClInclude Include="src\Core\UIInputHandlerHook.h" />
     <ClInclude Include="src\framework.h" />
     <ClInclude Include="include\HookCrashersAPI.h" />
     <ClInclude Include="src\pch.h" />
@@ -162,10 +168,7 @@
     <ClInclude Include="src\Native\NativeFunctions.h" />
     <ClInclude Include="src\stdafx.h" />
     <ClInclude Include="src\SWF\Custom\CustomFunctions.h" />
-    <ClInclude Include="src\SWF\Data\SWFArgument.h" />
     <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h" />
-    <ClInclude Include="src\SWF\Data\SWFFunctionIDs.h" />
-    <ClInclude Include="src\SWF\Data\SWFReturn.h" />
     <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h" />
     <ClInclude Include="src\SWF\Override\Overrides.h" />
     <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
@@ -175,7 +178,13 @@
     <ClInclude Include="src\Util\StringUtils.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="include\HookCrashersAPI.cpp" />
     <ClCompile Include="src\Core\AddStringHook.cpp" />
+    <ClCompile Include="src\Core\ChangeMenuStateHook.cpp" />
+    <ClCompile Include="src\Core\MainMenuSystemHook.cpp" />
+    <ClCompile Include="src\Core\ModLoader.cpp" />
+    <ClCompile Include="src\Core\SceneConstructorHook.cpp" />
+    <ClCompile Include="src\Core\UIInputHandlerHook.cpp" />
     <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
@@ -191,7 +200,6 @@
     <ClCompile Include="src\Native\NativeFunctions.cpp" />
     <ClCompile Include="src\stdafx.cpp" />
     <ClCompile Include="src\SWF\Custom\CustomFunctions.cpp" />
-    <ClCompile Include="src\SWF\Data\SWFReturn.cpp" />
     <ClCompile Include="src\SWF\Helpers\SWFArgumentReader.cpp" />
     <ClCompile Include="src\SWF\Helpers\SWFReturnHelper.cpp" />
     <ClCompile Include="src\SWF\Override\Overrides.cpp" />
