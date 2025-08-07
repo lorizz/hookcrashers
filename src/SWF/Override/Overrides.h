@@ -1,9 +1,7 @@
 #pragma once
 
 #include "../../stdafx.h"
-#include "../Data/SWFArgument.h"
-#include "../Data/SWFReturn.h"
-#include "../Data/SWFFunctionIDs.h"
+#include "../../../include/HookCrashers/Public/Types.h"
 #include <functional>
 
 namespace HookCrashers {

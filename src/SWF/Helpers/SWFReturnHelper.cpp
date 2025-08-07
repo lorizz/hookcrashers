@@ -1,64 +1,61 @@
 #include "SWFReturnHelper.h"
+#include "../../stdafx.h" // Ok to include stdafx in a .cpp file
+
+// For convenience, use the same alias as the header
+using HC_SWFReturn = HookCrashers::SWF::Data::SWFReturn;
 
 namespace HookCrashers {
-    namespace SWF {
-        namespace Helpers {
+	namespace SWF {
+		namespace Helpers {
+			// ADD THIS IMPLEMENTATION
+			HC_SWFReturn* SWFReturnHelper::AsStructured(uint32_t* swfReturnRaw) {
+				// This is the core of the function: treat the block of memory
+				// pointed to by the raw pointer as a pointer to our struct.
+				return reinterpret_cast<HC_SWFReturn*>(swfReturnRaw);
+			}
 
-            Data::SWFReturn* SWFReturnHelper::AsStructured(uint32_t* swfReturnValuePtr) {
-                return reinterpret_cast<Data::SWFReturn*>(swfReturnValuePtr);
-            }
+			// FIXED: Use the alias for consistency in all function definitions
+			void SWFReturnHelper::SetBooleanSuccess(HC_SWFReturn* swfReturn, bool val) {
+				if (!swfReturn) return;
+				swfReturn->status = 0;
+				swfReturn->type = HC_SWFReturn::Type::Boolean;
+				swfReturn->padding = 0;
+				swfReturn->value.rawValue = 0;
+				swfReturn->value.boolValue = static_cast<uint8_t>(val ? 1 : 0);
+			}
 
-            void SWFReturnHelper::SetBooleanSuccess(uint32_t* pRet, bool value) {
-                if (!pRet) return;
-                pRet[0] = 0;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::Boolean);
-                pRet[2] = 0;
-                pRet[3] = 0;
-                *reinterpret_cast<uint8_t*>(&pRet[3]) = static_cast<uint8_t>(value ? 1 : 0);
-            }
+			void SWFReturnHelper::SetIntegerSuccess(HC_SWFReturn* swfReturn, int32_t val) {
+				if (!swfReturn) return;
+				swfReturn->status = 0;
+				swfReturn->type = HC_SWFReturn::Type::Integer;
+				swfReturn->padding = 0;
+				swfReturn->value.intValue = val;
+			}
 
-            void SWFReturnHelper::SetIntegerSuccess(uint32_t* pRet, int32_t value) {
-                if (!pRet) return;
-                pRet[0] = 0;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::Integer);
-                pRet[2] = 0;
-                pRet[3] = static_cast<uint32_t>(value);
-            }
+			void SWFReturnHelper::SetFloatSuccess(HC_SWFReturn* swfReturn, float val) {
+				if (!swfReturn) return;
+				swfReturn->status = 0;
+				swfReturn->type = HC_SWFReturn::Type::Float;
+				swfReturn->padding = 0;
+				swfReturn->value.floatValue = val;
+			}
 
-            void SWFReturnHelper::SetFloatSuccess(uint32_t* pRet, float value) {
-                if (!pRet) return;
-                pRet[0] = 0;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::Float);
-                pRet[2] = 0;
-                *reinterpret_cast<float*>(&pRet[3]) = value;
-            }
+			void SWFReturnHelper::SetStringSuccess(HC_SWFReturn* swfReturn, uint16_t stringId) {
+				if (!swfReturn) return;
+				swfReturn->status = 0;
+				swfReturn->type = HC_SWFReturn::Type::String;
+				swfReturn->padding = 0;
+				swfReturn->value.rawValue = 0;
+				swfReturn->value.stringId = stringId;
+			}
 
-            void SWFReturnHelper::SetStringSuccess(uint32_t* pRet, uint16_t stringId) {
-                if (!pRet) return;
-                pRet[0] = 0;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::String);
-                pRet[2] = 0;
-                pRet[3] = 0;
-                *reinterpret_cast<uint16_t*>(&pRet[3]) = stringId;
-            }
-
-            void SWFReturnHelper::SetFailure(uint32_t* pRet) {
-                if (!pRet) return;
-                pRet[0] = 1;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::None);
-                pRet[2] = 0;
-                pRet[3] = 0;
-            }
-
-            void SWFReturnHelper::SetVoidSuccess(uint32_t* pRet) {
-                if (!pRet) return;
-                pRet[0] = 0;
-                pRet[1] = static_cast<uint32_t>(Data::SWFReturn::Type::None);
-                pRet[2] = 0;
-                pRet[3] = 0;
-            }
-
-
-        }
-    }
+			void SWFReturnHelper::SetFailure(HC_SWFReturn* swfReturn) {
+				if (!swfReturn) return;
+				swfReturn->status = 1;
+				swfReturn->type = HC_SWFReturn::Type::None;
+				swfReturn->padding = 0;
+				swfReturn->value.rawValue = 0;
+			}
+		}
+	}
 }

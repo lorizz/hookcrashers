@@ -45,10 +45,11 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         uintptr_t entryPointAddr = base + nt->OptionalHeader.AddressOfEntryPoint;
         loggerInstance.Get()->info("Game Entry Point Address: 0x{:X}", entryPointAddr);
         
-        uintptr_t versionCheckValue = entryPointAddr + (0x400000 - base);
+        uintptr_t versionCheckValue = entryPointAddr + (0xD60000 - base);
         loggerInstance.Get()->info("Version Check Value (Entry + (Preferred Base - Actual Base)): 0x{:X}", versionCheckValue);
 
-        if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310)
+        //if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310) // Prior to 3.0
+        if (versionCheckValue == 0x11BB310 || versionCheckValue == 0x6F0310) // 3.0
         {
             loggerInstance.Get()->info("Supported EXE version detected.");
             HANDLE hThread = CreateThread(NULL, 0, InitThread, reinterpret_cast<LPVOID>(base), 0, NULL);
@@ -64,7 +65,13 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         }
         else {
             loggerInstance.Get()->error("Unsupported EXE version detected! Version Check Value: 0x{:X}", versionCheckValue);
-            MessageBoxA(NULL, "This .exe version is not supported by Hook Crashers.\nPlease use a compatible Steam version or debug.", "Hook Crashers", MB_ICONERROR);
+            char msg[256];
+            sprintf_s(msg, sizeof(msg),
+                "This .exe version is not supported by Hook Crashers.\n"
+                "Please use a compatible Steam version or debug.\n"
+                "BaseAddress: 0x%p", (void*)versionCheckValue);
+
+            MessageBoxA(NULL, msg, "Hook Crashers", MB_ICONERROR);
             return FALSE;
         }
     }
@@ -73,4 +80,10 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         HookCrashers::Util::Logger::Instance().Shutdown();
     }
     return TRUE;
+}
+
+namespace HookCrashers {
+    spdlog::logger* GetLogger() {
+        return Util::Logger::Instance().Get();
+    }
 }

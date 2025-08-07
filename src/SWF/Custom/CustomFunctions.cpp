@@ -2,10 +2,11 @@
 #include "../../Util/Logger.h"
 #include "../Helpers/SWFArgumentReader.h"
 #include "../Helpers/SWFReturnHelper.h"
+#include "../../Core/RegisterSWFFunctionHook.h"
 #include <unordered_map>
 #include <stdexcept>
 
-#include "../../Core/RegisterSWFFunctionHook.h"
+// The aliases are defined in the header and are now available here.
 
 namespace HookCrashers {
 	namespace SWF {
@@ -14,30 +15,16 @@ namespace HookCrashers {
 			static std::unordered_map<uint16_t, CustomSWFFunction> g_customFunctions;
 			static std::unordered_map<uint16_t, std::string> g_customFunctionNames;
 
-			void HelloWorldHandler(int paramCount, Data::SWFArgument** swfArgs, Data::SWFReturn* swfReturn) {
-				L.Get()->info("Custom::HelloWorldHandler called with {} parameters.", paramCount);
-
-				if (paramCount < 1) {
-					L.Get()->warn("HelloWorldHandler called with 0 parameters, expected at least 1 (string).");
-					swfReturn->SetFailure();
-					return;
-				}
-
-				std::string message = Helpers::SWFArgumentReader::GetValueAsString(swfArgs[0]);
-				L.Get()->info("HelloWorld Param 0: {}", message);
-
-				swfReturn->SetBooleanSuccess(true);
-				L.Get()->flush();
-			}
-
-			bool Register(Data::SWFFunctionID functionId, const std::string& functionName, CustomSWFFunction function) {
-				return Register(Data::ToValue(functionId), functionName, function);
+			bool Register(HC_SWFFunctionID functionId, const std::string& functionName, CustomSWFFunction function) {
+				// FIXED: Use a static_cast to convert from enum to underlying type
+				return Register(static_cast<uint16_t>(functionId), functionName, function);
 			}
 
 			bool Register(uint16_t functionId, const std::string& functionName, CustomSWFFunction function) {
 				if (!IsCustom(functionId)) {
 					L.Get()->error("Attempted to register invalid custom function ID: {} (must be >= {}).",
-						functionId, Data::ToValue(Data::SWFFunctionID::CustomBase));
+						// FIXED: Use static_cast for the enum value
+						functionId, static_cast<uint16_t>(HC_SWFFunctionID::CustomBase));
 					return false;
 				}
 				if (!function) {
@@ -56,11 +43,12 @@ namespace HookCrashers {
 			}
 
 			bool IsCustom(uint16_t id) {
-				return id >= Data::ToValue(Data::SWFFunctionID::CustomBase);
+				// FIXED: Use static_cast for the enum value
+				return id >= static_cast<uint16_t>(HC_SWFFunctionID::CustomBase);
 			}
 
 			bool HandleCall(uint16_t functionId, void* thisPtr, int swfContext,
-				int paramCount, Data::SWFArgument** swfArgs, Data::SWFReturn* swfReturn, uint32_t callbackPtr) {
+				int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn, uint32_t callbackPtr) {
 				auto it = g_customFunctions.find(functionId);
 				if (it == g_customFunctions.end()) {
 					L.Get()->warn("HandleCall: No handler found for custom function ID: {}", functionId);
@@ -86,17 +74,15 @@ namespace HookCrashers {
 				}
 				catch (const std::exception& e) {
 					L.Get()->error("Exception caught in custom function '{}' (ID: {}): {}", funcName, functionId, e.what());
-					if (swfReturn) {
-						swfReturn->SetFailure(); 
-					}
+					// FIXED: Call the helper instead of a member function
+					Helpers::SWFReturnHelper::SetFailure(swfReturn);
 					L.Get()->flush();
 					return true;
 				}
 				catch (...) {
 					L.Get()->error("Unknown exception caught in custom function '{}' (ID: {})", funcName, functionId);
-					if (swfReturn) {
-						swfReturn->SetFailure();
-					}
+					// FIXED: Call the helper instead of a member function
+					Helpers::SWFReturnHelper::SetFailure(swfReturn);
 					L.Get()->flush();
 					return true;
 				}
@@ -119,11 +105,15 @@ namespace HookCrashers {
 				return "UnknownCustomFunc_" + std::to_string(id);
 			}
 
+			static void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+				L.Get()->info("HelloWorld called!");
+				L.Get()->flush();
+			}
 
 			void InitializeSystem() {
 				L.Get()->info("Initializing Custom SWF Functions system...");
 
-				// Register(Data::ToValue(Data::SWFFunctionID::HelloWorld), "HelloWorld", HelloWorldHandler);
+				Register(HC_SWFFunctionID::HelloWorld, "HelloWorld", HelloWorldHandler);
 
 				L.Get()->info("Custom SWF Functions system initialized.");
 				L.Get()->flush();
@@ -140,10 +130,11 @@ namespace HookCrashers {
 				int count = 0;
 				auto idsToRegister = GetRegisteredIds();
 				L.Get()->debug("Found {} custom function IDs to register.", idsToRegister.size());
-				
+
 				for (uint16_t id : idsToRegister) {
 					std::string name = GetRegisteredName(id);
 					try {
+						// This function comes from RegisterSWFFunctionHook.h and needs to be correct there too
 						Core::DetouredRegisterSWFFunction(gameThisPtr, nullptr, id, name.c_str());
 						count++;
 					}
