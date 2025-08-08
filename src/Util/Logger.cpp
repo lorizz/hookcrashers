@@ -2,6 +2,25 @@
 #include <iostream>
 #include <cstdio>
 
+// Struct & Callback to find the secondary monitor
+struct MonitorInfo {
+	bool foundSecondary = false;
+	RECT secondaryMonitorRect{};
+};
+
+BOOL CALLBACK MonitorEnumProc(HMONITOR h, HDC, LPRECT, LPARAM dwData) {
+	auto* mi = reinterpret_cast<MonitorInfo*>(dwData);
+	MONITORINFOEXA monInfo;
+	monInfo.cbSize = sizeof(MONITORINFOEXA);
+	GetMonitorInfoA(h, &monInfo);
+	if (!(monInfo.dwFlags & MONITORINFOF_PRIMARY)) {
+		mi->foundSecondary = true;
+		mi->secondaryMonitorRect = monInfo.rcWork;
+		return FALSE;
+	}
+	return TRUE;
+}
+
 namespace HookCrashers {
 	namespace Util {
 		std::unique_ptr<Logger, Logger::Deleter> Logger::_instance;
@@ -24,6 +43,9 @@ namespace HookCrashers {
 					std::cerr.clear();
 					std::cin.clear();
 
+					// Posiziona la console sul secondo schermo se disponibile
+					PositionConsoleOnSecondaryMonitor();
+
 					auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
 					_logger->sinks().push_back(console_sink);
 					_consoleAllocated = true;
@@ -35,11 +57,38 @@ namespace HookCrashers {
 			}
 		}
 
+		void Logger::PositionConsoleOnSecondaryMonitor() {
+			SetConsoleTitleA("HookCrashers Log");
+
+			MonitorInfo mi;
+			EnumDisplayMonitors(NULL, NULL, MonitorEnumProc, reinterpret_cast<LPARAM>(&mi));
+
+			if (mi.foundSecondary) {
+				HWND consoleWindow = GetConsoleWindow();
+				if (consoleWindow) {
+					// Posiziona la console nell'angolo in alto a sinistra del secondo monitor
+					SetWindowPos(consoleWindow, NULL,
+						mi.secondaryMonitorRect.left,
+						mi.secondaryMonitorRect.top,
+						0, 0,
+						SWP_NOSIZE | SWP_NOZORDER);
+
+					Get()->info("Console positioned on secondary monitor at ({}, {})",
+						mi.secondaryMonitorRect.left,
+						mi.secondaryMonitorRect.top);
+				}
+			}
+			else {
+				Get()->info("Secondary monitor not found, console remains on primary monitor");
+			}
+		}
+
 		void Logger::Shutdown() {
 			Get()->info("Logger shutting down.");
 			Get()->flush();
 			spdlog::shutdown();
 			if (_consoleAllocated) {
+				FreeConsole();
 				_consoleAllocated = false;
 			}
 		}
@@ -48,11 +97,9 @@ namespace HookCrashers {
 			try {
 				auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>("../HookCrashers.log", true);
 				_logger = std::make_shared<spdlog::logger>("HookCrashers", file_sink);
-
 				_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
 				_logger->set_level(spdlog::level::trace);
 				_logger->flush_on(spdlog::level::info);
-
 				_logger->info("Logger initialized.");
 			}
 			catch (const spdlog::spdlog_ex& ex) {

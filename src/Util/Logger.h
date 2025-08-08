@@ -27,6 +27,8 @@ namespace HookCrashers {
 			};
 			static std::unique_ptr<Logger, Deleter> _instance;
 
+			void PositionConsoleOnSecondaryMonitor();
+
 			std::shared_ptr<spdlog::logger> _logger;
 			bool _consoleAllocated = false;
 			static uintptr_t _moduleBase;

@@ -57,10 +57,10 @@ namespace HookCrashers {
 			void InitializeSystem(uintptr_t moduleBase) {
 				L.Get()->info("Initializing SWF function override system...");
 
-				Register(HC_SWFFunctionID::ReadStorage, [](void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount,
+				/*Register(HC_SWFFunctionID::ReadStorage, [](void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount,
 					HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn, uint32_t callbackPtr) {
 					Dispatcher::CallOriginal(thisPtr, swfContext, functionIdRaw, paramCount, swfArgs, reinterpret_cast<uint32_t*>(swfReturn), callbackPtr);
-				});
+				});*/
 
 				// Example: Override ReadStorage (0x3F)
 				/*Register(HC_SWFFunctionID::ReadStorage, [](void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount,
