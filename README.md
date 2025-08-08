@@ -1,9 +1,3 @@
-Of course. I understand completely. I will merge the clear, direct style of the first English response you liked with the more detailed and accurate information we developed afterward (Mod Loader, ASI files, future plans, and logging).
-
-Here is the revised `README.md` that incorporates all of your requests.
-
----
-
 # HookCrashers
 
 HookCrashers is an advanced modding platform for the game **Castle Crashers**. Developed as an ASI mod, it provides a **Mod Loader** and a powerful **API** that acts as a bridge between C++ code and the game's ActionScript engine. This allows modders to create, register, and execute new custom functions directly within the game's SWF files.
