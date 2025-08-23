@@ -9,6 +9,10 @@
 #include "../src/SWF/Dispatcher/Dispatcher.h"
 #include "../src/Util/Logger.h"
 #include "../src/Util/StringCache.h"
+#include "../src/Core/IsFeatureEnabledHook.h"
+#include "../src/Core/GetPlayerObjectHook.h"
+#include "../src/Util/MemoryPatcher.h"
+#include "HookCrashers/Public/Globals.h"
 
 // Static map definitions for the C++ wrapper's callbacks
 std::unordered_map<uint16_t, HookCrashers::API::InternalCustomCallback> HookCrashers::API::Client::s_customCallbacks;
@@ -35,6 +39,14 @@ extern "C" {
         return HookCrashers::Core::HookManager::IsInitialized();
     }
 
+    HOOKCRASHERS_API uintptr_t* HookCrashers_GetGameManagerPtr() {
+        return HookCrashers::Core::g_pGameManagerPtr;
+    }
+
+    HOOKCRASHERS_API uintptr_t HookCrashers_GetModuleBase() {
+        return g_moduleBase;
+    }
+
     // --- String Management ---
     HOOKCRASHERS_API uint16_t HookCrashers_AddString(const char* stringToAdd) {
         return HookCrashers::Core::AddCustomString(stringToAdd);
@@ -50,6 +62,35 @@ extern "C" {
             return str.length();
         }
         return 0;
+    }
+
+    // --- Player Management ---
+    HOOKCRASHERS_API uint32_t HookCrashers_IsFeatureEnabled(uint16_t featureId) {
+        return HookCrashers::Core::GetIsFeatureEnabled(featureId);
+	}
+
+    HOOKCRASHERS_API void* HookCrashers_GetPlayerObject(int playerIndex) {
+        return HookCrashers::Core::GetPlayerObject(playerIndex);
+    }
+
+    HOOKCRASHERS_API char HookCrashers_GetPlayerState(void* playerObject) {
+        return HookCrashers::Core::GetPlayerState(playerObject);
+    }
+
+    HOOKCRASHERS_API char HookCrashers_GetPlayerActiveState(void* playerObject) {
+        return HookCrashers::Core::GetPlayerActiveState(playerObject);
+    }
+
+    HOOKCRASHERS_API uint64_t HookCrashers_GetPlayerPosition(void* playerObject) {
+        return HookCrashers::Core::GetPlayerPosition(playerObject);
+    }
+
+    HOOKCRASHERS_API int HookCrashers_GetPlayerSelectedCharacterType(void* playerObject) {
+        return HookCrashers::Core::GetPlayerSelectedCharacterType(playerObject);
+    }
+
+    HOOKCRASHERS_API bool HookCrashers_IsOnlineMode() {
+        return HookCrashers::Core::IsOnlineMode();
     }
 
     // --- Custom SWF Function Registration ---
@@ -131,5 +172,37 @@ extern "C" {
         swfReturn->type = HC_SWFReturn::Type::None;
         swfReturn->padding = 0;
         swfReturn->value.rawValue = 0;
+    }
+
+    // --- Memory Patcher ---
+    HOOKCRASHERS_API bool HookCrashers_PatchBytes(uintptr_t address, const std::vector<uint8_t>& newBytes) {
+        return HookCrashers::Util::MemoryPatcher::PatchBytes(address, newBytes);
+    }
+
+    // --- SWFArgumentReader ---
+    HOOKCRASHERS_API int32_t HookCrashers_Arg_GetInteger(const HC_SWFArgument* arg, int32_t defaultVal) {
+        if (!arg) return defaultVal;
+        if (arg->type == HC_SWFArgument::Type::Integer) return arg->value.intValue;
+        if (arg->type == HC_SWFArgument::Type::Boolean) return arg->value.boolValue;
+        return defaultVal;
+    }
+
+    HOOKCRASHERS_API bool HookCrashers_Arg_GetBoolean(const HC_SWFArgument* arg, bool defaultVal) {
+        if (!arg) return defaultVal;
+        if (arg->type == HC_SWFArgument::Type::Boolean) return arg->value.boolValue != 0;
+        if (arg->type == HC_SWFArgument::Type::Integer) return arg->value.intValue != 0;
+        return defaultVal;
+    }
+
+    HOOKCRASHERS_API float HookCrashers_Arg_GetFloat(const HC_SWFArgument* arg, float defaultVal) {
+        if (!arg) return defaultVal;
+        if (arg->type == HC_SWFArgument::Type::Float) return arg->value.floatValue;
+        if (arg->type == HC_SWFArgument::Type::Integer) return static_cast<float>(arg->value.intValue);
+        return defaultVal;
+    }
+
+    HOOKCRASHERS_API uint16_t HookCrashers_Arg_GetStringId(const HC_SWFArgument* arg, uint16_t defaultVal) {
+        if (!arg || arg->type != HC_SWFArgument::Type::String) return defaultVal;
+        return arg->value.stringId;
     }
 }

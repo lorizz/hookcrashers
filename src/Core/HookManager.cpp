@@ -4,6 +4,7 @@
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Override/Overrides.h"
 #include "../SWF/Dispatcher/Dispatcher.h"
+#include "IsFeatureEnabledHook.h"
 #include "RegisterSWFFunctionHook.h"
 #include "CallSWFFunctionHook.h"
 #include "UIInputHandlerHook.h"
@@ -17,6 +18,7 @@
 #include "ModLoader.h"
 #include <sstream>
 #include <iomanip>
+#include "GetPlayerObjectHook.h"
 
 // Define our aliases for the public types
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
@@ -112,7 +114,10 @@ namespace HookCrashers {
             bool success = true;
 
             //L.Get()->debug("Step 1: Loading Native Functions... (TODO)");
-            // ...
+            if (!Native::LoadNatives(moduleBase)) {
+                L.Get()->error("Failed to load native functions!");
+                success = false;
+			}
 
             //L.Get()->debug("Step 2: Setting up RegisterSWFFunction Hook...");
             if (!SetupRegisterSWFFunctionHook(moduleBase)) {
@@ -146,6 +151,16 @@ namespace HookCrashers {
             //L.Get()->debug("Step 6: Setting up RegisterAllSWFFunctions Hook...");
             if (!SetupRegisterAllSWFFunctionsHook(moduleBase)) {
                 L.Get()->error("Failed to setup RegisterAllSWFFunctions hook!");
+                success = false;
+            }
+
+            if (!SetupIsFeatureEnabledHook(moduleBase)) {
+                L.Get()->error("Failed to setup IsFeatureEnabled hook!");
+				success = false;
+            }
+
+            if (!SetupGetPlayerObjectHook(moduleBase)) {
+                L.Get()->error("Failed to setup GetPlayerObject hook!");
                 success = false;
             }
 

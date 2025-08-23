@@ -24,7 +24,7 @@ namespace HookCrashers {
             );
         static OriginalCallFunc_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t CALL_SWF_FUNCTION_OFFSET = 0x118710 + 0x20;
+        constexpr uintptr_t CALL_SWF_FUNCTION_OFFSET = 0x1187C0;
 
         // FIXED: Updated detour function signature to match the game's actual function
         void __fastcall DetouredCallSWFFunction(

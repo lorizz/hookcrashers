@@ -10,7 +10,7 @@ namespace HookCrashers {
         using OriginalRegisterAll_t = void(__fastcall*)(void* param_1);
         static OriginalRegisterAll_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t REGISTER_ALL_SWF_FUNCTIONS_OFFSET = 0x11E9E0 + 0x20;
+        constexpr uintptr_t REGISTER_ALL_SWF_FUNCTIONS_OFFSET = 0x11EA90;
 
         void __fastcall DetouredRegisterAllSWFFunctions(void* param_1) {
             //L.Get()->info("RegisterAllSWFFunctions hook executing...");
