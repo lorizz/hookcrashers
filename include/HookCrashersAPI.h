@@ -1,18 +1,20 @@
 #pragma once
 
 #include "HookCrashers/Public/Types.h"
+#include "HookCrashers/Public/NativeCaller.h"
+#include "HookCrashers/Public/NativeFunctions.h"
 #include <string>
 #include <vector>
 #include <functional>
 #include <unordered_map>
 
 #ifdef HOOKCRASHERS_EXPORTS
-#define HOOKCRASHERS_API __declspec(dllexport)
+    #define HOOKCRASHERS_API __declspec(dllexport)
 #else
-#define HOOKCRASHERS_API __declspec(dllimport)
+    #define HOOKCRASHERS_API __declspec(dllimport)
 #endif
 
-#define HOOKCRASHERS_API_VERSION 1.1f
+#define HOOKCRASHERS_API_VERSION 2.0f
 
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
 using HC_SWFReturn = HookCrashers::SWF::Data::SWFReturn;
@@ -27,10 +29,21 @@ extern "C" {
     HOOKCRASHERS_API bool HookCrashers_Initialize(uintptr_t moduleBase);
     HOOKCRASHERS_API float HookCrashers_GetVersion();
     HOOKCRASHERS_API bool HookCrashers_IsInitialized();
+    HOOKCRASHERS_API uintptr_t* HookCrashers_GetGameManagerPtr();
+    HOOKCRASHERS_API uintptr_t HookCrashers_GetModuleBase();
 
     // --- String Management ---
     HOOKCRASHERS_API uint16_t HookCrashers_AddString(const char* stringToAdd);
     HOOKCRASHERS_API size_t HookCrashers_GetString(uint16_t stringId, char* buffer, size_t bufferSize);
+
+	// --- Player Management ---
+	HOOKCRASHERS_API uint32_t HookCrashers_IsFeatureEnabled(uint16_t featureId);
+    HOOKCRASHERS_API void* HookCrashers_GetPlayerObject(int playerIndex);
+    HOOKCRASHERS_API char HookCrashers_GetPlayerState(void* playerObject);
+    HOOKCRASHERS_API char HookCrashers_GetPlayerActiveState(void* playerObj);
+    HOOKCRASHERS_API uint64_t HookCrashers_GetPlayerPosition(void* playerObject);
+    HOOKCRASHERS_API int HookCrashers_GetPlayerSelectedCharacterType(void* playerObject);
+    HOOKCRASHERS_API bool HookCrashers_IsOnlineMode();
 
     // --- Custom SWF Function Registration ---
     typedef void (*HookCrashers_CustomSWFCallback)(void* userData, int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn);
@@ -52,6 +65,17 @@ extern "C" {
     HOOKCRASHERS_API void HookCrashers_SetReturnFloat(HC_SWFReturn* swfReturn, float value);
     HOOKCRASHERS_API void HookCrashers_SetReturnString(HC_SWFReturn* swfReturn, uint16_t stringId);
     HOOKCRASHERS_API void HookCrashers_SetReturnFailure(HC_SWFReturn* swfReturn);
+
+    // --- SWF Argument Reading ---
+    HOOKCRASHERS_API int32_t HookCrashers_Arg_GetInteger(const HC_SWFArgument* arg, int32_t defaultVal);
+    HOOKCRASHERS_API bool HookCrashers_Arg_GetBoolean(const HC_SWFArgument* arg, bool defaultVal);
+    HOOKCRASHERS_API float HookCrashers_Arg_GetFloat(const HC_SWFArgument* arg, float defaultVal);
+    HOOKCRASHERS_API uint16_t HookCrashers_Arg_GetStringId(const HC_SWFArgument* arg, uint16_t defaultVal);
+    // Per ottenere la stringa, si usa prima GetStringId e poi GetString (come definito prima)
+    HOOKCRASHERS_API size_t HookCrashers_GetString(uint16_t stringId, char* buffer, size_t bufferSize);
+
+    // --- Memory Helpers
+    HOOKCRASHERS_API bool HookCrashers_PatchBytes(uintptr_t address, const std::vector<uint8_t>& newBytes);
 }
 
 // ============================================================================
@@ -93,9 +117,39 @@ namespace HookCrashers {
             static bool Initialize(uintptr_t moduleBase) { return HookCrashers_Initialize(moduleBase); }
             static float GetVersion() { return HookCrashers_GetVersion(); }
             static bool IsInitialized() { return HookCrashers_IsInitialized(); }
+            static uintptr_t* GetGameManagerPtr() { return HookCrashers_GetGameManagerPtr(); }
+            static uintptr_t GetModuleBase() { return HookCrashers_GetModuleBase(); }
 
             static uint16_t AddString(const std::string& str) {
                 return HookCrashers_AddString(str.c_str());
+            }
+
+            static uint32_t IsFeatureEnabled(uint16_t featureId) {
+                return HookCrashers_IsFeatureEnabled(featureId);
+			}
+
+            static void* GetPlayerObject(uint16_t playerId) {
+                return HookCrashers_GetPlayerObject(playerId);
+            }
+
+            static char GetPlayerState(void* playerObject) {
+                return HookCrashers_GetPlayerState(playerObject);
+            }
+
+            static char GetPlayerActiveState(void* playerObject) {
+                return HookCrashers_GetPlayerActiveState(playerObject);
+            }
+
+            static uint64_t GetPlayerPosition(void* playerObject) {
+                return HookCrashers_GetPlayerPosition(playerObject);
+            }
+
+            static int GetPlayerSelectedCharacterType(void* playerObject) {
+                return HookCrashers_GetPlayerSelectedCharacterType(playerObject);
+            }
+
+            static bool IsOnlineMode() {
+                return HookCrashers_IsOnlineMode();
             }
 
             static std::string GetString(uint16_t stringId) {
@@ -123,6 +177,11 @@ namespace HookCrashers {
             static void LogInfo(const std::string& msg) { HookCrashers_LogInfo(msg.c_str()); }
             static void LogWarn(const std::string& msg) { HookCrashers_LogWarn(msg.c_str()); }
             static void LogError(const std::string& msg) { HookCrashers_LogError(msg.c_str()); }
+
+            template <typename Ret = void, typename... Args>
+            static Ret CallNative(const Native::NativeInfo<void*>& native, Args... args) {
+                return Native::CallNative<Ret, Args...>(native, args...);
+            }
         };
 
         class ReturnHelper {
@@ -135,6 +194,55 @@ namespace HookCrashers {
                 HookCrashers_SetReturnString(ret, id);
             }
             static void SetFailure(HC_SWFReturn* ret) { HookCrashers_SetReturnFailure(ret); }
+        };
+
+        class SWFArgumentReader {
+        public:
+            static int32_t GetInteger(const HC_SWFArgument* arg, int32_t defaultVal = 0) {
+                return HookCrashers_Arg_GetInteger(arg, defaultVal);
+            }
+
+            static bool GetBoolean(const HC_SWFArgument* arg, bool defaultVal = false) {
+                return HookCrashers_Arg_GetBoolean(arg, defaultVal);
+            }
+
+            static float GetFloat(const HC_SWFArgument* arg, float defaultVal = 0.0f) {
+                return HookCrashers_Arg_GetFloat(arg, defaultVal);
+            }
+
+            static uint16_t GetStringId(const HC_SWFArgument* arg, uint16_t defaultVal = 0) {
+                return HookCrashers_Arg_GetStringId(arg, defaultVal);
+            }
+
+            static std::string GetString(const HC_SWFArgument* arg, const std::string& defaultVal = "") {
+                uint16_t id = HookCrashers_Arg_GetStringId(arg, 0);
+                if (id == 0) return defaultVal;
+                return Client::GetString(id);
+            }
+
+            static std::string GetValueAsString(const HC_SWFArgument* arg) {
+                if (!arg) return "[Null Arg]";
+                switch (arg->type) {
+                case HC_SWFArgument::Type::Boolean: return GetBoolean(arg) ? "true" : "false";
+                case HC_SWFArgument::Type::Integer: return std::to_string(GetInteger(arg));
+                case HC_SWFArgument::Type::Float: {
+                    char floatBuf[64];
+                    snprintf(floatBuf, sizeof(floatBuf), "%.4f", GetFloat(arg));
+                    return std::string(floatBuf);
+                }
+                case HC_SWFArgument::Type::String:
+                    return "\"" + GetString(arg, "[Invalid String ID]") + "\"";
+                default:
+                    return "[Unknown Type]";
+                }
+            }
+        };
+
+        class MemoryPatcher {
+        public:
+            static bool PatchBytes(uintptr_t address, const std::vector<uint8_t>& newBytes) {
+                return HookCrashers_PatchBytes(address, newBytes);
+            }
         };
     }
 }

@@ -16,6 +16,18 @@ namespace HookCrashers {
 			char unknown_padding_1[0x4];
 			uint16_t menuStateFlags;
 		};
+		struct CharacterData {
+			void* vtable;               // Offset 0x00
+			char unknown_padding_0[0x10]; // Padding
+			int id_1;                   // Offset 0x14
+			int id_2;                   // Offset 0x18
+			int id_3;                   // Offset 0x1C
+			uint32_t flag_1;            // Offset 0x20
+			uint32_t flag_2;            // Offset 0x24
+			int is_workshop_flag;       // Offset 0x28 - Il flag che hai trovato potrebbe essere qui
+			int is_dlc_flag;            // Offset 0x2C - O qui
+			// Aggiungi altri campi man mano che li scopri...
+		};
 	}
 	namespace SWF {
 		namespace Data {

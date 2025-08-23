@@ -13,7 +13,7 @@ namespace HookCrashers {
         constexpr uint16_t ID_FOR_THISPTR_CAPTURE = 0x14D;
         const char* NAME_FOR_THISPTR_CAPTURE = "u_temp";
 
-        constexpr uintptr_t REGISTER_SWF_FUNCTION_OFFSET = 0xFAB50 + 0x10;
+        constexpr uintptr_t REGISTER_SWF_FUNCTION_OFFSET = 0xFAC00;
 
         void __fastcall DetouredRegisterSWFFunction(void* thisPtr, void* /* edx - unused dummy */, uint16_t functionId, const char* functionName) {
             if (thisPtr != nullptr && functionId == ID_FOR_THISPTR_CAPTURE && functionName != nullptr && strcmp(functionName, NAME_FOR_THISPTR_CAPTURE) == 0) {

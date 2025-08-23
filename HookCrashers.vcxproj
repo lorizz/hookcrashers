@@ -149,9 +149,14 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="include\HookCrashers\Public\Globals.h" />
+    <ClInclude Include="include\HookCrashers\Public\NativeCaller.h" />
+    <ClInclude Include="include\HookCrashers\Public\NativeFunctions.h" />
     <ClInclude Include="include\HookCrashers\Public\Types.h" />
     <ClInclude Include="src\Core\AddStringHook.h" />
     <ClInclude Include="src\Core\ChangeMenuStateHook.h" />
+    <ClInclude Include="src\Core\GetPlayerObjectHook.h" />
+    <ClInclude Include="src\Core\IsFeatureEnabledHook.h" />
     <ClInclude Include="src\Core\MainMenuSystemHook.h" />
     <ClInclude Include="src\Core\ModLoader.h" />
     <ClInclude Include="src\Core\SceneConstructorHook.h" />
@@ -174,13 +179,17 @@
     <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
     <ClInclude Include="src\Util\Logger.h" />
     <ClInclude Include="src\targetver.h" />
+    <ClInclude Include="src\Util\MemoryPatcher.h" />
     <ClInclude Include="src\Util\StringCache.h" />
     <ClInclude Include="src\Util\StringUtils.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="include\HookCrashersAPI.cpp" />
+    <ClCompile Include="include\HookCrashers\Public\NativeFunctions.cpp" />
     <ClCompile Include="src\Core\AddStringHook.cpp" />
     <ClCompile Include="src\Core\ChangeMenuStateHook.cpp" />
+    <ClCompile Include="src\Core\GetPlayerObjectHook.cpp" />
+    <ClCompile Include="src\Core\IsFeatureEnabledHook.cpp" />
     <ClCompile Include="src\Core\MainMenuSystemHook.cpp" />
     <ClCompile Include="src\Core\ModLoader.cpp" />
     <ClCompile Include="src\Core\SceneConstructorHook.cpp" />
@@ -205,6 +214,7 @@
     <ClCompile Include="src\SWF\Override\Overrides.cpp" />
     <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
     <ClCompile Include="src\Util\Logger.cpp" />
+    <ClCompile Include="src\Util\MemoryPatcher.cpp" />
     <ClCompile Include="src\Util\StringCache.cpp" />
     <ClCompile Include="src\Util\StringUtils.cpp" />
   </ItemGroup>

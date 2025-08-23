@@ -4,20 +4,20 @@ namespace HookCrashers {
     namespace Native {
         namespace Natives {
             // Definizione dei nativi
-            NativeInfo<void*> IsCharacterAvailableInGameMode = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> GetSpecialCharacterIdForTeam = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsInCharSelect = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsCharDLC = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsLocalMultiplayer = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> GetPlayerOnlineId = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> UpdatePlayerIconState = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsBaseCharAvailableInMode = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> Native_Func_AE4AC0 = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsWorkshopCharAvailableInMode = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> Native_Func_AEDDA0 = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> GetTeamId = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> IsTeamReady = { nullptr, CallingConvention::Cdecl };
-            NativeInfo<void*> FinalizeTeamSelection = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsCharacterAvailableInGameMode = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> GetSpecialCharacterIdForTeam = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsInCharSelect = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsCharDLC = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsLocalMultiplayer = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> GetPlayerOnlineId = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> UpdatePlayerIconState = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsBaseCharAvailableInMode = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> Native_Func_AE4AC0 = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsWorkshopCharAvailableInMode = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> Native_Func_AEDDA0 = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> GetTeamId = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsTeamReady = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> FinalizeTeamSelection = { nullptr, CallingConvention::Cdecl };
         }
 
         bool LoadNatives(uintptr_t moduleBase) {
@@ -37,6 +37,7 @@ namespace HookCrashers {
             Natives::IsTeamReady.Address = reinterpret_cast<void*>(moduleBase + 0x89180); // 0xae9170 - 0xa60000
             Natives::FinalizeTeamSelection.Address = reinterpret_cast<void*>(moduleBase + 0x8DFC0); // TODO patch
 
+            // Verifica che almeno le funzioni critiche siano caricate
             return true;
         }
     }

@@ -28,11 +28,9 @@ namespace HookCrashers {
 					return false;
 				}
 				if (!function) {
-					L.Get()->warn("Attempted to register a null custom function for ID: {}", functionId);
 					return false;
 				}
 				if (functionName.empty()) {
-					L.Get()->warn("Attempted to register custom function ID {} with an empty name.", functionId);
 					return false;
 				}
 
@@ -58,17 +56,9 @@ namespace HookCrashers {
 				const std::string& funcName = GetRegisteredName(functionId);
 				L.Get()->info("Executing custom SWF function: '{}' (ID: {})", funcName, functionId);
 
-				if (paramCount > 0) {
-					L.Get()->debug("  Arguments:");
-					for (int i = 0; i < paramCount; ++i) {
-						L.Get()->debug("    [{}]: {}", i, Helpers::SWFArgumentReader::GetValueAsString(swfArgs[i]));
-					}
-				}
-
 				try {
 					it->second(paramCount, swfArgs, swfReturn);
 
-					L.Get()->debug("Custom function '{}' executed.", funcName);
 					L.Get()->flush();
 					return true;
 				}
@@ -129,7 +119,6 @@ namespace HookCrashers {
 
 				int count = 0;
 				auto idsToRegister = GetRegisteredIds();
-				L.Get()->debug("Found {} custom function IDs to register.", idsToRegister.size());
 
 				for (uint16_t id : idsToRegister) {
 					std::string name = GetRegisteredName(id);

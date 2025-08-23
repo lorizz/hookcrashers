@@ -25,7 +25,6 @@ namespace HookCrashers {
 					return;
 				}
 				g_originalCallSWFFunction = reinterpret_cast<OriginalCallSWFFunc_t>(originalCallSWFFuncAddr);
-				L.Get()->info("Dispatcher initialized with original function pointer: 0x{:X}", originalCallSWFFuncAddr);
 			}
 
 			bool Dispatch(
@@ -56,10 +55,8 @@ namespace HookCrashers {
 
 				Override::HookFunction overrideFunc = Override::Get(functionId);
 				if (overrideFunc) {
-					L.Get()->info("Dispatching call to Override Function handler (ID: {:#x})", functionId);
 					try {
 						overrideFunc(gameThisPtr, swfContext, functionIdRaw, paramCount, swfArgs, swfReturn, callbackPtr);
-						L.Get()->debug("Override function for ID {:#x} executed.", functionId);
 						L.Get()->flush();
 						return true;
 					}
