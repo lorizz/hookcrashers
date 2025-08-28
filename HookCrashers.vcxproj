@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -157,10 +157,11 @@
     <ClInclude Include="src\Core\ChangeMenuStateHook.h" />
     <ClInclude Include="src\Core\GetPlayerObjectHook.h" />
     <ClInclude Include="src\Core\IsFeatureEnabledHook.h" />
-    <ClInclude Include="src\Core\MainMenuSystemHook.h" />
+    <ClInclude Include="src\Core\ButtonMenuHandlerHook.h" />
     <ClInclude Include="src\Core\ModLoader.h" />
-    <ClInclude Include="src\Core\SceneConstructorHook.h" />
+    <ClInclude Include="src\Core\MainMenuBuilderHook.h" />
     <ClInclude Include="src\Core\UIInputHandlerHook.h" />
+    <ClInclude Include="src\Data\LocalizedString.h" />
     <ClInclude Include="src\framework.h" />
     <ClInclude Include="include\HookCrashersAPI.h" />
     <ClInclude Include="src\pch.h" />
@@ -190,9 +191,9 @@
     <ClCompile Include="src\Core\ChangeMenuStateHook.cpp" />
     <ClCompile Include="src\Core\GetPlayerObjectHook.cpp" />
     <ClCompile Include="src\Core\IsFeatureEnabledHook.cpp" />
-    <ClCompile Include="src\Core\MainMenuSystemHook.cpp" />
+    <ClCompile Include="src\Core\ButtonMenuHandlerHook.cpp" />
     <ClCompile Include="src\Core\ModLoader.cpp" />
-    <ClCompile Include="src\Core\SceneConstructorHook.cpp" />
+    <ClCompile Include="src\Core\MainMenuBuilderHook.cpp" />
     <ClCompile Include="src\Core\UIInputHandlerHook.cpp" />
     <ClCompile Include="src\pch.cpp">
       <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
@@ -217,6 +218,10 @@
     <ClCompile Include="src\Util\MemoryPatcher.cpp" />
     <ClCompile Include="src\Util\StringCache.cpp" />
     <ClCompile Include="src\Util\StringUtils.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
+    <None Include="README.md" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

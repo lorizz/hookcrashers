@@ -6,6 +6,6 @@
 namespace HookCrashers {
 	namespace Core {
 		extern void* g_pModLoaderMenuObject;
-		bool SetupSceneConstructorHook(uintptr_t moduleBase);
+		bool SetupMainMenuBuilderHook(uintptr_t moduleBase);
 	}
 }

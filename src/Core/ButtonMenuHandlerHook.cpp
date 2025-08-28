@@ -1,5 +1,5 @@
-#include "MainMenuSystemHook.h"
-#include "SceneConstructorHook.h"
+#include "ButtonMenuHandlerHook.h"
+#include "MainMenuBuilderHook.h"
 #include "../Util/Logger.h"
 #include <detours.h>
 #include <windows.h>
@@ -11,13 +11,13 @@ namespace HookCrashers {
 
         using CreateButtonObject_t = void* (__thiscall*)(void*, void*, void*, uint32_t, uint32_t, uint8_t);
         using FinalizeAndAddElement_t = void(__thiscall*)(void* this_ptr, void* pElement);
-        using MainMenuSceneConstructor_t = void(__thiscall*)(void* this_ptr, void* pSceneObject);
+        using MainMenuMainMenuBuilder_t = void(__thiscall*)(void* this_ptr, void* pSceneObject);
         using PrepareStringObject_t = char* (__thiscall*)(void* pStringObjectBuffer, const char* c_string);
         using LoadSymbol_t = void* (__thiscall*)(void* pMemoryManager, void* pSceneObject, void* pStringObject, uint32_t someID, float x, float y);
         using ChangeMenuState_t = void(__thiscall*)(void*, int);
         using TransitionControl_t = char(__thiscall*)(void*, uint16_t, uint16_t, uint8_t, uint8_t, uint8_t, void*, void*);
 
-        static MainMenuSceneConstructor_t g_originalMainMenuSceneConstructor = nullptr;
+        static MainMenuMainMenuBuilder_t g_originalMainMenuMainMenuBuilder = nullptr;
         static AllocateData_t g_originalAllocateData = nullptr;
 
         static CreateButtonObject_t CreateButtonObject = nullptr;
@@ -124,9 +124,9 @@ namespace HookCrashers {
             return g_originalAllocateData(this_ptr, size);
         }
 
-        void __fastcall HookedMainMenuSceneConstructor(void* this_ptr, void* edx_dummy, void* pSceneObject) {
-            L.Get()->debug("HookedMainMenuSceneConstructor entered. Calling original function first. Scene this_ptr: {:p}, pSceneObject: {:p}", this_ptr, pSceneObject);
-            g_originalMainMenuSceneConstructor(this_ptr, pSceneObject);
+        void __fastcall HookedMainMenuMainMenuBuilder(void* this_ptr, void* edx_dummy, void* pSceneObject) {
+            L.Get()->debug("HookedMainMenuMainMenuBuilder entered. Calling original function first. Scene this_ptr: {:p}, pSceneObject: {:p}", this_ptr, pSceneObject);
+            g_originalMainMenuMainMenuBuilder(this_ptr, pSceneObject);
 
             if (!g_pMemoryManager) {
                 L.Get()->error("Injection FAILED: Memory Manager not captured. Aborting.");
@@ -259,10 +259,10 @@ namespace HookCrashers {
                 DetourTransactionAbort(); return false;
             }
 
-            g_originalMainMenuSceneConstructor = reinterpret_cast<MainMenuSceneConstructor_t>(moduleBase + MAIN_MENU_SCENE_CONSTRUCTOR_OFFSET);
-            error = DetourAttach(&(PVOID&)g_originalMainMenuSceneConstructor, HookedMainMenuSceneConstructor);
+            g_originalMainMenuMainMenuBuilder = reinterpret_cast<MainMenuMainMenuBuilder_t>(moduleBase + MAIN_MENU_SCENE_CONSTRUCTOR_OFFSET);
+            error = DetourAttach(&(PVOID&)g_originalMainMenuMainMenuBuilder, HookedMainMenuMainMenuBuilder);
             if (error != NO_ERROR) {
-                L.Get()->error("DetourAttach for MainMenuSceneConstructor failed: {}", error);
+                L.Get()->error("DetourAttach for MainMenuMainMenuBuilder failed: {}", error);
                 DetourTransactionAbort(); return false;
             }
 

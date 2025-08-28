@@ -87,10 +87,10 @@
     <ClInclude Include="src\Core\UIInputHandlerHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\MainMenuSystemHook.h">
+    <ClInclude Include="src\Core\ButtonMenuHandlerHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Core\SceneConstructorHook.h">
+    <ClInclude Include="src\Core\MainMenuBuilderHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Core\ChangeMenuStateHook.h">
@@ -112,6 +112,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="include\HookCrashers\Public\Globals.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Data\LocalizedString.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
@@ -179,10 +182,10 @@
     <ClCompile Include="src\Core\UIInputHandlerHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\MainMenuSystemHook.cpp">
+    <ClCompile Include="src\Core\ButtonMenuHandlerHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Core\SceneConstructorHook.cpp">
+    <ClCompile Include="src\Core\MainMenuBuilderHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Core\ChangeMenuStateHook.cpp">
@@ -200,5 +203,9 @@
     <ClCompile Include="src\Util\MemoryPatcher.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <None Include=".gitignore" />
+    <None Include="README.md" />
   </ItemGroup>
 </Project>

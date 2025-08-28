@@ -74,7 +74,7 @@ extern "C" {
     // Per ottenere la stringa, si usa prima GetStringId e poi GetString (come definito prima)
     HOOKCRASHERS_API size_t HookCrashers_GetString(uint16_t stringId, char* buffer, size_t bufferSize);
 
-    // --- Memory Helpers
+    // --- Memory Helpers ---
     HOOKCRASHERS_API bool HookCrashers_PatchBytes(uintptr_t address, const std::vector<uint8_t>& newBytes);
 }
 
