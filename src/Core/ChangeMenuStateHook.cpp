@@ -1,5 +1,5 @@
 #include "ChangeMenuStateHook.h"
-#include "SceneConstructorHook.h" // Per accedere a g_pMyBigDataBlock
+#include "MainMenuBuilderHook.h" // Per accedere a g_pMyBigDataBlock
 #include "../Util/Logger.h"      // Il tuo sistema di logging
 #include <detours.h>
 #include <windows.h>
@@ -7,9 +7,9 @@
 
 namespace HookCrashers {
     namespace Core {
-        static Util::Logger& L = Util::Logger::Instance();
+        /*static Util::Logger& L = Util::Logger::Instance();
 
-        // Variabile globale che punta al nostro blocco dati handler, definita in SceneConstructorHook.cpp
+        // Variabile globale che punta al nostro blocco dati handler, definita in MainMenuBuilderHook.cpp
         extern void* g_pMyBigDataBlock;
 
         // ID che abbiamo scelto per il nostro menu. Deve corrispondere a quello in MainMenuSystemHook.cpp
@@ -46,7 +46,6 @@ namespace HookCrashers {
             }
 
             // --- È IL NOSTRO MENU! ESEGUIAMO LA NOSTRA LOGICA, REPLICANDO L'ORIGINALE ---
-            L.Get()->info("HookedChangeMenuState: Switching to custom ModLoader Menu (ID: 0x{:X})", menu_id);
 
             // Puntatori a membri importanti dell'oggetto 'this_ptr' (che è il gestore del menu)
             void** pCurrentHandlerPtr = (void**)((uintptr_t)this_ptr + 0x38);
@@ -91,7 +90,6 @@ namespace HookCrashers {
                 (uint8_t)handler_flags & 1,
                 (uint8_t)(handler_flags >> 3) & 1);
 
-            L.Get()->info("Custom menu state switch complete.");
             L.Get()->flush();
         }
 
@@ -126,6 +124,6 @@ namespace HookCrashers {
             L.Get()->info("--- ChangeMenuStateHook attached successfully. ---");
             L.Get()->flush();
             return true;
-        }
+        }*/
     }
 }

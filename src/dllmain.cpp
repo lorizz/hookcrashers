@@ -11,14 +11,12 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
     g_moduleBase = base;
 
     HookCrashers::Util::Logger::Instance().InitializeConsole();
-    HookCrashers::Util::Logger::Instance().Get()->info("Initialization thread started. Module Base: 0x{:X}", base);
 
     if (!HookCrashers::Core::HookManager::Initialize(base)) {
         HookCrashers::Util::Logger::Instance().Get()->critical("!!! HOOK INITIALIZATION FAILED !!!");
         MessageBoxA(NULL, "Hook Crashers failed to initialize critical components.\nThe mod may not function correctly.", "Hook Init Error", MB_ICONERROR | MB_OK);
     }
 
-    HookCrashers::Util::Logger::Instance().Get()->info("Initialization thread finished.");
     HookCrashers::Util::Logger::Instance().Get()->flush();
 
     return 0;
@@ -29,7 +27,6 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
     DisableThreadLibraryCalls(hModule);
 
     if (reason == DLL_PROCESS_ATTACH) {
-
         uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleA(NULL));
         if (base == 0) {
             MessageBoxA(NULL, "Failed to get game module handle.", "Hook Crashers Error", MB_ICONERROR);

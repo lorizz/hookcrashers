@@ -12,9 +12,9 @@
 #include "AddStringHook.h"
 #include "../SWF/Helpers/SWFReturnHelper.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
-#include "MainMenuSystemHook.h"
+#include "ButtonMenuHandlerHook.h"
 #include "ChangeMenuStateHook.h"
-#include "SceneConstructorHook.h"
+#include "MainMenuBuilderHook.h"
 #include "ModLoader.h"
 #include <sstream>
 #include <iomanip>
@@ -164,13 +164,13 @@ namespace HookCrashers {
                 success = false;
             }
 
-            /*if (!SetupMainMenuSystemHook(moduleBase)) {
-                L.Get()->error("Failed to setup MainMenuSystem hook!");
+            if (!SetupMainMenuBuilderHook(moduleBase)) {
+                L.Get()->error("Failed to setup MainMenuBuilder hook!");
                 success = false;
             }
 
-            if (!SetupSceneConstructorHook(moduleBase)) {
-                L.Get()->error("Failed to setup SceneConstructor hook!");
+            /*if (!SetupMainMenuSystemHook(moduleBase)) {
+                L.Get()->error("Failed to setup MainMenuSystem hook!");
                 success = false;
             }
 
