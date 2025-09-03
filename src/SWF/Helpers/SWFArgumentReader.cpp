@@ -1,5 +1,4 @@
 #include "SWFArgumentReader.h"
-#include "../../Native/NativeFunctions.h"
 #include "../../Util/StringCache.h"
 #include "../../Util/Logger.h"
 #include <string>
