@@ -4,8 +4,6 @@
 #include "../include/HookCrashersAPI.h"
 #include "../include/HookCrashers/Public/Globals.h"
 
-uintptr_t g_moduleBase = 0;
-
 DWORD WINAPI InitThread(LPVOID lpParam) {
     uintptr_t base = reinterpret_cast<uintptr_t>(lpParam);
     g_moduleBase = base;
@@ -42,6 +40,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         //if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310) // Prior to 3.0
         if (versionCheckValue == 0x85B310 || versionCheckValue == 0x563801) // 3.0
         {
+            MessageBoxA(nullptr, "asd", "asd", MB_ICONINFORMATION);
             HANDLE hThread = CreateThread(NULL, 0, InitThread, reinterpret_cast<LPVOID>(base), 0, NULL);
             if (hThread) {
                 CloseHandle(hThread);

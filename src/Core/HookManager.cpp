@@ -1,6 +1,5 @@
 #include "HookManager.h"
 #include "../Util/Logger.h"
-#include "../Native/NativeFunctions.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Override/Overrides.h"
 #include "../SWF/Dispatcher/Dispatcher.h"
@@ -12,13 +11,13 @@
 #include "AddStringHook.h"
 #include "../SWF/Helpers/SWFReturnHelper.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
-#include "ButtonMenuHandlerHook.h"
-#include "ChangeMenuStateHook.h"
-#include "MainMenuBuilderHook.h"
 #include "ModLoader.h"
 #include <sstream>
 #include <iomanip>
 #include "GetPlayerObjectHook.h"
+#include "DecryptSaveFileHook.h"
+#include "BlowfishDecryptHook.h"
+#include "../../include/HookCrashers/Public/NativeFunctions.h"
 
 // Define our aliases for the public types
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
@@ -31,7 +30,7 @@ namespace HookCrashers {
 
         bool HookManager::s_isInitialized = false;
         uintptr_t HookManager::s_moduleBase = 0;
-        float HookManager::s_version = 2.0f; // Good practice to specify 'f' for float literals
+        float HookManager::s_version = 2.2f; // Good practice to specify 'f' for float literals
 
         void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
             // This function is a simple test to ensure the system is working
@@ -142,6 +141,11 @@ namespace HookCrashers {
                 success = false;
             }
 
+            if (!SetupBlowfishDecryptHook(moduleBase)) {
+				L.Get()->error("Failed to setup BlowfishDecrypt Hook!");
+                success = false;
+            }
+
             //L.Get()->debug("Step 5a: Initializing Custom SWF Functions System...");
             SWF::Custom::InitializeSystem();
 
@@ -164,20 +168,10 @@ namespace HookCrashers {
                 success = false;
             }
 
-            if (!SetupMainMenuBuilderHook(moduleBase)) {
-                L.Get()->error("Failed to setup MainMenuBuilder hook!");
-                success = false;
+            if (!SetupDecryptSaveFileHook(moduleBase)) {
+                L.Get()->error("Failed to setup DecryptSaveFile hook!");
+				success = false;
             }
-
-            /*if (!SetupMainMenuSystemHook(moduleBase)) {
-                L.Get()->error("Failed to setup MainMenuSystem hook!");
-                success = false;
-            }
-
-            /*if (!SetupChangeMenuStateHook(moduleBase)) {
-                L.Get()->error("Failed to setup ChangeMenuState hook!");
-                success = false;
-            }*/
 
             //L.Get()->debug("Step 7: Register custom functions...");
             // This call will now work because GetHookCrashersVersion has the correct signature

@@ -3,7 +3,6 @@
 #include "../../Util/Logger.h"
 #include "../Helpers/SWFArgumentReader.h"
 #include "../Helpers/SWFReturnHelper.h"
-#include "../../Native/NativeFunctions.h"
 
 // Define our aliases for the public types
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
