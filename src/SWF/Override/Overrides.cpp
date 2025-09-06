@@ -27,7 +27,7 @@ namespace HookCrashers {
 					return false;
 				}
 				g_overrideFunctions[functionId] = hookFunction;
-				L.Get()->info("Registered SWF override for function ID: {:#x}", functionId);
+				//L.Get()->debug("Registered SWF override for function ID: {:#x}", functionId);
 				return true;
 			}
 
@@ -37,20 +37,6 @@ namespace HookCrashers {
 					return it->second;
 				}
 				return nullptr;
-			}
-
-			void Override_SetFlashController(void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn, uint32_t callbackPtr) {
-
-				if (paramCount > 0) {
-					const HC_SWFArgument* firstArg = swfArgs[0];
-					std::string controllerName = Helpers::SWFArgumentReader::GetString(firstArg, "N/A");
-					if (controllerName == "asdino") {
-						L.Get()->info("SetFlashController -> Controller Name: 'asdino'");
-						L.Get()->flush();
-					}
-				}
-				//L.Get()->info("SetFlashController -> Calling original function");
-				Dispatcher::CallOriginal(thisPtr, swfContext, functionIdRaw, paramCount, swfArgs, reinterpret_cast<uint32_t*>(swfReturn), callbackPtr);
 			}
 
 			void InitializeSystem(uintptr_t moduleBase) {

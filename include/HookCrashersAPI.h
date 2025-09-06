@@ -37,6 +37,7 @@ extern "C" {
     HOOKCRASHERS_API bool __stdcall HookCrashers_RegisterOverride_CPP(uint16_t functionId, void* callback);
     HOOKCRASHERS_API void __stdcall HookCrashers_CallOriginal(void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount, HC_SWFArgument** swfArgs, uint32_t* swfReturnRaw, uint32_t callbackPtr);
 
+    HOOKCRASHERS_API void __stdcall HookCrashers_LogDebug(const char* message);
     HOOKCRASHERS_API void __stdcall HookCrashers_LogInfo(const char* message);
     HOOKCRASHERS_API void __stdcall HookCrashers_LogWarn(const char* message);
     HOOKCRASHERS_API void __stdcall HookCrashers_LogError(const char* message);

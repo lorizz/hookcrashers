@@ -101,6 +101,7 @@ extern "C" {
     __declspec(dllimport) int __stdcall HookCrashers_GetPlayerSelectedCharacterType(void* playerObject);
     __declspec(dllimport) bool __stdcall HookCrashers_IsOnlineMode();
     __declspec(dllimport) void __stdcall HookCrashers_CallOriginal(void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount, HC_SWFArgument** swfArgs, uint32_t* swfReturnRaw, uint32_t callbackPtr);
+    __declspec(dllimport) void __stdcall HookCrashers_LogDebug(const char* message);
     __declspec(dllimport) void __stdcall HookCrashers_LogInfo(const char* message);
     __declspec(dllimport) void __stdcall HookCrashers_LogWarn(const char* message);
     __declspec(dllimport) void __stdcall HookCrashers_LogError(const char* message);
@@ -126,6 +127,7 @@ namespace HookCrashers
     inline bool IsInitialized() { return HookCrashers_IsInitialized(); }
     inline float GetVersion() { return HookCrashers_GetVersion(); }
     inline uintptr_t GetModuleBase() { return HookCrashers_GetModuleBase(); }
+    inline void LogDebug(const std::string& message) { HookCrashers_LogDebug(message.c_str()); }
     inline void LogInfo(const std::string& message) { HookCrashers_LogInfo(message.c_str()); }
     inline void LogWarn(const std::string& message) { HookCrashers_LogWarn(message.c_str()); }
     inline void LogError(const std::string& message) { HookCrashers_LogError(message.c_str()); }

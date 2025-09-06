@@ -36,7 +36,7 @@ namespace HookCrashers {
 
 				g_customFunctions[functionId] = function;
 				g_customFunctionNames[functionId] = functionName;
-				L.Get()->info("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
+				//L.Get()->info("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
 				return true;
 			}
 
@@ -110,7 +110,7 @@ namespace HookCrashers {
 			}
 
 			void RegisterAllWithGame(void* gameThisPtr, uintptr_t originalRegisterFuncAddr) {
-				L.Get()->info("Registering custom SWF functions with the game engine...");
+				//L.Get()->info("Registering custom SWF functions with the game engine...");
 
 				if (!gameThisPtr) {
 					L.Get()->error("Cannot register custom functions with game: gameThisPtr is NULL.");
@@ -135,7 +135,7 @@ namespace HookCrashers {
 					}
 					L.Get()->flush();
 				}
-				L.Get()->info("Finished attempting to register {} custom SWF functions with the game engine ({} successful calls logged).", idsToRegister.size(), count);
+				//L.Get()->info("Finished attempting to register {} custom SWF functions with the game engine ({} successful calls logged).", idsToRegister.size(), count);
 				L.Get()->flush();
 			}
 		}
