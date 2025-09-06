@@ -73,6 +73,7 @@ extern "C" {
     HOOKCRASHERS_API int __stdcall HookCrashers_GetPlayerSelectedCharacterType(void* playerObject) { return HookCrashers::Core::GetPlayerSelectedCharacterType(playerObject); }
     HOOKCRASHERS_API bool __stdcall HookCrashers_IsOnlineMode() { return HookCrashers::Core::IsOnlineMode(); }
     HOOKCRASHERS_API void __stdcall HookCrashers_CallOriginal(void* t, int s, uint32_t f, int p, HC_SWFArgument** a, uint32_t* r, uint32_t c) { HookCrashers::SWF::Dispatcher::CallOriginal(t, s, f, p, a, r, c); }
+    HOOKCRASHERS_API void __stdcall HookCrashers_LogDebug(const char* message) { if (message) HookCrashers::Util::Logger::Instance().Get()->debug(message); }
     HOOKCRASHERS_API void __stdcall HookCrashers_LogInfo(const char* message) { if (message) HookCrashers::Util::Logger::Instance().Get()->info(message); }
     HOOKCRASHERS_API void __stdcall HookCrashers_LogWarn(const char* message) { if (message) HookCrashers::Util::Logger::Instance().Get()->warn(message); }
     HOOKCRASHERS_API void __stdcall HookCrashers_LogError(const char* message) { if (message) HookCrashers::Util::Logger::Instance().Get()->error(message); }
