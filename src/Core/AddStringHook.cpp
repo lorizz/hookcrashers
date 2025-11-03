@@ -31,7 +31,7 @@ namespace HookCrashers {
             );
         static OriginalAddString_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t ADD_STRING_OFFSET = 0xFAD40;
+        constexpr uintptr_t ADD_STRING_OFFSET = 0xFB5D0;
 
         uint16_t __fastcall DetouredAddStringReturnID(
             StringManagerContext* pStringManager,

@@ -15,7 +15,7 @@ namespace HookCrashers {
         using OriginalBlowfishDecrypt_t = void(__thiscall*)(void* thisPtr, uint32_t* block_part1, uint32_t* block_part2);
         static OriginalBlowfishDecrypt_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t BLOWFISH_DECRYPT_OFFSET = 0xdacd0;
+        constexpr uintptr_t BLOWFISH_DECRYPT_OFFSET = 0xDB580;
         static void* g_capturedBlowfishContext = nullptr;
 
         static std::vector<uint8_t> g_capturedSaveData;

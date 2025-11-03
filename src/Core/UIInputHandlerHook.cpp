@@ -17,7 +17,7 @@ namespace HookCrashers {
         using OriginalUIInputHandler_t = uint32_t(__thiscall*)(void* this_ptr, uint32_t buttonId);
         static OriginalUIInputHandler_t g_originalUIInputHandler = nullptr;
 
-        constexpr uintptr_t UI_INPUT_HANDLER_OFFSET = 0x119F50;
+        constexpr uintptr_t UI_INPUT_HANDLER_OFFSET = 0x11A840;
 
         static std::unordered_set<uint32_t> g_discoveredFrameIds;
 

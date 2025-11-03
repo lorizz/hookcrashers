@@ -30,7 +30,7 @@ namespace HookCrashers {
 
         bool HookManager::s_isInitialized = false;
         uintptr_t HookManager::s_moduleBase = 0;
-        float HookManager::s_version = 2.3f; // Good practice to specify 'f' for float literals
+        float HookManager::s_version = 2.5f; // Good practice to specify 'f' for float literals
 
         void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
             // This function is a simple test to ensure the system is working

@@ -16,7 +16,7 @@ namespace HookCrashers {
             extern HOOKCRASHERS_API NativeInfo<void*> IsCharacterAvailableInGameMode;
             extern HOOKCRASHERS_API NativeInfo<void*> GetSpecialCharacterIdForTeam;
             extern HOOKCRASHERS_API NativeInfo<void*> IsInCharSelect;
-            extern HOOKCRASHERS_API NativeInfo<void*> IsCharDLC;
+            extern HOOKCRASHERS_API NativeInfo<void*> IsDLCOwned;
             extern HOOKCRASHERS_API NativeInfo<void*> IsLocalMultiplayer;
             extern HOOKCRASHERS_API NativeInfo<void*> GetPlayerOnlineId;
             extern HOOKCRASHERS_API NativeInfo<void*> UpdatePlayerIconState;
