@@ -8,14 +8,14 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
     uintptr_t base = reinterpret_cast<uintptr_t>(lpParam);
     g_moduleBase = base;
 
-    HookCrashers::Util::Logger::Instance().InitializeConsole();
+    //HookCrashers::Util::Logger::Instance().InitializeConsole();
 
     if (!HookCrashers::Core::HookManager::Initialize(base)) {
         HookCrashers::Util::Logger::Instance().Get()->critical("!!! HOOK INITIALIZATION FAILED !!!");
         MessageBoxA(NULL, "Hook Crashers failed to initialize critical components.\nThe mod may not function correctly.", "Hook Init Error", MB_ICONERROR | MB_OK);
     }
 
-    HookCrashers::Util::Logger::Instance().Get()->flush();
+    //HookCrashers::Util::Logger::Instance().Get()->flush();
 
     return 0;
 }
