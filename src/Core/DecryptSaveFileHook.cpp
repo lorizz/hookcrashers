@@ -10,7 +10,7 @@ namespace HookCrashers {
 
         using DecryptFunc_t = void(__thiscall*)(void* thisPtr, void* buffer_in_out, void* buffer_out_copy, int size);
         static DecryptFunc_t g_originalDecryptFunction = nullptr;
-        constexpr uintptr_t DECRYPT_FUNCTION_OFFSET = 0xDB470;
+        constexpr uintptr_t DECRYPT_FUNCTION_OFFSET = 0xDBD20;
 
         void __fastcall DetouredDecryptFunction(void* thisPtr, void* edx_dummy, void* buffer_in_out, void* buffer_out_copy, int size) {
             if (g_decryptThisPtr == nullptr || g_decryptThisPtr != thisPtr) {

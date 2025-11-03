@@ -7,7 +7,7 @@ namespace HookCrashers {
             HOOKCRASHERS_API NativeInfo<void*> IsCharacterAvailableInGameMode = { nullptr, CallingConvention::Cdecl };
             HOOKCRASHERS_API NativeInfo<void*> GetSpecialCharacterIdForTeam = { nullptr, CallingConvention::Cdecl };
             HOOKCRASHERS_API NativeInfo<void*> IsInCharSelect = { nullptr, CallingConvention::Cdecl };
-            HOOKCRASHERS_API NativeInfo<void*> IsCharDLC = { nullptr, CallingConvention::Cdecl };
+            HOOKCRASHERS_API NativeInfo<void*> IsDLCOwned = { nullptr, CallingConvention::Cdecl };
             HOOKCRASHERS_API NativeInfo<void*> IsLocalMultiplayer = { nullptr, CallingConvention::Cdecl };
             HOOKCRASHERS_API NativeInfo<void*> GetPlayerOnlineId = { nullptr, CallingConvention::Cdecl };
             HOOKCRASHERS_API NativeInfo<void*> UpdatePlayerIconState = { nullptr, CallingConvention::Cdecl };
@@ -31,27 +31,27 @@ namespace HookCrashers {
         // Definizione (implementazione) della funzione di inizializzazione
         bool LoadNatives(uintptr_t moduleBase) {
             Natives::IsCharacterAvailableInGameMode.Address = reinterpret_cast<void*>(moduleBase + 0x8DC00);
-            Natives::GetSpecialCharacterIdForTeam.Address = reinterpret_cast<void*>(moduleBase + 0x8DBD0);
-            Natives::IsInCharSelect.Address = reinterpret_cast<void*>(moduleBase + 0xE5BB0);
-            Natives::IsCharDLC.Address = reinterpret_cast<void*>(moduleBase + 0x8DC90);
-            Natives::IsLocalMultiplayer.Address = reinterpret_cast<void*>(moduleBase + 0x82120);
-            Natives::GetPlayerOnlineId.Address = reinterpret_cast<void*>(moduleBase + 0xEE210);
-            Natives::UpdatePlayerIconState.Address = reinterpret_cast<void*>(moduleBase + 0x107720);
-            Natives::IsBaseCharAvailableInMode.Address = reinterpret_cast<void*>(moduleBase + 0x8DDA0);
-            Natives::Native_Func_AE4AC0.Address = reinterpret_cast<void*>(moduleBase + 0x84AE0);
-            Natives::IsWorkshopCharAvailableInMode.Address = reinterpret_cast<void*>(moduleBase + 0x8DD60);
-            Natives::Native_Func_AEDDA0.Address = reinterpret_cast<void*>(moduleBase + 0x8DE00);
-            Natives::GetTeamId.Address = reinterpret_cast<void*>(moduleBase + 0x891B0);
-            Natives::IsTeamReady.Address = reinterpret_cast<void*>(moduleBase + 0x89180);
-            Natives::FinalizeTeamSelection.Address = reinterpret_cast<void*>(moduleBase + 0x8DFC0);
-            Natives::IsRightPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14EB90);
-            Natives::IsLeftPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14E9E0);
-            Natives::IsUpPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14E830);
-            Natives::IsDownPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14E680);
-            Natives::IsEnterPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14ED40);
-            Natives::RefreshGui.Address = reinterpret_cast<void*>(moduleBase + 0xC74A0);
-            Natives::GotoAndStop.Address = reinterpret_cast<void*>(moduleBase + 0x1177E0);
-			Natives::DecryptSaveFile.Address = reinterpret_cast<void*>(moduleBase + 0xDB470);
+            Natives::GetSpecialCharacterIdForTeam.Address = reinterpret_cast<void*>(moduleBase + 0x8E750);
+            Natives::IsInCharSelect.Address = reinterpret_cast<void*>(moduleBase + 0xE6470);
+            Natives::IsDLCOwned.Address = reinterpret_cast<void*>(moduleBase + 0x8E7B0);
+            Natives::IsLocalMultiplayer.Address = reinterpret_cast<void*>(moduleBase + 0x82C40);
+            Natives::GetPlayerOnlineId.Address = reinterpret_cast<void*>(moduleBase + 0xEEAB0);
+            Natives::UpdatePlayerIconState.Address = reinterpret_cast<void*>(moduleBase + 0x108010);
+            Natives::IsBaseCharAvailableInMode.Address = reinterpret_cast<void*>(moduleBase + 0x8E8C0);
+            Natives::Native_Func_AE4AC0.Address = reinterpret_cast<void*>(moduleBase + 0x85600);
+            Natives::IsWorkshopCharAvailableInMode.Address = reinterpret_cast<void*>(moduleBase + 0x8E880);
+            Natives::Native_Func_AEDDA0.Address = reinterpret_cast<void*>(moduleBase + 0x8E920);
+            Natives::GetTeamId.Address = reinterpret_cast<void*>(moduleBase + 0x89CD0);
+            Natives::IsTeamReady.Address = reinterpret_cast<void*>(moduleBase + 0x89CA0);
+            Natives::FinalizeTeamSelection.Address = reinterpret_cast<void*>(moduleBase + 0x8EAE0);
+            Natives::IsRightPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14F4F0);
+            Natives::IsLeftPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14F340);
+            Natives::IsUpPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14F190);
+            Natives::IsDownPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14EFE0);
+            Natives::IsEnterPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14F6A0);
+            Natives::RefreshGui.Address = reinterpret_cast<void*>(moduleBase + 0xC7D30);
+            Natives::GotoAndStop.Address = reinterpret_cast<void*>(moduleBase + 0x1180D0);
+			Natives::DecryptSaveFile.Address = reinterpret_cast<void*>(moduleBase + 0xDBD20);
             return true;
         }
     }

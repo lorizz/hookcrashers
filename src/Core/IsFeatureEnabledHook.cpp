@@ -10,7 +10,7 @@ namespace HookCrashers {
 
         static void* g_correctObjectManagerPtr = nullptr;
 
-        constexpr uintptr_t IS_FEATURE_ENABLED_OFFSET = 0x38070;
+        constexpr uintptr_t IS_FEATURE_ENABLED_OFFSET = 0x382C0;
 
         uint32_t __fastcall DetouredIsFeatureEnabled(void* thisPtr, void* /* edx - unused dummy */, uint16_t featureId) {
             if (thisPtr != nullptr) {
