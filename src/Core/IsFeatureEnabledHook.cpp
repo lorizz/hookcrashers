@@ -27,11 +27,12 @@ namespace HookCrashers {
                 try {
                     return g_originalFunction(thisPtr, featureId);
                 }
-                catch (const std::exception& e) {
+                catch (const std::exception&) {
                 }
                 catch (...) {
                 }
             }
+            return 0;
         }
 
         uint32_t GetIsFeatureEnabled(uint16_t featureId) {

@@ -13,8 +13,14 @@ namespace HookCrashers {
 
             // FIXED: All function signatures and logic updated to use the public type
             int32_t SWFArgumentReader::GetInteger(const HC_SWFArgument* arg, int32_t defaultVal) {
-                int32_t convertedArg = SWF::Helpers::SWFArgumentReader::GetFloat(arg, -1);
-                return convertedArg;
+                if (!arg) return defaultVal;
+                if (arg->type == HC_SWFArgument::Type::Integer)
+                    return arg->value.intValue;
+                if (arg->type == HC_SWFArgument::Type::Boolean)
+                    return arg->value.boolValue != 0 ? 1 : 0;
+                if (arg->type == HC_SWFArgument::Type::Float)
+                    return static_cast<int32_t>(arg->value.floatValue);
+                return defaultVal;
             }
 
             bool SWFArgumentReader::GetBoolean(const HC_SWFArgument* arg, bool defaultVal) {

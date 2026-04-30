@@ -47,8 +47,7 @@ namespace HookCrashers {
                 try {
                     resultId = g_originalFunction(pStringManager, hash_or_index, stringToAdd);
                 }
-                catch (const std::exception& e) {
-                    //L.Get()->error("!!! std::exception in original AddStringReturnID: {} !!!", e.what());
+                catch (const std::exception&) {
                     resultId = 0;
                 }
                 catch (...) {
@@ -78,12 +77,12 @@ namespace HookCrashers {
         }
 
         bool SetupAddStringHook(uintptr_t moduleBase) {
-            //L.Get()->info("Setting up AddStringReturnID hook (Target Offset: {:#x})...", ADD_STRING_OFFSET);
             uintptr_t targetAddress = moduleBase + ADD_STRING_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalAddString_t>(targetAddress);
+            L.Get()->info("[Hook] Attaching AddString hook at offset 0x{:X} (address=0x{:X}).", ADD_STRING_OFFSET, targetAddress);
 
             if (!g_originalFunction) {
-                //L.Get()->error("Target address for AddStringReturnID is invalid (0x{:X})", targetAddress);
+                L.Get()->error("[Hook] AddString hook failed because the target address is invalid.");
                 return false;
             }
 
@@ -91,20 +90,19 @@ namespace HookCrashers {
             DetourUpdateThread(GetCurrentThread());
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredAddStringReturnID);
             if (error != NO_ERROR) {
-                //L.Get()->error("DetourAttach failed for AddStringReturnID: {}", error);
+                L.Get()->error("[Hook] AddString DetourAttach failed at offset 0x{:X}: {}", ADD_STRING_OFFSET, error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                //L.Get()->error("DetourTransactionCommit failed for AddStringReturnID: {}", error);
+                L.Get()->error("[Hook] AddString DetourTransactionCommit failed at offset 0x{:X}: {}", ADD_STRING_OFFSET, error);
                 g_originalFunction = nullptr;
                 return false;
             }
 
-            //L.Get()->info("AddStringReturnID hook attached successfully at 0x{:X}", targetAddress);
-            //L.Get()->flush();
+            L.Get()->info("[Hook] AddString hook attached successfully at offset 0x{:X} (address=0x{:X}).", ADD_STRING_OFFSET, targetAddress);
             return true;
         }
 

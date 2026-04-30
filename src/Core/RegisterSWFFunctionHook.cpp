@@ -31,8 +31,7 @@ namespace HookCrashers {
                 try {
                     g_originalFunction(thisPtr, functionId, functionName);
                 }
-                catch (const std::exception& e) {
-                    //L.Get()->error("!!! std::exception in original RegisterSWFFunction (ID={:#x}, Name={}): {} !!!", functionId, functionName ? functionName : "NULL", e.what());
+                catch (const std::exception&) {
                 }
                 catch (...) {
                     //L.Get()->critical("!!! Unknown exception in original RegisterSWFFunction (ID={:#x}, Name={}) !!!", functionId, functionName ? functionName : "NULL");
@@ -44,12 +43,12 @@ namespace HookCrashers {
         }
 
         bool SetupRegisterSWFFunctionHook(uintptr_t moduleBase) {
-            //L.Get()->info("Setting up RegisterSWFFunction hook...");
             uintptr_t targetAddress = moduleBase + REGISTER_SWF_FUNCTION_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalRegisterFunc_t>(targetAddress);
+            L.Get()->info("[Hook] Attaching RegisterSWFFunction hook at offset 0x{:X} (address=0x{:X}).", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
 
             if (!g_originalFunction) {
-                //L.Get()->error("Target address for RegisterSWFFunction is invalid (0x{:X})", targetAddress);
+                L.Get()->error("[Hook] RegisterSWFFunction hook failed because the target address is invalid.");
                 return false;
             }
 
@@ -57,20 +56,19 @@ namespace HookCrashers {
             DetourUpdateThread(GetCurrentThread());
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredRegisterSWFFunction);
             if (error != NO_ERROR) {
-                //L.Get()->error("DetourAttach failed for RegisterSWFFunction: {}", error);
+                L.Get()->error("[Hook] RegisterSWFFunction DetourAttach failed at offset 0x{:X}: {}", REGISTER_SWF_FUNCTION_OFFSET, error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                //L.Get()->error("DetourTransactionCommit failed for RegisterSWFFunction: {}", error);
+                L.Get()->error("[Hook] RegisterSWFFunction DetourTransactionCommit failed at offset 0x{:X}: {}", REGISTER_SWF_FUNCTION_OFFSET, error);
                 g_originalFunction = nullptr;
                 return false;
             }
 
-            //L.Get()->info("RegisterSWFFunction hook attached successfully at 0x{:X}", targetAddress);
-            //L.Get()->flush();
+            L.Get()->info("[Hook] RegisterSWFFunction hook attached successfully at offset 0x{:X} (address=0x{:X}).", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
             return true;
         }
 

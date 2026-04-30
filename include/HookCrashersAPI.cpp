@@ -12,6 +12,7 @@
 #include "../src/Util/MemoryPatcher.h"
 #include "../src/Core/DecryptSaveFileHook.h"
 #include "../src/Util/SteamHelper.h"
+#include "../src/Save/CharacterConfig.h"
 
 #include <functional>
 #include <unordered_map>
@@ -111,6 +112,19 @@ extern "C" {
         if (!data || size == 0) return false;
         return HookCrashers::Util::MemoryPatcher::PatchBytes(address, std::vector<uint8_t>(data, data + size));
     }
+
+    HOOKCRASHERS_API bool __stdcall HookCrashers_RegisterCharacter_CPP(const char* id, uint8_t weapon, uint8_t pet, bool initiallyUnlocked, bool freshOnly) {
+        if (!id || !*id) return false;
+        HookCrashers::Config::AddonCharacterDef def;
+        def.id = id;
+        def.weapon = weapon;
+        def.animal = pet;
+        def.unlocked = initiallyUnlocked;
+        def.freshOnly = freshOnly;
+        HookCrashers::Save::CharacterConfig::Instance().RegisterCharacter(def);
+        return true;
+    }
+
 
     HOOKCRASHERS_API int32_t __stdcall HookCrashers_Arg_GetInteger(const HC_SWFArgument* a, int32_t d) { if (!a) return d; if (a->type == HC_SWFArgument::Type::Integer) return a->value.intValue; if (a->type == HC_SWFArgument::Type::Boolean) return a->value.boolValue; return d; }
     HOOKCRASHERS_API bool __stdcall HookCrashers_Arg_GetBoolean(const HC_SWFArgument* a, bool d) { if (!a) return d; if (a->type == HC_SWFArgument::Type::Boolean) return a->value.boolValue != 0; if (a->type == HC_SWFArgument::Type::Integer) return a->value.intValue != 0; return d; }

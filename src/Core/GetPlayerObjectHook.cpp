@@ -18,7 +18,7 @@ namespace HookCrashers {
                 try {
                     return g_originalFunction(thisPtr, playerId);
                 }
-                catch (const std::exception& e) {
+                catch (const std::exception&) {
                 }
                 catch (...) {
                 }
@@ -56,7 +56,7 @@ namespace HookCrashers {
                 return nullptr;
             }
 
-            // Controlla se il puntatore Ë stato inizializzato correttamente durante il setup.
+            // Controlla se il puntatore √® stato inizializzato correttamente durante il setup.
             if (!g_pGameManagerPtr) {
                 return nullptr;
             }
@@ -118,7 +118,7 @@ namespace HookCrashers {
         }
 
         bool IsOnlineMode() {
-            // Usa il puntatore al GameManager che hai gi‡ inizializzato
+            // Usa il puntatore al GameManager che hai gi√† inizializzato
             if (!g_pGameManagerPtr || *g_pGameManagerPtr == 0) {
                 return false;
             }
@@ -143,8 +143,8 @@ namespace HookCrashers {
                 *reinterpret_cast<uintptr_t*>(pObject) + 0x14
                 );
 
-            // Il parametro `param_1` di Ghidra Ë irrilevante qui,
-            // perchÈ non viene mai usato prima della chiamata.
+            // Il parametro `param_1` di Ghidra √® irrilevante qui,
+            // perch√© non viene mai usato prima della chiamata.
             // La chiamata alla funzione non sembra passare argomenti significativi
             // oltre al `this` pointer in ECX.
             int result = func(pObject);
