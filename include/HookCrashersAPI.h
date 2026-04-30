@@ -54,7 +54,7 @@ extern "C" {
     HOOKCRASHERS_API uint16_t __stdcall HookCrashers_Arg_GetStringId(const HC_SWFArgument* arg, uint16_t defaultVal);
 
     HOOKCRASHERS_API bool __stdcall HookCrashers_PatchBytes(uintptr_t address, const uint8_t* data, size_t size);
-
+    HOOKCRASHERS_API bool __stdcall HookCrashers_RegisterCharacter_CPP(const char* id, uint8_t weapon, uint8_t pet, bool initiallyUnlocked, bool freshOnly);
     HOOKCRASHERS_API void __stdcall HookCrashers_FindCastleCrashersSavePath_CPP(char* buffer, size_t bufferSize, bool* success);
     HOOKCRASHERS_API const std::vector<uint8_t>& __stdcall HookCrashers_GetCapturedSaveData();
 }

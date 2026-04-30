@@ -36,7 +36,7 @@ namespace HookCrashers {
 
 				g_customFunctions[functionId] = function;
 				g_customFunctionNames[functionId] = functionName;
-				//L.Get()->info("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
+				L.Get()->info("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
 				return true;
 			}
 

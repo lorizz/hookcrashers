@@ -114,6 +114,54 @@
     <ClInclude Include="include\HookCrashers.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Config\HookCrashersConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Localization\LocalizedString.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Localization\LocalizationManager.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Localization\LocalizationSystem.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Localization\StringLookupHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\CharacterConfig.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\GenerateDefaultCharacterDataHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\PainterConfigHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\SaveExpansion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\SavePatches.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Scripting\ScriptModLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\UI\ImGuiOverlay.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Game\Entities.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="include\HookCrashers\Public\Enums.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\RebuildCharacterSlotTableHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\pch.cpp">
@@ -198,6 +246,159 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="include\HookCrashers\Public\Globals.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\backends\imgui_impl_dx9.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\backends\imgui_impl_win32.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_draw.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_tables.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_widgets.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lapi.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lauxlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lbaselib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lcode.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lcorolib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lctype.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldblib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldebug.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldo.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldump.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lfunc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lgc.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\linit.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\liolib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\llex.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lmathlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lmem.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\loadlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lobject.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lopcodes.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\loslib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lparser.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstate.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstring.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstrlib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltable.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltablib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lundump.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lutf8lib.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lvm.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lzio.c">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Config\HookCrashersConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Localization\LocalizationManager.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Localization\LocalizationSystem.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Localization\StringLookupHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\CharacterConfig.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\GenerateDefaultCharacterDataHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\PainterConfigHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\SaveExpansion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\SavePatches.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Scripting\ScriptModLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\UI\ImGuiOverlay.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\RebuildCharacterSlotTableHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\SyncCharacterListFromSaveHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>

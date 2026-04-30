@@ -18,6 +18,10 @@
 #include "DecryptSaveFileHook.h"
 #include "BlowfishDecryptHook.h"
 #include "../../include/HookCrashers/Public/NativeFunctions.h"
+#include "../Save/SaveExpansion.h"
+#include "../Localization/LocalizationSystem.h"
+#include "../Scripting/ScriptModLoader.h"
+#include "../UI/ImGuiOverlay.h"
 
 // Define our aliases for the public types
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
@@ -33,7 +37,6 @@ namespace HookCrashers {
         float HookManager::s_version = 2.5f; // Good practice to specify 'f' for float literals
 
         void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
-            // This function is a simple test to ensure the system is working
             Util::Logger::Instance().Get()->info("Hello, world! This is HookCrashers SWF Function Test.");
 		}
 
@@ -56,7 +59,7 @@ namespace HookCrashers {
 
         void GetModInfoHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
             if (paramCount < 2) {
-                Util::Logger::Instance().Get()->warn("GetModInfoHandler: Not enough parameters provided (int index, string propertyName).");
+                Util::Logger::Instance().Get()->warn("[SWF] GetModInfo called with too few parameters.");
                 SWF::Helpers::SWFReturnHelper::SetFailure(swfReturn);
                 return;
             }
@@ -70,27 +73,26 @@ namespace HookCrashers {
             if (mod) {
                 if (property == "name") {
                     stringToReturn = mod->name;
-                    L.Get()->debug("GetModInfoHandler: Setting stringToReturn to name: '{}'", stringToReturn);
+                    L.Get()->debug("[SWF] GetModInfo resolved name='{}'.", stringToReturn);
                 }
                 else if (property == "author") {
                     stringToReturn = mod->author;
-                    L.Get()->debug("GetModInfoHandler: Setting stringToReturn to author: '{}'", stringToReturn);
+                    L.Get()->debug("[SWF] GetModInfo resolved author='{}'.", stringToReturn);
                 }
                 else if (property == "version") {
                     stringToReturn = mod->version;
-                    L.Get()->debug("GetModInfoHandler: Setting stringToReturn to version: '{}'", stringToReturn);
+                    L.Get()->debug("[SWF] GetModInfo resolved version='{}'.", stringToReturn);
                 }
                 else {
-                    L.Get()->debug("GetModInfoHandler: Unknown property '{}' requested", property);
+                    L.Get()->debug("[SWF] GetModInfo received unknown property '{}'.", property);
                 }
             }
             else {
-                L.Get()->debug("GetModInfoHandler: No mod found at index {}", index);
+                L.Get()->debug("[SWF] GetModInfo found no mod at index {}.", index);
             }
 
-            L.Get()->debug("GetModInfoHandler: Final stringToReturn: '{}'", stringToReturn);
             uint16_t resultStringId = AddCustomString(stringToReturn.c_str());
-            L.Get()->debug("GetModInfoHandler: AddCustomString returned ID: {}", resultStringId);
+            L.Get()->debug("[SWF] GetModInfo returned string_id={}.", resultStringId);
             SWF::Helpers::SWFReturnHelper::SetStringSuccess(swfReturn, resultStringId);
         }
 
@@ -106,7 +108,7 @@ namespace HookCrashers {
 
             s_moduleBase = moduleBase;
             Util::Logger& L = Util::Logger::Instance();
-            L.Get()->info("===== HookManager Initialization (Base: 0x{:X}) =====", moduleBase);
+            L.Get()->info("===== HookCrashers initialization started (module_base=0x{:X}) =====", moduleBase);
 
             // The rest of this function remains the same, as it's orchestrating
             // the other systems that we have already fixed.
@@ -152,6 +154,29 @@ namespace HookCrashers {
             //L.Get()->debug("Step 5b: Initializing SWF Override System...");
             SWF::Override::InitializeSystem(moduleBase);
 
+            if (!Scripting::ScriptModLoader::Instance().DiscoverAndLoad()) {
+                L.Get()->error("Failed to discover script mods!");
+                success = false;
+            }
+
+            if (!Save::InitializeSaveExpansion()) {
+                L.Get()->error("Failed to initialize save expansion subsystem!");
+                success = false;
+            }
+
+            /*if (!Network::SetupNetworkDiagnosticsHooks(moduleBase)) {
+                L.Get()->warn("Failed to install network diagnostic hooks. Continuing without network diagnostics.");
+            }*/
+
+            if (!Localization::InitializeLocalizationSystem()) {
+                L.Get()->error("Failed to initialize localization subsystem!");
+                success = false;
+            }
+
+            if (!UI::InitializeOverlay()) {
+                L.Get()->warn("Failed to initialize ImGui overlay. Continuing without in-game UI.");
+            }
+
             //L.Get()->debug("Step 6: Setting up RegisterAllSWFFunctions Hook...");
             if (!SetupRegisterAllSWFFunctionsHook(moduleBase)) {
                 L.Get()->error("Failed to setup RegisterAllSWFFunctions hook!");
@@ -181,15 +206,27 @@ namespace HookCrashers {
             SWF::Custom::Register(HC_SWFFunctionID::GetModInfo, "GetModInfo", GetModInfoHandler);
 
             if (success) {
-                L.Get()->info("===== HookManager Initialization Successful =====");
+                L.Get()->info("===== HookCrashers initialization completed successfully =====");
                 s_isInitialized = true;
 
-                L.Get()->info("===== Starting Mod Loader =====");
-                ModLoader::LoadAllMods();
-                L.Get()->info("===== Mod Loader Finished =====");
+                L.Get()->info("===== Registering loaded mods =====");
+                for (const auto& mod : Scripting::ScriptModLoader::Instance().GetLoadedMods()) {
+                    ModLoader::RegisterScriptMod(
+                        mod.name,
+                        mod.author,
+                        mod.version,
+                        mod.directory,
+                        mod.hasMainLua,
+                        mod.hasLocalizations,
+                        mod.hasManifest,
+                        mod.hasIcon,
+                        mod.iconPath);
+                }
+                ModLoader::LoadLegacyBinaryMods();
+                L.Get()->info("===== Mod registration finished =====");
             }
             else {
-                L.Get()->error("===== HookManager Initialization Failed =====");
+                L.Get()->error("===== HookCrashers initialization failed =====");
                 s_isInitialized = false;
             }
             L.Get()->flush();

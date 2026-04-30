@@ -8,6 +8,7 @@
 
 #include "HookCrashers/Public/Types.h"
 #include "HookCrashers/Public/Globals.h"
+#include "HookCrashers/Public/Enums.h"
 
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
 using HC_SWFReturn = HookCrashers::SWF::Data::SWFReturn;
@@ -43,6 +44,7 @@ namespace HookCrashers
     void CallOriginal(void* thisPtr, int swfCtx, uint32_t funcId, int argCount, HC_SWFArgument** args, uint32_t* rawReturn, uint32_t callbackPtr);
 
     bool PatchBytes(uintptr_t address, const std::vector<uint8_t>& bytes);
+    bool RegisterCharacter(const std::string& id, uint8_t weapon, uint8_t pet, bool initiallyUnlocked, bool freshOnly);
 
     std::pair<bool, std::string> FindCastleCrashersSavePath();
     const std::vector<uint8_t>& GetCapturedSaveData();
@@ -111,6 +113,7 @@ extern "C" {
     __declspec(dllimport) void __stdcall HookCrashers_SetReturnString(HC_SWFReturn* swfReturn, uint16_t stringId);
     __declspec(dllimport) void __stdcall HookCrashers_SetReturnFailure(HC_SWFReturn* swfReturn);
     __declspec(dllimport) bool __stdcall HookCrashers_PatchBytes(uintptr_t address, const uint8_t* data, size_t size);
+    __declspec(dllimport) bool __stdcall HookCrashers_RegisterCharacter_CPP(const char* id, uint8_t weapon, uint8_t pet, bool initiallyUnlocked, bool freshOnly);
     __declspec(dllimport) int32_t __stdcall HookCrashers_Arg_GetInteger(const HC_SWFArgument* arg, int32_t defaultVal);
     __declspec(dllimport) bool __stdcall HookCrashers_Arg_GetBoolean(const HC_SWFArgument* arg, bool defaultVal);
     __declspec(dllimport) float __stdcall HookCrashers_Arg_GetFloat(const HC_SWFArgument* arg, float defaultVal);
@@ -149,6 +152,17 @@ namespace HookCrashers
     inline bool IsOnlineMode() { return HookCrashers_IsOnlineMode(); }
     inline void CallOriginal(void* t, int s, uint32_t f, int p, HC_SWFArgument** a, uint32_t* r, uint32_t c) { HookCrashers_CallOriginal(t, s, f, p, a, r, c); }
     inline bool PatchBytes(uintptr_t address, const std::vector<uint8_t>& bytes) { return HookCrashers_PatchBytes(address, bytes.data(), bytes.size()); }
+    inline bool RegisterCharacter(const std::string& id, uint8_t weapon, uint8_t pet, bool initiallyUnlocked, bool freshOnly) {
+        return HookCrashers_RegisterCharacter_CPP(id.c_str(), weapon, pet, initiallyUnlocked, freshOnly);
+    }
+    inline bool RegisterCharacter(const std::string& id, Enums::Weapon weapon, Enums::Pet pet, bool initiallyUnlocked, bool freshOnly) {
+        return HookCrashers_RegisterCharacter_CPP(
+            id.c_str(),
+            static_cast<uint8_t>(weapon),
+            static_cast<uint8_t>(pet),
+            initiallyUnlocked,
+            freshOnly);
+    }
     inline std::pair<bool, std::string> FindCastleCrashersSavePath() {
         char pathBuffer[512];
         bool success = false;
