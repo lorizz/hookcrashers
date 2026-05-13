@@ -9,6 +9,7 @@
 #include "UIInputHandlerHook.h"
 #include "RegisterAllSWFFunctionsHook.h"
 #include "AddStringHook.h"
+#include "SWFDiagnosticsHook.h"
 #include "../SWF/Helpers/SWFReturnHelper.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
 #include "ModLoader.h"
@@ -136,6 +137,10 @@ namespace HookCrashers {
             if (!SetupCallSWFFunctionHook(moduleBase)) {
                 L.Get()->error("Failed to setup CallSWFFunction hook!");
                 success = false;
+            }
+
+            if (!SetupSWFDiagnosticsHook(moduleBase)) {
+                L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
             }
 
             if (!SetupUIInputHandlerHook(moduleBase)) {

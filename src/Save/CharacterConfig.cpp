@@ -21,8 +21,8 @@ void CharacterConfig::LoadFromHookCrashersConfig() {
 void CharacterConfig::RegisterCharacter(const Config::AddonCharacterDef& def) {
     m_addons.push_back(def);
     Util::Logger::Instance().Get()->info(
-        "[Save] Registered addon character '{}' weapon={} pet={} initially_unlocked={} fresh_only={} registry_size={}.",
-        def.id, def.weapon, def.animal, def.unlocked, def.freshOnly);
+        "[Save] Registered addon character '{}' weapon={} pet={} initially_unlocked={} fresh_only={} portrait_classic='{}' portrait_fresh='{}' registry_size={}.",
+        def.id, def.weapon, def.animal, def.unlocked, def.freshOnly, def.portraitClassicPath, def.portraitFreshPath, m_addons.size());
 }
 
 void CharacterConfig::ClearRegisteredCharacters() {
