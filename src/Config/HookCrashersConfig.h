@@ -1,30 +1,14 @@
 #pragma once
 
 #include <string>
-#include <vector>
-#include <cstdint>
 
 namespace HookCrashers {
 namespace Config {
-
-struct AddonCharacterDef {
-    std::string id;
-    uint8_t weapon = 0;
-    uint8_t animal = 0;
-    bool unlocked = false;
-    bool freshOnly = false;
-    std::string portraitClassicPath;
-    std::string portraitFreshPath;
-};
 
 struct Settings {
     bool showExternalConsole = false;
     bool enableOverlay = true;
     int overlayToggleVirtualKey = 0x24; // VK_HOME
-    bool enableCustomLocalizations = true;
-    int localizationBaseId = 5000;
-    std::string localizationPath = "HookCrashers\\Localizations\\";
-    std::vector<AddonCharacterDef> addonCharacters;
 };
 
 class HookCrashersConfig {

@@ -661,7 +661,7 @@ void DrawHookCrashersTab() {
     ImGui::Text("Overlay toggle VK: 0x%X", Config::HookCrashersConfig::Instance().Get().overlayToggleVirtualKey);
     ImGui::Separator();
     ImGui::Text("Save expansion: always enabled");
-    ImGui::Text("Custom localizations: %s", Config::HookCrashersConfig::Instance().Get().enableCustomLocalizations ? "enabled" : "disabled");
+    ImGui::Text("Custom localizations: always enabled");
 }
 
 void DrawModsTab() {

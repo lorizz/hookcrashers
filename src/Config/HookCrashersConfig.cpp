@@ -2,7 +2,6 @@
 #include "../Util/Logger.h"
 #include <Windows.h>
 #include <fstream>
-#include <sstream>
 #include <algorithm>
 #include <cctype>
 
@@ -84,15 +83,6 @@ bool HookCrashersConfig::SaveDefault(const std::string& path) const {
         << "ShowExternalConsole=false\n"
         << "EnableOverlay=true\n"
         << "OverlayToggleKey=Home\n"
-        << "\n"
-        << "[SaveExpansion]\n"
-        << "; HookCrashers always expands save limits automatically from\n"
-        << "; characters registered by mods/<mod>/main.lua.\n"
-        << "\n"
-        << "[Localization]\n"
-        << "; Loads localizations from mods/<mod>/locs.json.\n"
-        << "Enabled=true\n"
-        << "BaseCustomId=5000\n"
         << "\n";
 
     return true;
@@ -120,25 +110,6 @@ bool HookCrashersConfig::Load(const std::string& path) {
             continue;
         }
 
-        if (section == "saveexpansion" && line.find('=') == std::string::npos) {
-            std::stringstream ss(line);
-            std::string part;
-            std::vector<std::string> parts;
-            while (std::getline(ss, part, ',')) {
-                parts.push_back(Trim(part));
-            }
-            if (parts.size() >= 5) {
-                AddonCharacterDef def;
-                def.id = parts[0];
-                def.weapon = static_cast<uint8_t>(std::stoi(parts[1]));
-                def.animal = static_cast<uint8_t>(std::stoi(parts[2]));
-                def.unlocked = ParseBool(parts[3], false);
-                def.freshOnly = ParseBool(parts[4], false);
-                m_settings.addonCharacters.push_back(def);
-            }
-            continue;
-        }
-
         const size_t eq = line.find('=');
         if (eq == std::string::npos) continue;
 
@@ -150,16 +121,11 @@ bool HookCrashersConfig::Load(const std::string& path) {
             else if (key == "enableoverlay") m_settings.enableOverlay = ParseBool(value, m_settings.enableOverlay);
             else if (key == "overlaytogglekey") m_settings.overlayToggleVirtualKey = ParseVirtualKey(value, m_settings.overlayToggleVirtualKey);
         }
-        else if (section == "localization") {
-            if (key == "enabled") m_settings.enableCustomLocalizations = ParseBool(value, m_settings.enableCustomLocalizations);
-            else if (key == "basecustomid") m_settings.localizationBaseId = std::stoi(value);
-            else if (key == "path") m_settings.localizationPath = value;
-        }
     }
 
     HookCrashers::Util::Logger::Instance().Get()->info(
-        "[Config] Loaded HookCrashers.ini. Overlay={}, external console={}, addon characters={}",
-        m_settings.enableOverlay, m_settings.showExternalConsole, m_settings.addonCharacters.size());
+        "[Config] Loaded HookCrashers.ini. Overlay={}, external console={}",
+        m_settings.enableOverlay, m_settings.showExternalConsole);
     return true;
 }
 

@@ -1,7 +1,6 @@
 #include "LocalizationSystem.h"
 #include "LocalizationManager.h"
 #include "StringLookupHook.h"
-#include "../Config/HookCrashersConfig.h"
 #include "../Scripting/ScriptModLoader.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
@@ -15,6 +14,8 @@ namespace Localization {
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
 using HC_SWFReturn = HookCrashers::SWF::Data::SWFReturn;
 
+constexpr int kBaseCustomLocalizationId = 5000;
+
 static void GetLocalizationHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
     if (paramCount < 1) {
         SWF::Helpers::SWFReturnHelper::SetFailure(swfReturn);
@@ -27,15 +28,9 @@ static void GetLocalizationHandler(int paramCount, HC_SWFArgument** swfArgs, HC_
 }
 
 bool InitializeLocalizationSystem() {
-    const auto& settings = Config::HookCrashersConfig::Instance().Get();
-    if (!settings.enableCustomLocalizations) {
-        Util::Logger::Instance().Get()->info("[Localization] Custom localizations disabled by config.");
-        return true;
-    }
-
     auto& manager = LocalizationManager::getInstance();
     manager.Reset();
-    if (!manager.initialize(settings.localizationBaseId)) {
+    if (!manager.initialize(kBaseCustomLocalizationId)) {
         Util::Logger::Instance().Get()->warn("[Localization] Failed to initialize localization manager.");
         return true;
     }
