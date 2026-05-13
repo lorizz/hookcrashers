@@ -1,103 +1,259 @@
 # HookCrashers
 
-HookCrashers is an advanced modding platform for the game **Castle Crashers**. Developed as an ASI mod, it provides a **Mod Loader** and a powerful **API** that acts as a bridge between C++ code and the game's ActionScript engine. This allows modders to create, register, and execute new custom functions directly within the game's SWF files.
+HookCrashers is an ASI modding platform for **Castle Crashers Remastered**.
 
-In essence, HookCrashers transforms how the game can be modified, opening the door to complex mods and entirely new features that were previously impossible to implement.
+This release focuses on the stable parts of the project:
 
-## How It Works
+- loading Lua folder mods from `mods/<mod>/`
+- registering addon characters
+- expanding the save/character tables for registered addon characters
+- loading custom localization metadata
+- exposing a C++ API for advanced ASI mods and custom SWF native calls
 
-Castle Crashers is built on an interesting technology: the game's executable acts as a custom compiler and interpreter for the `.swf` files that contain its logic and interface. HookCrashers hooks into this process through two main components:
-
-1.  **The Mod Loader**: On startup, HookCrashers scans a `/mods` directory in your game folder. It automatically loads any mod file with an `.asi` extension, allowing for simple drag-and-drop installation of mods.
-2.  **The API**: Once loaded, a mod can use the HookCrashers API to:
-    *   **Register new C++ functions**: You can write a function in C++ and register it with a specific name.
-    *   **Execute it in ActionScript**: That same function becomes callable from within the game's `.swf` files, just like a native function.
-    *   **Log to the in-game console**: The API exposes a logging system for easy debugging.
+Runtime SWF editing is intentionally disabled in this release. HookCrashers does
+not inject portrait art, shapes, sprites, or ActionScript into SWF buffers at
+load time. Any visual/UI changes must be made manually in the game assets and
+repacked into the relevant `.pak` files.
 
 ## Installation
 
-Installing the HookCrashers platform is very simple.
+1. Copy `HookCrashers.asi` and its required runtime files into the Castle
+   Crashers Remastered game folder.
+2. Start the game once. HookCrashers will create `HookCrashers.ini` and `mods`
+   if they do not already exist.
+3. Place folder mods under:
 
-1.  Download the latest version from the [Releases](https://github.com/lorizz/hookcrashers/releases) section of this repository.
-2.  Extract the contents of the archive directly into the main Castle Crashers game folder.
-    *   *Typically found at: `C:\Program Files (x86)\Steam\steamapps\common\Castle Crashers`*
-3.  Create a folder named `mods` in the game's root directory if it doesn't already exist.
+```text
+CastleCrashers/
+  HookCrashers.asi
+  HookCrashers.ini
+  mods/
+    my_mod/
+      manifest.json
+      main.lua
+      locs.json
+      characters/
+        my_character/
+          portrait.svg
+```
 
-That's it. The game will automatically load the platform and any mods inside the `/mods` folder on the next launch.
+Back up your save data and original `.pak` files before testing character or SWF
+changes. Changing addon character order after saves exist can remap addon slots.
 
-## Creating Your First Mod: An Example
+## Configuration
 
-Let's walk through a basic example of how to build a mod. The goal is to create a `HelloWorld()` function that can be called from ActionScript and will print a message to the in-game console. All mods are ASI files, which start as C++ DLL projects.
+`HookCrashers.ini` is created in the game folder.
 
-#### 1. C++ Code (Your Mod)
+```ini
+[HookCrashers]
+ShowExternalConsole=false
+EnableOverlay=true
+OverlayToggleKey=Home
 
-Create a C++ DLL project and include the HookCrashers dependencies. The following code sets up your mod's info, registers a function, and logs a message.
+[SaveExpansion]
+; HookCrashers expands save limits from characters registered by mods/<mod>/main.lua.
+
+[Localization]
+Enabled=true
+BaseCustomId=5000
+```
+
+`SaveExpansion` is driven by Lua registrations. The old manual INI character
+list is not the recommended path for new mods.
+
+## Folder Mods
+
+Each folder inside `mods` is scanned independently. A folder is considered a mod
+when it contains at least one supported file: `manifest.json`, `main.lua`,
+`locs.json`, or `icon.png`.
+
+### manifest.json
+
+```json
+{
+  "name": "Example Character Pack",
+  "author": "YourName",
+  "version": "1.0.0"
+}
+```
+
+### main.lua
+
+`main.lua` is executed with the `HookCrashers` Lua module available.
+
+```lua
+local HC = require("HookCrashers")
+
+HC.Character.Register(
+    "my_character",
+    HC.Enums.Weapon.Pitchfork,
+    HC.Enums.Pet.None,
+    true,
+    false
+)
+```
+
+The same function is also exposed as `HC.RegisterCharacter(...)`.
+
+`HC.Character.Register(id, weapon, pet, initiallyUnlocked, freshOnly)`:
+
+- `id`: stable internal character id. Use lowercase ASCII names without spaces.
+- `weapon`: starting weapon id. Prefer `HC.Enums.Weapon.*`.
+- `pet`: starting animal orb id. Prefer `HC.Enums.Pet.*`.
+- `initiallyUnlocked`: `true` if the character should start unlocked.
+- `freshOnly`: `true` if this character is intended only for the fresh/custom
+  character path. Use `false` when the UI should expose it in both classic and
+  fresh/custom contexts.
+
+Registration order matters. The order in Lua is the order HookCrashers uses for
+addon character slots, and it must match the order used in your manual SWF UI
+edits.
+
+The loader also checks the character folder for optional portrait metadata:
+
+```text
+mods/my_mod/characters/my_character/
+  portrait.svg
+  portrait_fresh.svg
+```
+
+`portrait.png` and `portrait_fresh.png` are also detected. If only `portrait.*`
+exists, it is reused as the fresh portrait path. In this release these files are
+not injected into SWFs automatically; they are useful as source assets for your
+manual SWF/.pak pipeline.
+
+### locs.json
+
+`locs.json` declares localization strings used by the mod.
+
+```json
+{
+  "strings": [
+    {
+      "unlocalized_name": "example_mod_character_name",
+      "english": "Example Mod Character",
+      "italian": "Personaggio Mod Esempio"
+    }
+  ]
+}
+```
+
+HookCrashers reads the `strings` array and tracks each `unlocalized_name` or
+`id`. Custom localization ids start at `BaseCustomId` from `HookCrashers.ini`.
+
+## Manual SWF and .pak Work Required
+
+HookCrashers handles the runtime character/save logic, but the original SWF UI
+still needs to know how to draw and select the new character. For this release,
+you must patch the SWF files manually and repack them into the game `.pak`
+assets.
+
+The required manual work is:
+
+1. Extract the `.pak` that contains `main.swf` and any related menu/lobby SWFs
+   used by your build.
+2. Open `main.swf` in a SWF editor/decompiler.
+3. Add the new character portrait art as a real SWF symbol/shape, matching the
+   same bounds, transform, and depth behavior as the existing portrait symbols.
+4. Clone the existing portrait frame/symbol entry that matches the slot type you
+   are adding.
+5. Replace only the portrait character id in the cloned `PlaceObject2`.
+6. Update any ActionScript/UI arrays, counts, or selection logic so the UI
+   includes the addon character.
+7. Repack the edited SWF into the correct `.pak`.
+
+Current known lobby/select layout notes from the Steam build:
+
+- the lobby portrait container is `DefineSprite 179`
+- existing portrait frames around `133` and `135` are useful templates
+- frame `133` places an existing portrait shape at depth `1`
+- frame `135` places another existing portrait shape at depth `1`
+- a cloned portrait frame should keep the original matrix/position/scale
+- the `PlaceObject2` for the injected portrait must use:
+  - depth `1`
+  - `HasCharacter=true`
+  - the new portrait shape character id
+  - the same transform as the copied frame
+
+If `freshOnly` is `true`, add the portrait only to the fresh/custom UI path. If
+`freshOnly` is `false`, add it to both the classic and fresh/custom UI paths
+used by the SWF. The exact frame numbers can differ between game builds or
+patched assets, so use the nearby vanilla portrait frames as the source of truth
+instead of hardcoding offsets blindly.
+
+If this SWF/.pak step is skipped, HookCrashers can still register the character
+for save/runtime logic, but the game UI may show missing portraits, wrong
+selection frames, or no visible entry.
+
+## C++ ASI API
+
+Advanced binary mods can include `HookCrashers.h` and call the exported API.
+
+Character registration:
 
 ```cpp
-// MyFirstMod.cpp
-#include <windows.h>
-#include "HookCrashersAPI.h" // Include the API header
+#include "HookCrashers.h"
 
-// Export metadata for the Mod Loader
-extern "C" __declspec(dllexport) const char* GetModName() { return "My First Mod"; }
-extern "C" __declspec(dllexport) const char* GetModAuthor() { return "Your Name"; }
-extern "C" __declspec(dllexport) const char* GetModVersion() { return "1.0"; }
-
-// This is our custom function. It will be called from ActionScript.
-void HelloWorldHandler()
-{
-    // Use the API's logging system. The message appears in the in-game console.
-    HookCrashers::Log("[MyFirstMod] Hello World was called from ActionScript!");
-}
-
-// The entry point for your ASI mod
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD ul_reason_for_call, LPVOID lpReserved)
-{
-    if (ul_reason_for_call == DLL_PROCESS_ATTACH)
-    {
-        // We register our function.
-        // The first parameter, "HelloWorld", is the name we'll use in ActionScript.
-        // The second is a pointer to our C++ function.
-        HookCrashers::Register("HelloWorld", HelloWorldHandler);
-    }
-    return TRUE;
-}
+HookCrashers::RegisterCharacter(
+    "my_character",
+    HookCrashers::Enums::Weapon::Pitchfork,
+    HookCrashers::Enums::Pet::None,
+    true,
+    false);
 ```
 
-#### 2. Compilation and Installation
+Custom SWF native registration:
 
-1.  Compile your project as a **DLL** file.
-2.  Rename the compiled file from `.dll` to `.asi` (e.g., `MyFirstMod.asi`).
-3.  Copy `MyFirstMod.asi` into the `mods` folder you created in your Castle Crashers directory.
-
-#### 3. ActionScript Code (Inside a .swf file)
-
-Now, in any script within a `.swf` file loaded by the game, you can call the function you just registered.
-
-```actionscript
-// Somewhere in the game's logic, for example, when a menu is activated.
-
-// We call the function we registered from our C++ mod.
-// The game will execute the C++ code in HelloWorldHandler.
-HelloWorld();
+```cpp
+HookCrashers::RegisterCustomSWF(
+    0x150,
+    "MyNativeFunction",
+    [](int argCount, HC_SWFArgument** args, HC_SWFReturn* ret) {
+        HookCrashers::SWF::ArgsReader reader(argCount, args);
+        HookCrashers::SWF::ReturnValue out(ret);
+        out.SetInt(reader.GetInt(0, 0) + 1);
+    });
 ```
 
-## Future Plans
+Overrides can be registered with `HookCrashers::RegisterOverride(...)`, and the
+original game handler can be reached with `HookCrashers::CallOriginal(...)`.
 
-HookCrashers is an evolving project. Here are some of the planned features:
--   **In-Game Mod UI**: A button will be added to the main menu to open a screen listing installed mods, their authors, and versions. In the future, this will also allow users to download/update mods directly from within the game.
--   **Advanced Lobby System**: A matchmaking system that differentiates between "vanilla" and "modded" players. It will analyze installed mods (e.g., `customsave`, `customlocalizations`) to verify compatibility between players in a lobby, ensuring stable multiplayer sessions.
+Useful helpers exposed by the API include:
 
----
+- logging: `LogInfo`, `LogWarn`, `LogError`
+- SWF strings: `AddString`, `GetString`
+- player helpers: `GetPlayerObject`, `GetPlayerSelectedCharacterType`,
+  `IsOnlineMode`
+- save helpers: `FindCastleCrashersSavePath`, `GetCapturedSaveData`
 
-## ⚠️ Important Disclaimer
+## Runtime SWF Injection Status
 
-The author of HookCrashers is in no way responsible for the misuse of this API. This tool was created for educational purposes and to foster creativity within the modding community.
+The experimental lobby portrait runtime injector has been detached for this
+release. `SWFScene_ParseHeader` now immediately calls the original parser and no
+longer patches the SWF buffer before the game consumes it.
 
-> **IT IS STRICTLY FORBIDDEN** to use HookCrashers to create hacks, cheats, trainers, or any mod that provides an unfair advantage in the game, especially in multiplayer contexts.
+Source files for previous SWF experiments may still exist in the repository for
+future work, but they are not part of the stable release flow.
 
-> **IT IS EQUALLY FORBIDDEN** to develop or distribute mods made with this API that unlock, "crack," or otherwise enable access to DLCs or other paid content without a legitimate purchase. Supporting the original developers (The Behemoth) is paramount.
+## Troubleshooting
 
-HookCrashers was designed as a tool to extend the game in new and fun ways. Any use that violates these terms runs contrary to the spirit of the project and is not endorsed or condoned by the author. Using mods to cheat or pirate content harms the community and the developers.
+- Check `HookCrashers.log` first. Lua syntax errors and registration errors are
+  written there.
+- If a mod folder is ignored, make sure it contains `main.lua`, `manifest.json`,
+  `locs.json`, or `icon.png`.
+- If a character registers but is not visible in the UI, your manual SWF/.pak
+  edit is missing or the addon order does not match the Lua registration order.
+- If a portrait appears in the wrong slot, verify the SWF frame/order and the
+  order of `HC.Character.Register(...)` calls.
+- For multiplayer testing, every player should use the same HookCrashers build,
+  same folder mods, same registration order, and compatible patched `.pak`
+  assets.
 
-**Please use this tool responsibly.**
+## Disclaimer
+
+HookCrashers is intended for modding, research, and creative extension of Castle
+Crashers Remastered.
+
+Do not use HookCrashers to build cheats, trainers, piracy tools, DLC unlockers,
+or anything designed to give an unfair multiplayer advantage. Mod responsibly and
+keep backups of original game files and saves.

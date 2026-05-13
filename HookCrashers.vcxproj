@@ -192,11 +192,16 @@
     <ClInclude Include="src\Core\HookManager.h" />
     <ClInclude Include="src\Core\RegisterAllSWFFunctionsHook.h" />
     <ClInclude Include="src\Core\RegisterSWFFunctionHook.h" />
+    <ClInclude Include="src\Core\SWFDiagnosticsHook.h" />
     <ClInclude Include="src\stdafx.h" />
+    <ClInclude Include="src\SWF\AS2NativeRegistry.h" />
     <ClInclude Include="src\SWF\Custom\CustomFunctions.h" />
     <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h" />
     <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h" />
     <ClInclude Include="src\SWF\Override\Overrides.h" />
+    <ClInclude Include="src\SWF\Runtime\SWFRuntimeInjector.h" />
+    <ClInclude Include="src\SWF\SWFBytecode.h" />
+    <ClInclude Include="src\SWF\SWFStructures.h" />
     <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
     <ClInclude Include="src\UI\ImGuiOverlay.h" />
     <ClInclude Include="src\Util\Logger.h" />
@@ -334,6 +339,7 @@
     <ClCompile Include="src\Core\HookManager.cpp" />
     <ClCompile Include="src\Core\RegisterAllSWFFunctionsHook.cpp" />
     <ClCompile Include="src\Core\RegisterSWFFunctionHook.cpp" />
+    <ClCompile Include="src\Core\SWFDiagnosticsHook.cpp" />
     <ClCompile Include="src\dllmain.cpp" />
     <ClCompile Include="src\Save\CharacterConfig.cpp" />
     <ClCompile Include="src\Save\GenerateDefaultCharacterDataHook.cpp" />
@@ -348,6 +354,7 @@
     <ClCompile Include="src\SWF\Helpers\SWFArgumentReader.cpp" />
     <ClCompile Include="src\SWF\Helpers\SWFReturnHelper.cpp" />
     <ClCompile Include="src\SWF\Override\Overrides.cpp" />
+    <ClCompile Include="src\SWF\Runtime\SWFRuntimeInjector.cpp" />
     <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
     <ClCompile Include="src\UI\ImGuiOverlay.cpp" />
     <ClCompile Include="src\Util\Logger.cpp" />

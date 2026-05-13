@@ -13,6 +13,12 @@ extern "C" {
 
 namespace {
 
+thread_local std::string g_currentLuaModDirectory;
+
+bool FileExistsA(const std::string& path) {
+    return !path.empty() && GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+}
+
 void Lua_SetConst(lua_State* L, const char* name, lua_Integer value) {
     lua_pushinteger(L, value);
     lua_setfield(L, -2, name);
@@ -169,6 +175,24 @@ int Lua_RegisterCharacter(lua_State* L) {
     def.animal = static_cast<uint8_t>(pet);
     def.unlocked = unlocked;
     def.freshOnly = freshOnly;
+    if (!g_currentLuaModDirectory.empty()) {
+        const std::string characterDir = g_currentLuaModDirectory + "characters\\" + def.id + "\\";
+        const std::string classicPortraitSvg = characterDir + "portrait.svg";
+        const std::string classicPortraitPng = characterDir + "portrait.png";
+        const std::string freshPortraitSvg = characterDir + "portrait_fresh.svg";
+        const std::string freshPortraitPng = characterDir + "portrait_fresh.png";
+        const std::string classicPortrait = FileExistsA(classicPortraitSvg) ? classicPortraitSvg : classicPortraitPng;
+        const std::string freshPortrait = FileExistsA(freshPortraitSvg) ? freshPortraitSvg : freshPortraitPng;
+        if (FileExistsA(classicPortrait)) {
+            def.portraitClassicPath = classicPortrait;
+        }
+        if (FileExistsA(freshPortrait)) {
+            def.portraitFreshPath = freshPortrait;
+        }
+        else {
+            def.portraitFreshPath = def.portraitClassicPath;
+        }
+    }
     HookCrashers::Save::CharacterConfig::Instance().RegisterCharacter(def);
     return 0;
 }
@@ -352,11 +376,15 @@ bool ScriptModLoader::ParseMainLua(const std::string& path, ScriptModInfo& modIn
     lua_pop(L, 1);
 
     Util::Logger::Instance().Get()->info("[ScriptModLoader] Executing main.lua for mod '{}' from '{}'.", modInfo.name, path);
+    const std::string previousModDirectory = g_currentLuaModDirectory;
+    g_currentLuaModDirectory = modInfo.directory;
     if (luaL_dofile(L, path.c_str()) != LUA_OK) {
         Util::Logger::Instance().Get()->error("[ScriptModLoader] Lua error in '{}': {}", path, lua_tostring(L, -1));
+        g_currentLuaModDirectory = previousModDirectory;
         lua_close(L);
         return false;
     }
+    g_currentLuaModDirectory = previousModDirectory;
 
     const int afterCount = Save::CharacterConfig::Instance().GetAddonCount();
     const auto& addons = Save::CharacterConfig::Instance().GetAddons();

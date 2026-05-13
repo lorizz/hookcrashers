@@ -13,6 +13,8 @@ struct AddonCharacterDef {
     uint8_t animal = 0;
     bool unlocked = false;
     bool freshOnly = false;
+    std::string portraitClassicPath;
+    std::string portraitFreshPath;
 };
 
 struct Settings {
