@@ -425,6 +425,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
+    <None Include="docs\enums.md" />
     <None Include="README.md" />
   </ItemGroup>
 </Project>

@@ -49,17 +49,11 @@ changes. Changing addon character order after saves exist can remap addon slots.
 ShowExternalConsole=false
 EnableOverlay=true
 OverlayToggleKey=Home
-
-[SaveExpansion]
-; HookCrashers expands save limits from characters registered by mods/<mod>/main.lua.
-
-[Localization]
-Enabled=true
-BaseCustomId=5000
 ```
 
-`SaveExpansion` is driven by Lua registrations. The old manual INI character
-list is not the recommended path for new mods.
+Save expansion is always driven by Lua registrations. Custom localization is
+always enabled for `mods/<mod>/locs.json`, and custom localization ids start at
+the fixed base id `5000`.
 
 ## Folder Mods
 
@@ -105,6 +99,8 @@ The same function is also exposed as `HC.RegisterCharacter(...)`.
   character path. Use `false` when the UI should expose it in both classic and
   fresh/custom contexts.
 
+See [docs/enums.md](docs/enums.md) for the complete weapon and pet enum list.
+
 Registration order matters. The order in Lua is the order HookCrashers uses for
 addon character slots, and it must match the order used in your manual SWF UI
 edits.
@@ -139,7 +135,7 @@ manual SWF/.pak pipeline.
 ```
 
 HookCrashers reads the `strings` array and tracks each `unlocalized_name` or
-`id`. Custom localization ids start at `BaseCustomId` from `HookCrashers.ini`.
+`id`. Custom localization ids start at the fixed base id `5000`.
 
 ## Manual SWF and .pak Work Required
 
