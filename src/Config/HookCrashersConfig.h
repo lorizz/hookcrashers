@@ -1,9 +1,20 @@
 #pragma once
 
+#include <cstdint>
 #include <string>
 
 namespace HookCrashers {
 namespace Config {
+
+struct AddonCharacterDef {
+    std::string id;
+    uint8_t weapon = 0;
+    uint8_t animal = 0;
+    bool unlocked = false;
+    bool freshOnly = false;
+    std::string portraitClassicPath;
+    std::string portraitFreshPath;
+};
 
 struct Settings {
     bool showExternalConsole = false;
