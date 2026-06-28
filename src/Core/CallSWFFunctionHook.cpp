@@ -24,7 +24,7 @@ namespace HookCrashers {
             );
         static OriginalCallFunc_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t CALL_SWF_FUNCTION_OFFSET = 0x1190B0;
+        constexpr uintptr_t CALL_SWF_FUNCTION_OFFSET = 0x11B230; // updated
 
         // FIXED: Updated detour function signature to match the game's actual function
         void __fastcall DetouredCallSWFFunction(
@@ -33,34 +33,58 @@ namespace HookCrashers {
             int swfContext,
             uint32_t functionIdRaw,
             int paramCount,
-            HC_SWFArgument** swfArgs, // <-- FIXED
+            HC_SWFArgument** swfArgs,
             uint32_t* swfReturnRaw,
             uint32_t callbackPtr)
         {
-            // The Dispatch function was already updated to expect these types
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 80 || (s_callCount % 250) == 0;
+            if (logThisCall) {
+                L.Get()->info(
+                    "[HookHit] CallSWFFunction ENTER call={} this=0x{:X} ctx=0x{:X} function_raw=0x{:X} function_id={} param_count={} args=0x{:X} ret=0x{:X} cb=0x{:X}.",
+                    s_callCount,
+                    reinterpret_cast<uintptr_t>(thisPtr),
+                    static_cast<uint32_t>(swfContext),
+                    functionIdRaw,
+                    functionIdRaw & 0xFFFF,
+                    paramCount,
+                    reinterpret_cast<uintptr_t>(swfArgs),
+                    reinterpret_cast<uintptr_t>(swfReturnRaw),
+                    callbackPtr);
+                L.Get()->flush();
+            }
+
             bool handled = SWF::Dispatcher::Dispatch(
                 thisPtr, swfContext, functionIdRaw, paramCount,
-                swfArgs, swfReturnRaw, callbackPtr
-            );
+                swfArgs, swfReturnRaw, callbackPtr);
+
+            if (logThisCall) {
+                L.Get()->info("[HookHit] CallSWFFunction dispatch handled={} call={}", handled, s_callCount);
+                L.Get()->flush();
+            }
+
             if (!handled) {
                 if (g_originalFunction) {
                     try {
-                        // The original function call is fine as we are passing the arguments through
                         g_originalFunction(thisPtr, swfContext, functionIdRaw, paramCount, swfArgs, swfReturnRaw, callbackPtr);
+                        if (logThisCall) {
+                            L.Get()->info("[HookHit] CallSWFFunction LEAVE original call={}", s_callCount);
+                            L.Get()->flush();
+                        }
                     }
                     catch (...) {
-                        //L.Get()->critical("!!! Exception in original CallSWFFunction !!!");
-                        // FIXED: Use the helper. It expects a structured pointer, so we cast.
+                        L.Get()->critical("[HookHit] CallSWFFunction original threw unknown exception call={} function_id={}", s_callCount, functionIdRaw & 0xFFFF);
+                        L.Get()->flush();
                         if (swfReturnRaw) SWF::Helpers::SWFReturnHelper::SetFailure(SWF::Helpers::SWFReturnHelper::AsStructured(swfReturnRaw));
                     }
                 }
                 else {
-                    //L.Get()->error("Original CallSWFFunction pointer is null! Cannot call original for ID {:#x}.", functionIdRaw & 0xFFFF);
-                    // FIXED: Use the helper with the cast.
+                    L.Get()->error("[HookHit] CallSWFFunction original pointer is null for function_id={}", functionIdRaw & 0xFFFF);
+                    L.Get()->flush();
                     if (swfReturnRaw) SWF::Helpers::SWFReturnHelper::SetFailure(SWF::Helpers::SWFReturnHelper::AsStructured(swfReturnRaw));
                 }
             }
-            //L.Get()->flush();
         }
 
         bool SetupCallSWFFunctionHook(uintptr_t moduleBase) {

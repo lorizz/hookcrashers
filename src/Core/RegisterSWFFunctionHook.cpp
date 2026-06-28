@@ -13,32 +13,53 @@ namespace HookCrashers {
         constexpr uint16_t ID_FOR_THISPTR_CAPTURE = 0x14D;
         const char* NAME_FOR_THISPTR_CAPTURE = "u_temp";
 
-        constexpr uintptr_t REGISTER_SWF_FUNCTION_OFFSET = 0xFB490;
+        constexpr uintptr_t REGISTER_SWF_FUNCTION_OFFSET = 0xFD4B0; // updated
 
         void __fastcall DetouredRegisterSWFFunction(void* thisPtr, void* /* edx - unused dummy */, uint16_t functionId, const char* functionName) {
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 40 || (s_callCount % 100) == 0;
+            if (logThisCall) {
+                L.Get()->info(
+                    "[HookHit] RegisterSWFFunction ENTER call={} this=0x{:X} function_id={} name='{}'.",
+                    s_callCount,
+                    reinterpret_cast<uintptr_t>(thisPtr),
+                    functionId,
+                    functionName ? functionName : "<null>");
+                L.Get()->flush();
+            }
+
             if (thisPtr != nullptr && functionId == ID_FOR_THISPTR_CAPTURE && functionName != nullptr && strcmp(functionName, NAME_FOR_THISPTR_CAPTURE) == 0) {
                 static void* lastLoggedPtr = nullptr;
                 if (lastLoggedPtr != thisPtr) {
-                    g_correctThisPtr = thisPtr; 
-                    //L.Get()->info("Updated/Captured correct 'this' pointer: 0x{:X} (from '{}' ID:{:#x})", reinterpret_cast<uintptr_t>(g_correctThisPtr), NAME_FOR_THISPTR_CAPTURE, ID_FOR_THISPTR_CAPTURE);
+                    g_correctThisPtr = thisPtr;
                     lastLoggedPtr = g_correctThisPtr;
                 }
                 else {
                     g_correctThisPtr = thisPtr;
                 }
             }
+
             if (g_originalFunction) {
                 try {
                     g_originalFunction(thisPtr, functionId, functionName);
+                    if (logThisCall) {
+                        L.Get()->info("[HookHit] RegisterSWFFunction LEAVE original call={}", s_callCount);
+                        L.Get()->flush();
+                    }
                 }
-                catch (const std::exception&) {
+                catch (const std::exception& e) {
+                    L.Get()->critical("[HookHit] RegisterSWFFunction original threw std::exception: {}", e.what());
+                    L.Get()->flush();
                 }
                 catch (...) {
-                    //L.Get()->critical("!!! Unknown exception in original RegisterSWFFunction (ID={:#x}, Name={}) !!!", functionId, functionName ? functionName : "NULL");
+                    L.Get()->critical("[HookHit] RegisterSWFFunction original threw unknown exception.");
+                    L.Get()->flush();
                 }
             }
             else {
-                //L.Get()->error("Original RegisterSWFFunction pointer is null! Cannot call original for ID={:#x}, Name={}.", functionId, functionName ? functionName : "NULL");
+                L.Get()->error("[HookHit] RegisterSWFFunction original pointer is null.");
+                L.Get()->flush();
             }
         }
 

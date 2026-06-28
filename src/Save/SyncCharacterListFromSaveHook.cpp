@@ -11,7 +11,7 @@
 
 namespace HookCrashers::Save {
 	namespace {
-		constexpr uintptr_t kSyncCharacterListFromSaveRva = 0x85B80;
+		constexpr uintptr_t kSyncCharacterListFromSaveRva = 0x85B20; // updated
 		constexpr int kCharacterArrayEntrySize = 0x1090;
 		constexpr int kSkinEntryByIndexOffsetDwords = 1130;
 

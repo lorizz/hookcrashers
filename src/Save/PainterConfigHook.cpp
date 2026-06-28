@@ -14,13 +14,13 @@ namespace HookCrashers::Save {
         return ss.str();
     }
 
-    static const uintptr_t RVA_PAINTER_ENTRY = 0x5C080;
-    static const uintptr_t RVA_XML_INIT = 0xA2A20;
-    static const uintptr_t RVA_XML_LOAD = 0xA2F60;
-    static const uintptr_t RVA_XML_PARSE = 0x5C150;
-    static const uintptr_t RVA_XML_CLEAN = 0xA2C60;
-    static const uintptr_t RVA_NOTIFY = 0x261C0;
-    static const uintptr_t RVA_GLOBAL_VAR = 0x1C24B3;
+    static const uintptr_t RVA_PAINTER_ENTRY = 0x5C0C0; // updated
+    static const uintptr_t RVA_XML_INIT = 0xA4A80; // updated -> parent changed behaviour!
+    static const uintptr_t RVA_XML_LOAD = 0xA4FC0; // updated
+    static const uintptr_t RVA_XML_PARSE = 0x5C190; // updated
+    static const uintptr_t RVA_XML_CLEAN = 0xA4CC0; // updated
+    static const uintptr_t RVA_NOTIFY = 0x261C0; // same!!
+    static const uintptr_t RVA_GLOBAL_VAR = 0x1CCF50; // updated
 
     // Convenzioni interne
     typedef void(__thiscall* tXML_Init)(void* pThis, int a2);
@@ -36,8 +36,11 @@ namespace HookCrashers::Save {
     // ECX = pXmlDoc (this), EDX = dummy (per fastcall), Stack = pFileData
     static char __fastcall HookedPainterConfig(void* pXmlDoc, void* edx_dummy, int pFileData)
     {
+        static int s_callCount = 0;
+        ++s_callCount;
+        HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig ENTER call={} pXmlDoc={} pFileData={}", s_callCount, to_hex(pXmlDoc), to_hex((void*)pFileData));
+        HookCrashers::Util::Logger::Instance().Get()->flush();
         HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] >>> ENTER - pXmlDoc: " + to_hex(pXmlDoc) + " pFileData: " + to_hex((void*)pFileData));
-
         uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
         uint8_t* doc = (uint8_t*)pXmlDoc;
 
@@ -85,8 +88,9 @@ namespace HookCrashers::Save {
                 HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Notify OK");
 
                 HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] <<< EXIT Success (Return 1)");
-                return 1;
-            }
+                HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig LEAVE call={} result=1", s_callCount);
+                HookCrashers::Util::Logger::Instance().Get()->flush();
+                return 1;            }
 
             HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Parse/Load failed. Calling XML_Clean...");
             XML_Clean(localBuf);
@@ -94,8 +98,9 @@ namespace HookCrashers::Save {
         }
 
         HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] <<< EXIT Failure (Return 0)");
-        return 0;
-    }
+        HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig LEAVE call={} result=0", s_callCount);
+        HookCrashers::Util::Logger::Instance().Get()->flush();
+        return 0;    }
 
     bool SetupPainterConfigHook() {
         uintptr_t base = (uintptr_t)GetModuleHandle(NULL);

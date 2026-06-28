@@ -5,6 +5,7 @@
 
 namespace HookCrashers {
     namespace Util {
+        std::pair<bool, std::string> GetSteamLanguage();
         std::pair<bool, std::string> FindCastleCrashersSavePath();
     }
 }

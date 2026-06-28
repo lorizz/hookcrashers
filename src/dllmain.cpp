@@ -68,7 +68,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         uintptr_t versionCheckValue = entryPointAddr + (0x400000 - base);
 
         //if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310) // Prior to 3.0
-        if (versionCheckValue == 0x564171 || versionCheckValue == 0x85B310) // 3.0
+        if (versionCheckValue == 0x85E310) // 3.2
         {
             HANDLE hThread = CreateThread(NULL, 0, InitThread, reinterpret_cast<LPVOID>(hModule), 0, NULL);
             if (hThread) {
