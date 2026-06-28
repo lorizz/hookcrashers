@@ -17,19 +17,28 @@ namespace HookCrashers {
         using OriginalUIInputHandler_t = uint32_t(__thiscall*)(void* this_ptr, uint32_t buttonId);
         static OriginalUIInputHandler_t g_originalUIInputHandler = nullptr;
 
-        constexpr uintptr_t UI_INPUT_HANDLER_OFFSET = 0x11A840;
+        constexpr uintptr_t UI_INPUT_HANDLER_OFFSET = 0x11C9C0; // updated
 
         static std::unordered_set<uint32_t> g_discoveredFrameIds;
 
         // Use __fastcall instead of __thiscall for the detour function
         uint32_t __fastcall DetouredUIInputHandler(void* this_ptr, void* /* edx */, uint32_t buttonId) {
-
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 20 || (s_callCount % 100) == 0;
+            if (logThisCall) {
+                L.Get()->info("[HookHit] UIInputHandler ENTER call={} this=0x{:X} button_id={}.", s_callCount, reinterpret_cast<uintptr_t>(this_ptr), buttonId);
+                L.Get()->flush();
+            }
             // 1. Chiama la funzione originale per non rompere il gioco.
             // Salviamo il suo valore di ritorno per restituirlo alla fine.
             uint32_t returnValue = 0;
             if (g_originalUIInputHandler) {
                 returnValue = g_originalUIInputHandler(this_ptr, buttonId);
-            }
+                if (logThisCall) {
+                    L.Get()->info("[HookHit] UIInputHandler LEAVE original call={} result={}", s_callCount, returnValue);
+                    L.Get()->flush();
+                }            }
 
             // 2. Leggi il frame che il gioco HA APPENA selezionato.
             uint32_t selectedFrame = *(uint32_t*)((uintptr_t)this_ptr + 0xE0);

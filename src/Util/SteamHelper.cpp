@@ -2,6 +2,9 @@
 #include <Windows.h>
 #include <string>
 #include <vector>
+#include <fstream>
+#include <algorithm>
+#include <cctype>
 #include "Logger.h"
 
 namespace HookCrashers {
@@ -52,6 +55,112 @@ namespace HookCrashers {
             return { true, activeUserId };
         }
 
+        static std::string NormalizeSteamLanguage(std::string language) {
+            language.erase(std::remove_if(language.begin(), language.end(), [](unsigned char ch) {
+                return ch == '\0' || ch == '\r' || ch == '\n' || ch == '\t' || ch == ' ' || ch == '"';
+            }), language.end());
+            std::transform(language.begin(), language.end(), language.begin(), [](unsigned char ch) {
+                return static_cast<char>(std::tolower(ch));
+            });
+            return language;
+        }
+
+        static std::pair<bool, std::string> ReadRegistryString(HKEY root, const char* subKey, const char* valueName) {
+            HKEY hKey;
+            if (RegOpenKeyExA(root, subKey, 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
+                return { false, "" };
+            }
+
+            char buffer[256] = {};
+            DWORD type = 0;
+            DWORD bufferSize = sizeof(buffer);
+            const LONG result = RegQueryValueExA(hKey, valueName, nullptr, &type, reinterpret_cast<LPBYTE>(buffer), &bufferSize);
+            RegCloseKey(hKey);
+
+            if (result != ERROR_SUCCESS || (type != REG_SZ && type != REG_EXPAND_SZ)) {
+                return { false, "" };
+            }
+
+            std::string value = NormalizeSteamLanguage(buffer);
+            return { !value.empty(), value };
+        }
+
+        static std::pair<bool, std::string> ReadLanguageFromQuotedKeyValueFile(const std::string& path) {
+            std::ifstream file(path);
+            if (!file.is_open()) {
+                return { false, "" };
+            }
+
+            std::string line;
+            while (std::getline(file, line)) {
+                std::string lower = line;
+                std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) {
+                    return static_cast<char>(std::tolower(ch));
+                });
+
+                const size_t keyPos = lower.find("\"language\"");
+                if (keyPos == std::string::npos) {
+                    continue;
+                }
+
+                const size_t firstQuote = line.find('"', keyPos + 10);
+                if (firstQuote == std::string::npos) {
+                    continue;
+                }
+                const size_t secondQuote = line.find('"', firstQuote + 1);
+                if (secondQuote == std::string::npos) {
+                    continue;
+                }
+
+                std::string value = NormalizeSteamLanguage(line.substr(firstQuote + 1, secondQuote - firstQuote - 1));
+                if (!value.empty()) {
+                    return { true, value };
+                }
+            }
+
+            return { false, "" };
+        }
+
+        std::pair<bool, std::string> GetSteamLanguage() {
+            Logger& L = Logger::Instance();
+
+            auto appLanguage = ReadRegistryString(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\Apps\\204360", "Language");
+            if (appLanguage.first) {
+                L.Get()->info("[SteamHelper] Castle Crashers app language from registry: '{}'.", appLanguage.second);
+                return appLanguage;
+            }
+            L.Get()->info("[SteamHelper] Castle Crashers app registry language not found.");
+
+            auto steamLanguage = ReadRegistryString(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "Language");
+            if (steamLanguage.first) {
+                L.Get()->info("[SteamHelper] Steam language from registry: '{}'.", steamLanguage.second);
+                return steamLanguage;
+            }
+            L.Get()->info("[SteamHelper] Steam registry language not found.");
+
+            auto steamPath = GetSteamInstallPath();
+            if (!steamPath.first) {
+                L.Get()->warn("[SteamHelper] Cannot read Steam language because Steam install path is unavailable.");
+                return { false, "" };
+            }
+
+            const std::string appManifestPath = steamPath.second + "\\steamapps\\appmanifest_204360.acf";
+            auto manifestLanguage = ReadLanguageFromQuotedKeyValueFile(appManifestPath);
+            if (manifestLanguage.first) {
+                L.Get()->info("[SteamHelper] Castle Crashers app language from '{}': '{}'.", appManifestPath, manifestLanguage.second);
+                return manifestLanguage;
+            }
+            L.Get()->info("[SteamHelper] No language entry found in '{}'.", appManifestPath);
+
+            const std::string configPath = steamPath.second + "\\config\\config.vdf";
+            auto configLanguage = ReadLanguageFromQuotedKeyValueFile(configPath);
+            if (configLanguage.first) {
+                L.Get()->info("[SteamHelper] Steam language from '{}': '{}'.", configPath, configLanguage.second);
+                return configLanguage;
+            }
+            L.Get()->warn("[SteamHelper] Steam language not found in registry or config files.");
+            return { false, "" };
+        }
         bool PathExists(const std::string& path) {
             DWORD fileAttributes = GetFileAttributesA(path.c_str());
             return (fileAttributes != INVALID_FILE_ATTRIBUTES);

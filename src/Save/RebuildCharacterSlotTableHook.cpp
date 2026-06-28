@@ -11,7 +11,7 @@
 
 namespace HookCrashers::Save {
 	namespace {
-		constexpr uintptr_t kRebuildCharacterSlotTableRva = 0x84730;
+		constexpr uintptr_t kRebuildCharacterSlotTableRva = 0x846D0; // updated
 		constexpr int kCharacterArrayEntrySize = 0x1090;
 		constexpr int kSkinEntryByIndexOffsetDwords = 1130;
 
@@ -224,8 +224,22 @@ namespace HookCrashers::Save {
 	}
 
 	char __fastcall DetouredRebuildCharacterSlotTable(uint32_t* lobbyManager, void*, bool includeClientWorkshop) {
+		static int s_callCount = 0;
+		++s_callCount;
+		Util::Logger::Instance().Get()->info(
+			"[HookHit] RebuildCharacterSlotTable ENTER call={} lobby=0x{:X} include_client_workshop={}",
+			s_callCount,
+			reinterpret_cast<uintptr_t>(lobbyManager),
+			includeClientWorkshop);
+		Util::Logger::Instance().Get()->flush();
+
 		char result = g_originalRebuildCharacterSlotTable(lobbyManager, includeClientWorkshop);
+		Util::Logger::Instance().Get()->info("[HookHit] RebuildCharacterSlotTable LEAVE original call={} result={}", s_callCount, static_cast<int>(result));
+		Util::Logger::Instance().Get()->flush();
+
 		FixExpandedCharacterSlotTable(lobbyManager);
+		Util::Logger::Instance().Get()->info("[HookHit] RebuildCharacterSlotTable LEAVE fix call={}", s_callCount);
+		Util::Logger::Instance().Get()->flush();
 		return result;
 	}
 

@@ -15,7 +15,7 @@ namespace HookCrashers {
         using OriginalBlowfishDecrypt_t = void(__thiscall*)(void* thisPtr, uint32_t* block_part1, uint32_t* block_part2);
         static OriginalBlowfishDecrypt_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t BLOWFISH_DECRYPT_OFFSET = 0xDB580;
+        constexpr uintptr_t BLOWFISH_DECRYPT_OFFSET = 0xDD5B0; // updated
         static void* g_capturedBlowfishContext = nullptr;
 
         static std::vector<uint8_t> g_capturedSaveData;
@@ -55,13 +55,22 @@ namespace HookCrashers {
         }
 
         void __fastcall DetouredBlowfishDecrypt(void* thisPtr, void* /* edx_dummy */, uint32_t* block_part1, uint32_t* block_part2) {
-            if (g_capturedBlowfishContext == nullptr) {
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 20 || (s_callCount % 250) == 0;
+            if (logThisCall) {
+                L.Get()->info("[HookHit] BlowfishDecrypt ENTER call={} this=0x{:X} p1=0x{:X} p2=0x{:X}", s_callCount, reinterpret_cast<uintptr_t>(thisPtr), reinterpret_cast<uintptr_t>(block_part1), reinterpret_cast<uintptr_t>(block_part2));
+                L.Get()->flush();
+            }            if (g_capturedBlowfishContext == nullptr) {
                 g_capturedBlowfishContext = thisPtr;
                 L.Get()->info("Contesto Blowfish catturato all'indirizzo: 0x{:X}", (uintptr_t)thisPtr);
             }
 
             g_originalFunction(thisPtr, block_part1, block_part2);
-
+            if (logThisCall) {
+                L.Get()->info("[HookHit] BlowfishDecrypt LEAVE original call={}", s_callCount);
+                L.Get()->flush();
+            }
             if (g_isCapturing) {
                 const uint8_t* p1_bytes = reinterpret_cast<const uint8_t*>(block_part1);
                 const uint8_t* p2_bytes = reinterpret_cast<const uint8_t*>(block_part2);
@@ -73,7 +82,7 @@ namespace HookCrashers {
 
         bool SetupBlowfishDecryptHook(uintptr_t moduleBase) {
             if (g_originalFunction != nullptr) {
-                L.Get()->warn("Hook di BlowfishDecrypt già installato.");
+                L.Get()->warn("Hook di BlowfishDecrypt giï¿½ installato.");
                 return true;
             }
 

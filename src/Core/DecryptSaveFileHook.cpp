@@ -10,14 +10,23 @@ namespace HookCrashers {
 
         using DecryptFunc_t = void(__thiscall*)(void* thisPtr, void* buffer_in_out, void* buffer_out_copy, int size);
         static DecryptFunc_t g_originalDecryptFunction = nullptr;
-        constexpr uintptr_t DECRYPT_FUNCTION_OFFSET = 0xDBD20;
+        constexpr uintptr_t DECRYPT_FUNCTION_OFFSET = 0xDDD50; // updated
 
         void __fastcall DetouredDecryptFunction(void* thisPtr, void* edx_dummy, void* buffer_in_out, void* buffer_out_copy, int size) {
-            if (g_decryptThisPtr == nullptr || g_decryptThisPtr != thisPtr) {
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 20 || (s_callCount % 100) == 0;
+            if (logThisCall) {
+                L.Get()->info("[HookHit] DecryptSaveFile ENTER call={} this=0x{:X} in_out=0x{:X} out_copy=0x{:X} size={}", s_callCount, reinterpret_cast<uintptr_t>(thisPtr), reinterpret_cast<uintptr_t>(buffer_in_out), reinterpret_cast<uintptr_t>(buffer_out_copy), size);
+                L.Get()->flush();
+            }            if (g_decryptThisPtr == nullptr || g_decryptThisPtr != thisPtr) {
                 g_decryptThisPtr = thisPtr;
 			}
             g_originalDecryptFunction(thisPtr, buffer_in_out, buffer_out_copy, size);
-        }
+            if (logThisCall) {
+                L.Get()->info("[HookHit] DecryptSaveFile LEAVE original call={}", s_callCount);
+                L.Get()->flush();
+            }        }
 
         bool SetupDecryptSaveFileHook(uintptr_t moduleBase) {
             if (g_originalDecryptFunction) {

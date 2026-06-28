@@ -50,8 +50,8 @@ namespace HookCrashers {
             Natives::IsDownPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14EFE0);
             Natives::IsEnterPressed.Address = reinterpret_cast<void*>(moduleBase + 0x14F6A0);
             Natives::RefreshGui.Address = reinterpret_cast<void*>(moduleBase + 0xC7D30);
-            Natives::GotoAndStop.Address = reinterpret_cast<void*>(moduleBase + 0x1180D0);
-			Natives::DecryptSaveFile.Address = reinterpret_cast<void*>(moduleBase + 0xDBD20);
+            Natives::GotoAndStop.Address = reinterpret_cast<void*>(moduleBase + 0x11A250); // updated
+			Natives::DecryptSaveFile.Address = reinterpret_cast<void*>(moduleBase + 0xDDD50); // updated
             return true;
         }
     }

@@ -31,7 +31,7 @@ namespace HookCrashers {
             );
         static OriginalAddString_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t ADD_STRING_OFFSET = 0xFB5D0;
+        constexpr uintptr_t ADD_STRING_OFFSET = 0xFD5F0; // updated
 
         uint16_t __fastcall DetouredAddStringReturnID(
             StringManagerContext* pStringManager,
@@ -39,6 +39,19 @@ namespace HookCrashers {
             uint32_t hash_or_index,
             const char* stringToAdd
         ) {
+            static int s_callCount = 0;
+            ++s_callCount;
+            const bool logThisCall = s_callCount <= 80 || (s_callCount % 250) == 0;
+            if (logThisCall) {
+                L.Get()->info(
+                    "[HookHit] AddString ENTER call={} manager=0x{:X} hash_or_index=0x{:X} string='{}'.",
+                    s_callCount,
+                    reinterpret_cast<uintptr_t>(pStringManager),
+                    hash_or_index,
+                    stringToAdd ? stringToAdd : "<null>");
+                L.Get()->flush();
+            }
+
             uint16_t resultId = 0;
             g_pStringManager = pStringManager;
             g_hashOrIndex = hash_or_index;
@@ -46,18 +59,25 @@ namespace HookCrashers {
             if (g_originalFunction) {
                 try {
                     resultId = g_originalFunction(pStringManager, hash_or_index, stringToAdd);
+                    if (logThisCall) {
+                        L.Get()->info("[HookHit] AddString LEAVE original call={} result_id={}", s_callCount, resultId);
+                        L.Get()->flush();
+                    }
                 }
-                catch (const std::exception&) {
+                catch (const std::exception& e) {
+                    L.Get()->critical("[HookHit] AddString original threw std::exception: {}", e.what());
+                    L.Get()->flush();
                     resultId = 0;
                 }
                 catch (...) {
-                    //L.Get()->critical("!!! Unknown exception in original AddStringReturnID !!!");
+                    L.Get()->critical("[HookHit] AddString original threw unknown exception.");
+                    L.Get()->flush();
                     resultId = 0;
                 }
             }
             else {
-                //L.Get()->error("Original AddStringReturnID function pointer is null!");
-                resultId = 0;
+                L.Get()->error("[HookHit] AddString original pointer is null.");
+                L.Get()->flush();
             }
 
             if (resultId != 0 && stringToAdd) {

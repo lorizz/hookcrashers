@@ -10,8 +10,8 @@ namespace HookCrashers {
 
         uintptr_t* g_pGameManagerPtr = nullptr;
 
-        constexpr uintptr_t GET_PLAYER_OBJECT_OFFSET = 0xEEA50;
-        constexpr uintptr_t GAME_MANAGER_POINTER_OFFSET = 0x38E288;
+        constexpr uintptr_t GET_PLAYER_OBJECT_OFFSET = 0xF0A70; // updated
+        constexpr uintptr_t GAME_MANAGER_POINTER_OFFSET = 0x391298; // updated
 
         void* __fastcall  DetouredGetPlayerObject(void* thisPtr, void* /*edx*/, uint16_t playerId) {
             if (thisPtr != nullptr) {

@@ -10,20 +10,22 @@ namespace HookCrashers {
         using OriginalRegisterAll_t = void(__fastcall*)(void* param_1);
         static OriginalRegisterAll_t g_originalFunction = nullptr;
 
-        constexpr uintptr_t REGISTER_ALL_SWF_FUNCTIONS_OFFSET = 0x11F380;
+        constexpr uintptr_t REGISTER_ALL_SWF_FUNCTIONS_OFFSET = 0x121500; // updated
 
         void __fastcall DetouredRegisterAllSWFFunctions(void* param_1) {
-            //L.Get()->info("RegisterAllSWFFunctions hook executing...");
-
+            static int s_callCount = 0;
+            ++s_callCount;
+            L.Get()->info("[HookHit] RegisterAllSWFFunctions ENTER call={} param=0x{:X}.", s_callCount, reinterpret_cast<uintptr_t>(param_1));
+            L.Get()->flush();
             if (g_originalFunction) {
                 //L.Get()->debug("Calling original RegisterAllSWFFunctions...");
                 try {
                     g_originalFunction(param_1);
-                    //L.Get()->debug("Original RegisterAllSWFFunctions finished.");
-                }
+                    L.Get()->info("[HookHit] RegisterAllSWFFunctions LEAVE original call={}", s_callCount);
+                    L.Get()->flush();                }
                 catch (...) {
-                    //L.Get()->critical("!!! Exception in original RegisterAllSWFFunctions !!!");
-                }
+                    L.Get()->critical("[HookHit] RegisterAllSWFFunctions original threw unknown exception call={}", s_callCount);
+                    L.Get()->flush();                }
             }
             else {
                 //L.Get()->error("Original RegisterAllSWFFunctions pointer is null! Cannot call original.");

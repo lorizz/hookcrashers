@@ -115,21 +115,21 @@ namespace HookCrashers::Save {
 		// ============================================================
 
 		// Malloc(v2, 2128) -> newSize
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFB2C5 + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFD2E6, { // updated
 			(uint8_t)(newSize),
 			(uint8_t)(newSize >> 8),
 			(uint8_t)(newSize >> 16),
 			(uint8_t)(newSize >> 24)
 			});
 		// FastMemset(v3, 0, 2128) -> newSize
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFB2EF + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFD310, { // updated
 			(uint8_t)(newSize),
 			(uint8_t)(newSize >> 8),
 			(uint8_t)(newSize >> 16),
 			(uint8_t)(newSize >> 24)
 			});
 		// this[2] = 2124 -> newCapacity
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFB2F7 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0xFD31A, { // updated
 			(uint8_t)(newCapacity),
 			(uint8_t)(newCapacity >> 8),
 			(uint8_t)(newCapacity >> 16),
@@ -141,13 +141,13 @@ namespace HookCrashers::Save {
 		// ============================================================
 
 		// ValidateFileSaveSize -> always return 1
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EDB0, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x130F10, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 }); // updated
 
 		// sub_8C7020 (backup gen) - skip size check 2128/1600/1552
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xE70B3, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0xE90D3, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 }); // updated
 
 		// sub_90EDD0 - cmp edx, 2128
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EE06 + 2, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x130F68, { // updated
 			(uint8_t)(newSize),
 			(uint8_t)(newSize >> 8),
 			(uint8_t)(newSize >> 16),
@@ -161,13 +161,13 @@ namespace HookCrashers::Save {
 		// ============================================================
 
 		// sub_90D0B0 - LoadKeybindsFromBuffer
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12D344 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12F4A7, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
 			(uint8_t)(newKeybindsLimit >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12D34D + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12F4B0, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
@@ -175,13 +175,13 @@ namespace HookCrashers::Save {
 			});
 
 		// GenerateDefaultKeybinds
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12CCDC + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EE3D, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
 			(uint8_t)(newKeybindsLimit >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12CCE3 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EE46, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
@@ -189,13 +189,13 @@ namespace HookCrashers::Save {
 			});
 
 		// sub_91B020 - ACCEPT keybind
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13B050 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13D200 + 3, { // => 0x13D200 (+0x21B0) updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
 			(uint8_t)(newKeybindsLimit >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13B059 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13D209 + 3, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
@@ -203,13 +203,13 @@ namespace HookCrashers::Save {
 			});
 
 		// sub_91B4E0 - WRITE keybind (exit settings)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13B53B + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13D6EB + 3, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
 			(uint8_t)(newKeybindsLimit >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13B544 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13D6F4 + 3, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
@@ -217,13 +217,13 @@ namespace HookCrashers::Save {
 			});
 
 		// sub_91BFA0 - REVERT keybind / open settings display
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13BFD2 + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13E182 + 3, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
 			(uint8_t)(newKeybindsLimit >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13BFDB + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x13E18B + 3, { // updated
 			(uint8_t)(newKeybindsLimit),
 			(uint8_t)(newKeybindsLimit >> 8),
 			(uint8_t)(newKeybindsLimit >> 16),
@@ -231,13 +231,13 @@ namespace HookCrashers::Save {
 			});
 
 		// sub_90CC40 - CheckKeybindsZero (calls GenerateDefaultKeybinds if all zero)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12CC55 + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EDB6, { // updated
 			(uint8_t)(0x832 + addonBytes),
 			(uint8_t)((0x832 + addonBytes) >> 8),
 			(uint8_t)((0x832 + addonBytes) >> 16),
 			(uint8_t)((0x832 + addonBytes) >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12CC5C + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12EDBF, { // updated
 			(uint8_t)(0x832 + addonBytes),
 			(uint8_t)((0x832 + addonBytes) >> 8),
 			(uint8_t)((0x832 + addonBytes) >> 16),
@@ -249,10 +249,10 @@ namespace HookCrashers::Save {
 		//     CreateDefaultCharacters loop limit (0x2A = 42 chars)
 		// ============================================================
 
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12D05B + 3, { (uint8_t)(TOTAL_ORIGINAL_CHARS + N) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12F1BE, { (uint8_t)(TOTAL_ORIGINAL_CHARS + N) }); // updated
 
 		// sub_90C9C0 - ValidateCharacterStats loop limit (i < 0x821 -> i < 0x821 + addonBytes)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12CC22 + 2, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x12ED84, { // updated
 			(uint8_t)(0x821 + addonBytes),
 			(uint8_t)((0x821 + addonBytes) >> 8),
 			(uint8_t)((0x821 + addonBytes) >> 16),
@@ -273,12 +273,12 @@ namespace HookCrashers::Save {
 		//     d_characterTable allocation and slot table setup
 		// ============================================================
 		// LobbyManagerConstructor - slot table size
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x830FE + 2, { (uint8_t)total });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x83103 + 1, { (uint8_t)total });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8313F + 1, { (uint8_t)(tableBytes & 0xFF), (uint8_t)(tableBytes >> 8) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x830A0, { (uint8_t)total }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x830A4, { (uint8_t)total }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x830E0, { (uint8_t)(tableBytes & 0xFF), (uint8_t)(tableBytes >> 8) }); // updated
 
 		// d_characterTable malloc size
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10A684 + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10C805, { // updated
 			(uint8_t)(newCharacterTableBufferSize),
 			(uint8_t)(newCharacterTableBufferSize >> 8),
 			(uint8_t)(newCharacterTableBufferSize >> 16),
@@ -295,10 +295,10 @@ namespace HookCrashers::Save {
 		}
 
 		// RebuildCharacterSlotTable
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84760 + 1, { (uint8_t)(tableBytes & 0xFF), (uint8_t)(tableBytes >> 8) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8481B + 2, { (uint8_t)split });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84A8A + 2, { (uint8_t)total });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84830 + 2, { (uint8_t)(-totalBase) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84701, { (uint8_t)(tableBytes & 0xFF), (uint8_t)(tableBytes >> 8) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x847BD, { (uint8_t)split }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84A2C, { (uint8_t)total }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x847D2, { (uint8_t)(-totalBase) }); // updated
 		if (kSavePatchPhase <= 3) {
 			Util::Logger::Instance().Get()->info(
 				"[Save] Phase 3 rebuild patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
@@ -314,16 +314,16 @@ namespace HookCrashers::Save {
 		// ============================================================
 
 		// DisableInvalidOrUnavailableDLCCharacters
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EA00 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EA22 + 2, { (uint8_t)(split) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8E9A0 + 2, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8E9C2 + 2, { (uint8_t)(split) }); // updated
 
 		// ValidateAndRevokeDLC
 		if (kPhase4EnableValidateAndRevokeDLC) {
 			if (kPhase4ExpandValidateAndRevokeDLCScan) {
-				HookCrashers::Util::MemoryPatcher::PatchBytes(0x8744F + 2, { (uint8_t)total });
+				HookCrashers::Util::MemoryPatcher::PatchBytes(0x873F1, { (uint8_t)total }); // updated
 			}
 			if (kPhase4SkipValidateAndRevokeDLCRebuild) {
-				HookCrashers::Util::MemoryPatcher::PatchBytes(0x8732B, { 0x90, 0x90, 0x90, 0x90, 0x90 });
+				HookCrashers::Util::MemoryPatcher::PatchBytes(0x872CB, { 0x90, 0x90, 0x90, 0x90, 0x90 }); // updated
 			}
 		}
 		if (!kPhase4EnableIsCharacterUnlockedForPlayer) {
@@ -339,16 +339,16 @@ namespace HookCrashers::Save {
 		}
 
 		// IsCharacterUnlockedForPlayer
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10354A + 2, { (uint8_t)(totalBase - 1) });               // Default 31 (0x1F)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x103573 + 2, { (uint8_t)(-totalBase) });                  // Default -32 (0xE0)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x1035A9 + 2, { (uint8_t)(totalBase + 1) });               // Default 33 (0x21)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CD7 + 0x8E0 + 2, { (uint8_t)(totalBase + 10 + 1) }); // Default 43 (0x2B)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CE5 + 0x8E0 + 2, { (uint8_t)(totalBase + 20 + 1) }); // Default 53 (0x35)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CF3 + 0x8E0 + 2, { (uint8_t)(totalBase + 30 + 1) }); // Default 63 (0x3F)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CDC + 0x8E0 + 2, { (uint8_t)(totalBase + 20 + 1) }); // Default 53 (0x35)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CEA + 0x8E0 + 2, { (uint8_t)(totalBase + 30 + 1) }); // Default 63 (0x3F)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CFC + 0x8E0 + 2, { (uint8_t)(total) });              // Default 73 (0x49)
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x102CCE + 0x8E0 + 2, { (uint8_t)(totalBase + 10 + 1) }); // Default 43 (0x2B)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x1055CA + 2, { (uint8_t)(totalBase - 1) });               // Default 31 (0x1F)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x1055F3 + 2, { (uint8_t)(-totalBase) });                  // Default -32 (0xE0)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105629 + 2, { (uint8_t)(totalBase + 1) });               // Default 33 (0x21)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105637 + 2, { (uint8_t)(totalBase + 10 + 1) }); // Default 43 (0x2B)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105645 + 2, { (uint8_t)(totalBase + 20 + 1) }); // Default 53 (0x35)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105653 + 2, { (uint8_t)(totalBase + 30 + 1) }); // Default 63 (0x3F)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10563C + 2, { (uint8_t)(totalBase + 20 + 1) }); // Default 53 (0x35)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10564A + 2, { (uint8_t)(totalBase + 30 + 1) }); // Default 63 (0x3F)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10565C + 2, { (uint8_t)(total) });              // Default 73 (0x49)
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10562E + 2, { (uint8_t)(totalBase + 10 + 1) }); // Default 43 (0x2B)
 		if (kSavePatchPhase <= 4) {
 			Util::Logger::Instance().Get()->info(
 				"[Save] Phase 4 unlock validation patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
@@ -363,8 +363,8 @@ namespace HookCrashers::Save {
 		// Keep the fresh-only gate at index 31 (0x1F), but move the workshop/save split
 		// from 32 (0x20) to 32 + addonCount so addon characters continue through save-side
 		// unlock scanning before workshop slot logic runs.
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14AD9E + 2, { (uint8_t)(workshopSelectionStart) }); // cmp eax, 0x20
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14ADBB + 2, { (uint8_t)(workshopSelectionStart) }); // sub eax, 0x20
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14CF2E + 2, { (uint8_t)(workshopSelectionStart) }); // updated // cmp eax, 0x20
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14CF4B + 2, { (uint8_t)(workshopSelectionStart) }); // updated // sub eax, 0x20
 		if (kSavePatchPhase <= 5) {
 			Util::Logger::Instance().Get()->info(
 				"[Save] Phase 5 selectable character patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
@@ -376,12 +376,12 @@ namespace HookCrashers::Save {
 		}
 
 		// AttachSkinGraphic
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D683 + 2, { (uint8_t)(totalBase + 1) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D652 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D659 + 2, { (uint8_t)(total) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D625, { (uint8_t)(totalBase + 1) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D5F4, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D5FB, { (uint8_t)(total) }); // updated
 
 		// AttachWorkshopSkin
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D29A + 2, { (uint8_t)(totalBase + 1) });
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D23C, { (uint8_t)(totalBase + 1) }); // updated
 		if (kSavePatchPhase <= 6) {
 			Util::Logger::Instance().Get()->info(
 				"[Save] Phase 6 attach skin patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
@@ -408,22 +408,73 @@ namespace HookCrashers::Save {
 			"[NetworkPatch] Aligning workshop skin entry source for clone slot. index={} byte_offset=0x{:X}.",
 			workshopSkinEntryIndex,
 			workshopSkinEntryByteOffset);
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D60 + 2, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D02, { // updated
 			(uint8_t)(workshopSkinEntryByteOffset),
 			(uint8_t)(workshopSkinEntryByteOffset >> 8),
 			(uint8_t)(workshopSkinEntryByteOffset >> 16),
 			(uint8_t)(workshopSkinEntryByteOffset >> 24)
 			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x890BD + 1, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8905E, { // updated
 			(uint8_t)(workshopSkinEntryIndex),
 			(uint8_t)(workshopSkinEntryIndex >> 8),
 			(uint8_t)(workshopSkinEntryIndex >> 16),
 			(uint8_t)(workshopSkinEntryIndex >> 24)
 			});
 
+		/*HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D60 + 2, {
+			(uint8_t)(selected10ByteOffset & 0xFF),
+			(uint8_t)((selected10ByteOffset >> 8) & 0xFF),
+			0x00, 0x00
+			});*/
+#if 0
+		// ResolveWorkshopCharacterConflicts
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8405D, { (uint8_t)(split) }); // updated
+		
+		// GetCurrentWorkshopSkinEntry
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D23C, { (uint8_t)(split) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D2CC, { (uint8_t)(split) }); // updated
+
+		// GetCharacterSlotName
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A629, {(uint8_t)(-split)}); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A635, { (uint8_t)(split - 1) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A644, { (uint8_t)(split - 2) }); // updated
+
+		// GetCharacterSlotCheckDefaultName??
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FCCC, { (uint8_t)(split) }); // updated
+
+		// GetCharacterSlotCheckDefaultName2??
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FD72, { (uint8_t)(split) }); // updated
+
+		// unkf_x
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A790, {(uint8_t)(total)}); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EB74, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EBB6, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC56, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC65, { (uint8_t)(total) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87C4C, { (uint8_t)(split) }); // updated
+		Util::Logger::Instance().Get()->info(
+			"[Save] Phase 7 expansion patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
+			newSize,
+			newCapacity,
+			totalBase,
+			total);
+#endif
+		return true;
+	}
+}
+
+		// SetFlagIsCharWorkshop
+		// HookCrashers::Util::MemoryPatcher::PatchBytes(0x36986 + 2, { (uint8_t)(totalBase + 1) }); // Default 33 (0x21)
+
+		// GetCharacterGameCompletedForPlayer <- decompile
+		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B54 + 0x8E0 + 2, { (uint8_t)(-(totalBase + 10)) });
+		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B64 + 0x8E0 + 2, { (uint8_t)(totalBase) });
+		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B72 + 0x8E0 + 2, { (uint8_t)(totalBase + 10) });
+
+
 #if 0
 		// IsCharacterIndexValid
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8E726 + 2, { (uint8_t)(total) });
+		/*HookCrashers::Util::MemoryPatcher::PatchBytes(0x8E726 + 2, {(uint8_t)(total)});
 
 		// IsCharacterDLCOwned
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8E7F3 + 2, { (uint8_t)(total) });
@@ -475,7 +526,7 @@ namespace HookCrashers::Save {
 
 		// sub_83FEE0
 		// Merge workshop payload blocks from the vanilla/fresh packet into the remote workshop packet area.
-		/*int wsMaskOffset = 0x108 + (N * 8);
+		int wsMaskOffset = 0x108 + (N * 8);
 		int wsIDsOffset = 0x110 + (N * 8);
 		int wsFlagsSrc = 0x181 + (N * 9);
 		int wsFlagsDest = 0x401 + (N * 9);
@@ -530,7 +581,7 @@ namespace HookCrashers::Save {
 
 		// ApplyCharacterSyncPacket
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87810 + 2, { (uint8_t)(split) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8782B + 3, {
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x877CE, { // updated
 			(uint8_t)(syncObjFlagOffset),
 			(uint8_t)(syncObjFlagOffset >> 8),
 			(uint8_t)(syncObjFlagOffset >> 16),
@@ -712,188 +763,140 @@ namespace HookCrashers::Save {
 			(uint8_t)((workshopIdsOffset + 12) >> 24)
 			});*/
 
-		// Minimal workshop network packet alignment.
-		// Keep large packet copy/clear rewrites disabled while validating the remote workshop slot path.
-		int wsMaskOffset = 0x108 + (N * 8);
-		int wsIDsOffset = 0x110 + (N * 8);
-		int wsFlagsSrc = 0x181 + N;
-		int wsFlagsDest = 0x401 + N;
-		Util::Logger::Instance().Get()->info(
-			"[NetworkPatch] Minimal workshop sync enabled. apply_flags=0x{:X} merge_mask=0x{:X} merge_ids=0x{:X} merge_src_flags=0x{:X} merge_dst_flags=0x{:X} final_packet=0x{:X}.",
-			syncObjFlagOffset,
-			wsMaskOffset,
-			wsIDsOffset,
-			wsFlagsSrc,
-			wsFlagsDest,
-			finalPacketOffset);
+			// Minimal workshop network packet alignment.
+			// Keep large packet copy/clear rewrites disabled while validating the remote workshop slot path.
+int wsMaskOffset = 0x108 + (N * 8);
+int wsIDsOffset = 0x110 + (N * 8);
+int wsFlagsSrc = 0x181 + N;
+int wsFlagsDest = 0x401 + N;
+Util::Logger::Instance().Get()->info(
+	"[NetworkPatch] Minimal workshop sync enabled. apply_flags=0x{:X} merge_mask=0x{:X} merge_ids=0x{:X} merge_src_flags=0x{:X} merge_dst_flags=0x{:X} final_packet=0x{:X}.",
+	syncObjFlagOffset,
+	wsMaskOffset,
+	wsIDsOffset,
+	wsFlagsSrc,
+	wsFlagsDest,
+	finalPacketOffset);
 
-		// ApplyCharacterSyncPacket: read shifted fresh/workshop flags from the expanded sync packet.
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8782B + 3, {
-			(uint8_t)(syncObjFlagOffset),
-			(uint8_t)(syncObjFlagOffset >> 8),
-			(uint8_t)(syncObjFlagOffset >> 16),
-			(uint8_t)(syncObjFlagOffset >> 24)
-			});
+// ApplyCharacterSyncPacket: read shifted fresh/workshop flags from the expanded sync packet.
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x8782B + 3, {
+	(uint8_t)(syncObjFlagOffset),
+	(uint8_t)(syncObjFlagOffset >> 8),
+	(uint8_t)(syncObjFlagOffset >> 16),
+	(uint8_t)(syncObjFlagOffset >> 24)
+	});
 
-		// sub_83FEE0: merge 10 workshop identities/flags from the shifted packet layout.
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FEEC + 2, {
-			(uint8_t)(wsMaskOffset),
-			(uint8_t)(wsMaskOffset >> 8),
-			(uint8_t)(wsMaskOffset >> 16),
-			(uint8_t)(wsMaskOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF1D + 2, {
-			(uint8_t)(wsIDsOffset),
-			(uint8_t)(wsIDsOffset >> 8),
-			(uint8_t)(wsIDsOffset >> 16),
-			(uint8_t)(wsIDsOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF35 + 2, {
-			(uint8_t)(finalPacketOffset),
-			(uint8_t)(finalPacketOffset >> 8),
-			(uint8_t)(finalPacketOffset >> 16),
-			(uint8_t)(finalPacketOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF3B + 2, {
-			(uint8_t)(finalPacketOffset + 4),
-			(uint8_t)((finalPacketOffset + 4) >> 8),
-			(uint8_t)((finalPacketOffset + 4) >> 16),
-			(uint8_t)((finalPacketOffset + 4) >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF46 + 2, {
-			(uint8_t)(finalPacketOffset + 4),
-			(uint8_t)((finalPacketOffset + 4) >> 8),
-			(uint8_t)((finalPacketOffset + 4) >> 16),
-			(uint8_t)((finalPacketOffset + 4) >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF4F + 2, {
-			(uint8_t)(finalPacketOffset),
-			(uint8_t)(finalPacketOffset >> 8),
-			(uint8_t)(finalPacketOffset >> 16),
-			(uint8_t)(finalPacketOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF5B + 3, {
-			(uint8_t)(wsFlagsSrc),
-			(uint8_t)(wsFlagsSrc >> 8),
-			(uint8_t)(wsFlagsSrc >> 16),
-			(uint8_t)(wsFlagsSrc >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF62 + 3, {
-			(uint8_t)(wsFlagsDest),
-			(uint8_t)(wsFlagsDest >> 8),
-			(uint8_t)(wsFlagsDest >> 16),
-			(uint8_t)(wsFlagsDest >> 24)
-			});
+// sub_83FEE0: merge 10 workshop identities/flags from the shifted packet layout.
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FEEC + 2, {
+	(uint8_t)(wsMaskOffset),
+	(uint8_t)(wsMaskOffset >> 8),
+	(uint8_t)(wsMaskOffset >> 16),
+	(uint8_t)(wsMaskOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF1D + 2, {
+	(uint8_t)(wsIDsOffset),
+	(uint8_t)(wsIDsOffset >> 8),
+	(uint8_t)(wsIDsOffset >> 16),
+	(uint8_t)(wsIDsOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF35 + 2, {
+	(uint8_t)(finalPacketOffset),
+	(uint8_t)(finalPacketOffset >> 8),
+	(uint8_t)(finalPacketOffset >> 16),
+	(uint8_t)(finalPacketOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF3B + 2, {
+	(uint8_t)(finalPacketOffset + 4),
+	(uint8_t)((finalPacketOffset + 4) >> 8),
+	(uint8_t)((finalPacketOffset + 4) >> 16),
+	(uint8_t)((finalPacketOffset + 4) >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF46 + 2, {
+	(uint8_t)(finalPacketOffset + 4),
+	(uint8_t)((finalPacketOffset + 4) >> 8),
+	(uint8_t)((finalPacketOffset + 4) >> 16),
+	(uint8_t)((finalPacketOffset + 4) >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF4F + 2, {
+	(uint8_t)(finalPacketOffset),
+	(uint8_t)(finalPacketOffset >> 8),
+	(uint8_t)(finalPacketOffset >> 16),
+	(uint8_t)(finalPacketOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF5B + 3, {
+	(uint8_t)(wsFlagsSrc),
+	(uint8_t)(wsFlagsSrc >> 8),
+	(uint8_t)(wsFlagsSrc >> 16),
+	(uint8_t)(wsFlagsSrc >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x5FF62 + 3, {
+	(uint8_t)(wsFlagsDest),
+	(uint8_t)(wsFlagsDest >> 8),
+	(uint8_t)(wsFlagsDest >> 16),
+	(uint8_t)(wsFlagsDest >> 24)
+	});
 
-		// sub_8D0750: temporary packet used to materialize the remote workshop clone slot.
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xF08FA + 4, {
-			(uint8_t)(finalPacketOffset),
-			(uint8_t)(finalPacketOffset >> 8),
-			(uint8_t)(finalPacketOffset >> 16),
-			(uint8_t)(finalPacketOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xF0901 + 4, {
-			(uint8_t)(finalPacketOffset + 4),
-			(uint8_t)((finalPacketOffset + 4) >> 8),
-			(uint8_t)((finalPacketOffset + 4) >> 16),
-			(uint8_t)((finalPacketOffset + 4) >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xF091E + 3, {
-			(uint8_t)(workshopIdsOffset),
-			(uint8_t)(workshopIdsOffset >> 8),
-			(uint8_t)(workshopIdsOffset >> 16),
-			(uint8_t)(workshopIdsOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xF092A + 4, {
-			(uint8_t)(workshopIdsOffset + 8),
-			(uint8_t)((workshopIdsOffset + 8) >> 8),
-			(uint8_t)((workshopIdsOffset + 8) >> 16),
-			(uint8_t)((workshopIdsOffset + 8) >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0xF0934 + 4, {
-			(uint8_t)(workshopIdsOffset + 12),
-			(uint8_t)((workshopIdsOffset + 12) >> 8),
-			(uint8_t)((workshopIdsOffset + 12) >> 16),
-			(uint8_t)((workshopIdsOffset + 12) >> 24)
-			});
+// sub_8D0750: temporary packet used to materialize the remote workshop clone slot.
+HookCrashers::Util::MemoryPatcher::PatchBytes(0xF08FA + 4, {
+	(uint8_t)(finalPacketOffset),
+	(uint8_t)(finalPacketOffset >> 8),
+	(uint8_t)(finalPacketOffset >> 16),
+	(uint8_t)(finalPacketOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0xF0901 + 4, {
+	(uint8_t)(finalPacketOffset + 4),
+	(uint8_t)((finalPacketOffset + 4) >> 8),
+	(uint8_t)((finalPacketOffset + 4) >> 16),
+	(uint8_t)((finalPacketOffset + 4) >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0xF091E + 3, {
+	(uint8_t)(workshopIdsOffset),
+	(uint8_t)(workshopIdsOffset >> 8),
+	(uint8_t)(workshopIdsOffset >> 16),
+	(uint8_t)(workshopIdsOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0xF092A + 4, {
+	(uint8_t)(workshopIdsOffset + 8),
+	(uint8_t)((workshopIdsOffset + 8) >> 8),
+	(uint8_t)((workshopIdsOffset + 8) >> 16),
+	(uint8_t)((workshopIdsOffset + 8) >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0xF0934 + 4, {
+	(uint8_t)(workshopIdsOffset + 12),
+	(uint8_t)((workshopIdsOffset + 12) >> 8),
+	(uint8_t)((workshopIdsOffset + 12) >> 16),
+	(uint8_t)((workshopIdsOffset + 12) >> 24)
+	});
 
-		// BuildCharacterSyncPacket: source the 40 workshop skin entries from the shifted split.
-		Util::Logger::Instance().Get()->info(
-			"[NetworkPatch] BuildCharacterSyncPacket workshop skin entries index={} byte_offset=0x{:X}.",
-			workshopSkinEntryIndex,
-			workshopSkinEntryByteOffset);
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D60 + 2, {
-			(uint8_t)(workshopSkinEntryByteOffset),
-			(uint8_t)(workshopSkinEntryByteOffset >> 8),
-			(uint8_t)(workshopSkinEntryByteOffset >> 16),
-			(uint8_t)(workshopSkinEntryByteOffset >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x890BD + 1, {
-			(uint8_t)(workshopSkinEntryIndex),
-			(uint8_t)(workshopSkinEntryIndex >> 8),
-			(uint8_t)(workshopSkinEntryIndex >> 16),
-			(uint8_t)(workshopSkinEntryIndex >> 24)
-			});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88CD3 + 3, {
-			(uint8_t)(wsFlagsDest),
-			(uint8_t)(wsFlagsDest >> 8),
-			(uint8_t)(wsFlagsDest >> 16),
-			(uint8_t)(wsFlagsDest >> 24)
-			});
-		
-		// BuildCharacterSyncPacket
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88AE3 + 2, {(uint8_t)(split)});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88AF2 + 2, {
-			(uint8_t)(workshopByteOffset & 0xFF),
-			(uint8_t)((workshopByteOffset >> 8) & 0xFF),
-			0x00, 0x00
-			});
+// BuildCharacterSyncPacket: source the 40 workshop skin entries from the shifted split.
+Util::Logger::Instance().Get()->info(
+	"[NetworkPatch] BuildCharacterSyncPacket workshop skin entries index={} byte_offset=0x{:X}.",
+	workshopSkinEntryIndex,
+	workshopSkinEntryByteOffset);
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D02, { // updated
+	(uint8_t)(workshopSkinEntryByteOffset),
+	(uint8_t)(workshopSkinEntryByteOffset >> 8),
+	(uint8_t)(workshopSkinEntryByteOffset >> 16),
+	(uint8_t)(workshopSkinEntryByteOffset >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x8905E, { // updated
+	(uint8_t)(workshopSkinEntryIndex),
+	(uint8_t)(workshopSkinEntryIndex >> 8),
+	(uint8_t)(workshopSkinEntryIndex >> 16),
+	(uint8_t)(workshopSkinEntryIndex >> 24)
+	});
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x88C76, { // updated
+	(uint8_t)(wsFlagsDest),
+	(uint8_t)(wsFlagsDest >> 8),
+	(uint8_t)(wsFlagsDest >> 16),
+	(uint8_t)(wsFlagsDest >> 24)
+	});
+
+// BuildCharacterSyncPacket
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A85, { (uint8_t)(split) }); // updated
+HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A94, { // updated
+	(uint8_t)(workshopByteOffset & 0xFF),
+	(uint8_t)((workshopByteOffset >> 8) & 0xFF),
+	0x00, 0x00
+	});
 #endif
-		/*HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D60 + 2, {
-			(uint8_t)(selected10ByteOffset & 0xFF),
-			(uint8_t)((selected10ByteOffset >> 8) & 0xFF),
-			0x00, 0x00
-			});*/
-
-		// ResolveWorkshopCharacterConflicts
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8405B + 2, { (uint8_t)(split) });
-		
-		// GetCurrentWorkshopSkinEntry
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D29A + 2, { (uint8_t)(split) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D2CA + 2, { (uint8_t)(split) });
-
-		// GetCharacterSlotName
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A627 + 2, {(uint8_t)(-split)});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A633 + 2, { (uint8_t)(split - 1) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A641 + 3, { (uint8_t)(split - 2) });
-
-		// GetCharacterSlotCheckDefaultName??
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FCCA + 2, { (uint8_t)(split) });
-
-		// GetCharacterSlotCheckDefaultName2??
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FD70 + 2, { (uint8_t)(split) });
-
-		// unkf_x
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A78E + 2, {(uint8_t)(total)});
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EB72 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EBB4 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC54 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC63 + 2, { (uint8_t)(total) });
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87C4A + 2, { (uint8_t)(split) });
-		Util::Logger::Instance().Get()->info(
-			"[Save] Phase 7 expansion patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
-			newSize,
-			newCapacity,
-			totalBase,
-			total);
-		return true;
-	}
-}
-
-		// SetFlagIsCharWorkshop
-		// HookCrashers::Util::MemoryPatcher::PatchBytes(0x36986 + 2, { (uint8_t)(totalBase + 1) }); // Default 33 (0x21)
-
-		// GetCharacterGameCompletedForPlayer <- decompile
-		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B54 + 0x8E0 + 2, { (uint8_t)(-(totalBase + 10)) });
-		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B64 + 0x8E0 + 2, { (uint8_t)(totalBase) });
-		//HookCrashers::Util::MemoryPatcher::PatchBytes(0x102B72 + 0x8E0 + 2, { (uint8_t)(totalBase + 10) });

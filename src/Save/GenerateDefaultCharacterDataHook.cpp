@@ -9,7 +9,7 @@
 
 namespace HookCrashers::Save {
 
-    static const uintptr_t GENERATE_DEFAULT_CHAR_DATA = 0x12DB70;
+    static const uintptr_t GENERATE_DEFAULT_CHAR_DATA = 0x12FCD0; // updated
 
     using OriginalGenerateDefaultCharacterData_t = unsigned int(__fastcall*)(void* a1, int characterIndex);
     static OriginalGenerateDefaultCharacterData_t g_originalFunction = nullptr;
@@ -62,6 +62,18 @@ namespace HookCrashers::Save {
     }
 
     unsigned int __fastcall DetouredGenerateDefaultCharacterData(void* manager, int characterIndex) {
+        static int s_callCount = 0;
+        ++s_callCount;
+        const bool logThisCall = s_callCount <= 40 || (s_callCount % 100) == 0;
+        if (logThisCall) {
+            HookCrashers::Util::Logger::Instance().Get()->info(
+                "[HookHit] GenerateDefaultCharacterData ENTER call={} manager=0x{:X} character_index={}",
+                s_callCount,
+                reinterpret_cast<uintptr_t>(manager),
+                characterIndex);
+            HookCrashers::Util::Logger::Instance().Get()->flush();
+        }
+
         void* pManager = manager;
         unsigned int uIdx = (unsigned int)(unsigned short)characterIndex;
 
@@ -80,6 +92,15 @@ namespace HookCrashers::Save {
         ctx[3] = offset + 46;
 
         unsigned int returnAddress = (unsigned int)pBlock;
+
+        if (logThisCall) {
+            HookCrashers::Util::Logger::Instance().Get()->info(
+                "[HookHit] GenerateDefaultCharacterData LEAVE call={} block=0x{:X} offset={}",
+                s_callCount,
+                returnAddress,
+                offset);
+            HookCrashers::Util::Logger::Instance().Get()->flush();
+        }
 
         __asm {
             mov ecx, pManager

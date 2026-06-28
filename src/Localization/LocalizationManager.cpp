@@ -5,6 +5,7 @@
 #include <codecvt>
 #include <locale>
 #include "../Util/Logger.h"
+#include "../Util/SteamHelper.h"
 
 namespace HookCrashers::Localization {
 
@@ -22,6 +23,7 @@ namespace HookCrashers::Localization {
         MultiByteToWideChar(CP_UTF8, 0, &str[0], (int)str.size(), &wstrTo[0], size_needed);
         return wstrTo;
     }
+
 
     int LocalizationManager::getNumericId(const std::string& logicalId) {
         auto it = m_idMap.find(logicalId);
@@ -50,23 +52,16 @@ namespace HookCrashers::Localization {
         if (m_isInitialized) return true;
         m_baseCustomId = baseCustomId;
 
-        uintptr_t steamClientBase = (uintptr_t)GetModuleHandleA("steamclient.dll");
-        if (steamClientBase == 0) {
-            HookCrashers::Util::Logger::Instance().Get()->error("[CustomLocalizations] steamclient.dll not found!");
-            return false;
-        }
-
-        const uintptr_t LANGUAGE_ADDRESS = steamClientBase + 0x12AFE80;
+        auto steamLanguage = HookCrashers::Util::GetSteamLanguage();
         std::string language;
-
-        for (int attempts = 0; attempts < 600; ++attempts) {
-            if (*(char*)LANGUAGE_ADDRESS != '\0') {
-                language = (char*)LANGUAGE_ADDRESS;
-                break;
-            }
-            std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        if (steamLanguage.first) {
+            language = steamLanguage.second;
         }
-        if (language.empty()) language = "english";
+        else {
+            HookCrashers::Util::Logger::Instance().Get()->warn(
+                "[Localization] SteamHelper could not determine language; falling back to english.");
+            language = "english";
+        }
 
         HookCrashers::Util::Logger::Instance().Get()->info("[Localization] Detected Steam language '{}'.", language);
 
