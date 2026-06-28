@@ -4,6 +4,7 @@
 #include "../SWF/AS2NativeRegistry.h"
 #include "../SWF/SWFBytecode.h"
 #include "../SWF/SWFStructures.h"
+#include "../SWF/Runtime/SWFRuntimeInjector.h"
 
 #include <windows.h>
 #include <detours.h>
@@ -683,6 +684,12 @@ namespace HookCrashers::Core {
 	}
 
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
+		auto* swfScene = reinterpret_cast<HookCrashers::SWF::SWFScene*>(scene);
+		// SVG shape injection is disabled for now; keep diagnostics/dumps active.
+		// HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
+		if (swfScene) {
+			DumpSWFBufferToFile(swfScene->swfBuffer, g_currentSWFPath);
+		}
 		return g_originalSWFSceneParseHeader(scene);
 	}
 

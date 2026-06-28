@@ -1,4 +1,5 @@
 #include "SteamHelper.h"
+#include "../Save/SavePatches.h"
 #include <Windows.h>
 #include <string>
 #include <vector>
@@ -186,7 +187,7 @@ namespace HookCrashers {
             if (activeUserResult.first) {
                 uint32_t activeUserId = activeUserResult.second;
                 L.Get()->info("Trovato utente Steam attivo con ID: {}", activeUserId);
-                std::string savePath = userdataDir + "\\" + std::to_string(activeUserId) + "\\204360\\remote\\cc_save.dat";
+                std::string savePath = userdataDir + "\\" + std::to_string(activeUserId) + "\\204360\\remote\\" + HookCrashers::Save::GetSaveFileName();
 
                 if (PathExists(savePath)) {
                     L.Get()->info("Trovato file di salvataggio per l'utente attivo: {}", savePath);
@@ -213,7 +214,7 @@ namespace HookCrashers {
                     (strcmp(findData.cFileName, ".") != 0) &&
                     (strcmp(findData.cFileName, "..") != 0))
                 {
-                    std::string savePath = userdataDir + "\\" + findData.cFileName + "\\204360\\remote\\cc_save.dat";
+                    std::string savePath = userdataDir + "\\" + findData.cFileName + "\\204360\\remote\\" + HookCrashers::Save::GetSaveFileName();
                     if (PathExists(savePath)) {
                         L.Get()->info("Trovato file di salvataggio (fallback): {}", savePath);
                         FindClose(hFind);
@@ -224,7 +225,7 @@ namespace HookCrashers {
 
             FindClose(hFind);
 
-            L.Get()->error("Nessun file 'cc_save.dat' trovato per l'AppID 204360 in nessuna cartella utente di Steam.");
+            L.Get()->error("Nessun file save moddato trovato per l'AppID 204360 in nessuna cartella utente di Steam.");
             return { false, "" };
         }
     }

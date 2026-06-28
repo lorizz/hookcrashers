@@ -189,6 +189,7 @@
     <ClInclude Include="src\Scripting\ScriptModLoader.h" />
     <ClInclude Include="src\Core\BaseHook.h" />
     <ClInclude Include="src\Core\CallSWFFunctionHook.h" />
+    <ClInclude Include="src\Core\DisplayListDepthHook.h" />
     <ClInclude Include="src\Core\HookManager.h" />
     <ClInclude Include="src\Core\RegisterAllSWFFunctionsHook.h" />
     <ClInclude Include="src\Core\RegisterSWFFunctionHook.h" />
@@ -336,6 +337,7 @@
     </ClCompile>
     <ClCompile Include="src\Core\BaseHook.cpp" />
     <ClCompile Include="src\Core\CallSWFFunctionHook.cpp" />
+    <ClCompile Include="src\Core\DisplayListDepthHook.cpp" />
     <ClCompile Include="src\Core\HookManager.cpp" />
     <ClCompile Include="src\Core\RegisterAllSWFFunctionsHook.cpp" />
     <ClCompile Include="src\Core\RegisterSWFFunctionHook.cpp" />

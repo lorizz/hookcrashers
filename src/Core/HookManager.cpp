@@ -10,6 +10,7 @@
 #include "RegisterAllSWFFunctionsHook.h"
 #include "AddStringHook.h"
 #include "SWFDiagnosticsHook.h"
+#include "DisplayListDepthHook.h"
 #include "../SWF/Helpers/SWFReturnHelper.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
 #include "ModLoader.h"
@@ -141,6 +142,10 @@ namespace HookCrashers {
 
             if (!SetupSWFDiagnosticsHook(moduleBase)) {
                 L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
+            }
+
+            if (!SetupDisplayListDepthHook(moduleBase)) {
+                L.Get()->warn("Failed to setup display-list depth hook. SVG portrait injected depth ordering may be wrong.");
             }
 
             if (!SetupUIInputHandlerHook(moduleBase)) {

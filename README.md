@@ -89,6 +89,45 @@ HC.Character.Register(
 
 The same function is also exposed as `HC.RegisterCharacter(...)`.
 
+#### Save file name
+
+HookCrashers redirects Castle Crashers saves away from the vanilla
+`cc_save.dat`. By default it uses:
+
+```text
+cc_save_mod.dat
+cc_save_mod.dat.bak
+```
+
+Use `RegisterSaveName` before registering characters when a mod needs its own
+save file:
+
+```lua
+local HC = require("HookCrashers")
+
+HC.RegisterSaveName("my_mod")
+-- or: HC.Save.RegisterName("my_mod")
+
+HC.Character.Register(
+    "my_character",
+    HC.Enums.Weapon.Pitchfork,
+    HC.Enums.Pet.None,
+    true,
+    false
+)
+```
+
+`HC.RegisterSaveName("my_mod")` uses:
+
+```text
+cc_save_my_mod.dat
+cc_save_my_mod.dat.bak
+```
+
+Only letters, numbers, `_`, and `-` are kept in the save name. Invalid or empty
+names fall back to `mod`. Do not rename or reuse a save name after releasing a
+mod unless you intentionally want a separate save file.
+
 `HC.Character.Register(id, weapon, pet, initiallyUnlocked, freshOnly)`:
 
 - `id`: stable internal character id. Use lowercase ASCII names without spaces.
