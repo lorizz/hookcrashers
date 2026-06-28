@@ -13,38 +13,19 @@ namespace HookCrashers {
         constexpr uintptr_t REGISTER_ALL_SWF_FUNCTIONS_OFFSET = 0x121500; // updated
 
         void __fastcall DetouredRegisterAllSWFFunctions(void* param_1) {
-            static int s_callCount = 0;
-            ++s_callCount;
-            L.Get()->info("[HookHit] RegisterAllSWFFunctions ENTER call={} param=0x{:X}.", s_callCount, reinterpret_cast<uintptr_t>(param_1));
-            L.Get()->flush();
             if (g_originalFunction) {
-                //L.Get()->debug("Calling original RegisterAllSWFFunctions...");
                 try {
                     g_originalFunction(param_1);
-                    L.Get()->info("[HookHit] RegisterAllSWFFunctions LEAVE original call={}", s_callCount);
-                    L.Get()->flush();                }
+                }
                 catch (...) {
-                    L.Get()->critical("[HookHit] RegisterAllSWFFunctions original threw unknown exception call={}", s_callCount);
-                    L.Get()->flush();                }
-            }
-            else {
-                //L.Get()->error("Original RegisterAllSWFFunctions pointer is null! Cannot call original.");
+                }
             }
 
-            //L.Get()->debug("Attempting to register custom SWF functions with the game...");
             void* capturedThisPtr = Core::GetCorrectThisPtr();
-
             if (capturedThisPtr) {
                 SWF::Custom::RegisterAllWithGame(capturedThisPtr, 0);
             }
-            else {
-                //L.Get()->error("Could not register custom functions: Captured 'this' pointer is NULL.");
-            }
-
-            //L.Get()->info("RegisterAllSWFFunctions hook finished.");
-            //L.Get()->flush();
         }
-
 
         bool SetupRegisterAllSWFFunctionsHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + REGISTER_ALL_SWF_FUNCTIONS_OFFSET;

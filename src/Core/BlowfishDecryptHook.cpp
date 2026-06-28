@@ -55,22 +55,13 @@ namespace HookCrashers {
         }
 
         void __fastcall DetouredBlowfishDecrypt(void* thisPtr, void* /* edx_dummy */, uint32_t* block_part1, uint32_t* block_part2) {
-            static int s_callCount = 0;
-            ++s_callCount;
-            const bool logThisCall = s_callCount <= 20 || (s_callCount % 250) == 0;
-            if (logThisCall) {
-                L.Get()->info("[HookHit] BlowfishDecrypt ENTER call={} this=0x{:X} p1=0x{:X} p2=0x{:X}", s_callCount, reinterpret_cast<uintptr_t>(thisPtr), reinterpret_cast<uintptr_t>(block_part1), reinterpret_cast<uintptr_t>(block_part2));
-                L.Get()->flush();
-            }            if (g_capturedBlowfishContext == nullptr) {
+            if (g_capturedBlowfishContext == nullptr) {
                 g_capturedBlowfishContext = thisPtr;
                 L.Get()->info("Contesto Blowfish catturato all'indirizzo: 0x{:X}", (uintptr_t)thisPtr);
             }
 
             g_originalFunction(thisPtr, block_part1, block_part2);
-            if (logThisCall) {
-                L.Get()->info("[HookHit] BlowfishDecrypt LEAVE original call={}", s_callCount);
-                L.Get()->flush();
-            }
+
             if (g_isCapturing) {
                 const uint8_t* p1_bytes = reinterpret_cast<const uint8_t*>(block_part1);
                 const uint8_t* p2_bytes = reinterpret_cast<const uint8_t*>(block_part2);

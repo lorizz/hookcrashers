@@ -36,10 +36,6 @@ namespace HookCrashers::Save {
     // ECX = pXmlDoc (this), EDX = dummy (per fastcall), Stack = pFileData
     static char __fastcall HookedPainterConfig(void* pXmlDoc, void* edx_dummy, int pFileData)
     {
-        static int s_callCount = 0;
-        ++s_callCount;
-        HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig ENTER call={} pXmlDoc={} pFileData={}", s_callCount, to_hex(pXmlDoc), to_hex((void*)pFileData));
-        HookCrashers::Util::Logger::Instance().Get()->flush();
         HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] >>> ENTER - pXmlDoc: " + to_hex(pXmlDoc) + " pFileData: " + to_hex((void*)pFileData));
         uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
         uint8_t* doc = (uint8_t*)pXmlDoc;
@@ -88,9 +84,8 @@ namespace HookCrashers::Save {
                 HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Notify OK");
 
                 HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] <<< EXIT Success (Return 1)");
-                HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig LEAVE call={} result=1", s_callCount);
-                HookCrashers::Util::Logger::Instance().Get()->flush();
-                return 1;            }
+                return 1;
+            }
 
             HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Parse/Load failed. Calling XML_Clean...");
             XML_Clean(localBuf);
@@ -98,9 +93,8 @@ namespace HookCrashers::Save {
         }
 
         HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] <<< EXIT Failure (Return 0)");
-        HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] PainterConfig LEAVE call={} result=0", s_callCount);
-        HookCrashers::Util::Logger::Instance().Get()->flush();
-        return 0;    }
+        return 0;
+    }
 
     bool SetupPainterConfigHook() {
         uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
