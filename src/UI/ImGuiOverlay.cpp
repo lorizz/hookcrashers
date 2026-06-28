@@ -829,15 +829,6 @@ bool InitializeImGui(IDirect3DDevice9* device) {
 }
 
 HRESULT __stdcall HookedReset(IDirect3DDevice9* device, D3DPRESENT_PARAMETERS* params) {
-    static int s_callCount = 0;
-    ++s_callCount;
-    Util::Logger::Instance().Get()->info(
-        "[HookHit] D3D9 Reset ENTER call={} device=0x{:X} params=0x{:X}",
-        s_callCount,
-        reinterpret_cast<uintptr_t>(device),
-        reinterpret_cast<uintptr_t>(params));
-    Util::Logger::Instance().Get()->flush();
-
     if (g_initialized) {
         ImGui_ImplDX9_InvalidateDeviceObjects();
     }
@@ -845,9 +836,6 @@ HRESULT __stdcall HookedReset(IDirect3DDevice9* device, D3DPRESENT_PARAMETERS* p
     if (g_initialized && SUCCEEDED(result)) {
         ImGui_ImplDX9_CreateDeviceObjects();
     }
-
-    Util::Logger::Instance().Get()->info("[HookHit] D3D9 Reset LEAVE call={} result=0x{:X}", s_callCount, static_cast<unsigned int>(result));
-    Util::Logger::Instance().Get()->flush();
     return result;
 }
 
@@ -878,43 +866,17 @@ void RunOverlayFrame(IDirect3DDevice9* device) {
 }
 
 HRESULT __stdcall HookedEndScene(IDirect3DDevice9* device) {
-    static int s_callCount = 0;
-    ++s_callCount;
-    const bool logThisCall = s_callCount <= 10 || (s_callCount % 300) == 0;
-    if (logThisCall) {
-        Util::Logger::Instance().Get()->info("[HookHit] D3D9 EndScene ENTER call={} device=0x{:X}", s_callCount, reinterpret_cast<uintptr_t>(device));
-        Util::Logger::Instance().Get()->flush();
-    }
-
     RunOverlayFrame(device);
-    HRESULT result = g_originalEndScene(device);
 
-    if (logThisCall) {
-        Util::Logger::Instance().Get()->info("[HookHit] D3D9 EndScene LEAVE call={} result=0x{:X}", s_callCount, static_cast<unsigned int>(result));
-        Util::Logger::Instance().Get()->flush();
-    }
-    return result;
+    return g_originalEndScene(device);
 }
 
 HRESULT __stdcall HookedPresent(IDirect3DDevice9* device, const RECT* sourceRect, const RECT* destRect, HWND destWindowOverride, const RGNDATA* dirtyRegion) {
-    static int s_callCount = 0;
-    ++s_callCount;
-    const bool logThisCall = s_callCount <= 10 || (s_callCount % 300) == 0;
-    if (logThisCall) {
-        Util::Logger::Instance().Get()->info("[HookHit] D3D9 Present ENTER call={} device=0x{:X}", s_callCount, reinterpret_cast<uintptr_t>(device));
-        Util::Logger::Instance().Get()->flush();
-    }
-
     if (GetTickCount() - g_lastFrameTick > 8) {
         RunOverlayFrame(device);
     }
 
-    HRESULT result = g_originalPresent(device, sourceRect, destRect, destWindowOverride, dirtyRegion);
-    if (logThisCall) {
-        Util::Logger::Instance().Get()->info("[HookHit] D3D9 Present LEAVE call={} result=0x{:X}", s_callCount, static_cast<unsigned int>(result));
-        Util::Logger::Instance().Get()->flush();
-    }
-    return result;
+    return g_originalPresent(device, sourceRect, destRect, destWindowOverride, dirtyRegion);
 }
 
 bool ResolveD3D9VTable(void** endScene, void** present, void** reset) {

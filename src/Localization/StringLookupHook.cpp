@@ -13,22 +13,9 @@ namespace HookCrashers::Localization {
 
     uint16_t __fastcall DetouredStringLookup(void* thisPtr, void* edx, int16_t stringId)
     {
-        static int s_callCount = 0;
-        ++s_callCount;
         LocalizationManager& locManager = LocalizationManager::getInstance();
-        const bool isCustomString = locManager.isInitialized() && stringId >= locManager.getBaseCustomId();
-        const bool logThisCall = s_callCount <= 80 || (s_callCount % 250) == 0 || isCustomString;
-        if (logThisCall) {
-            HookCrashers::Util::Logger::Instance().Get()->info(
-                "[HookHit] StringLookup ENTER call={} this=0x{:X} string_id={} custom={}",
-                s_callCount,
-                reinterpret_cast<uintptr_t>(thisPtr),
-                stringId,
-                isCustomString);
-            HookCrashers::Util::Logger::Instance().Get()->flush();
-        }
 
-        if (isCustomString)
+        if (locManager.isInitialized() && stringId >= locManager.getBaseCustomId())
         {
             int custom_index = stringId - locManager.getBaseCustomId();
             const wchar_t* custom_string = locManager.getStringByIndex(custom_index);
@@ -42,30 +29,19 @@ namespace HookCrashers::Localization {
                 *(const wchar_t**)((char*)thisPtr + 0xF8) = custom_string;
                 *(uint16_t*)((char*)thisPtr + 0xC8) = static_cast<uint16_t>(len);
 
-                if (logThisCall) {
-                    HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] StringLookup LEAVE custom call={} len={}", s_callCount, len);
-                    HookCrashers::Util::Logger::Instance().Get()->flush();
-                }
                 return static_cast<uint16_t>(len);
             }
 
             *(uint16_t*)((char*)thisPtr + 0xC8) = 0;
-            if (logThisCall) {
-                HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] StringLookup LEAVE custom call={} len=0", s_callCount);
-                HookCrashers::Util::Logger::Instance().Get()->flush();
+            return 0;
+        }
+        else
+        {
+            if (g_originalLookup) {
+                return g_originalLookup(thisPtr, stringId);
             }
             return 0;
         }
-
-        if (g_originalLookup) {
-            uint16_t result = g_originalLookup(thisPtr, stringId);
-            if (logThisCall) {
-                HookCrashers::Util::Logger::Instance().Get()->info("[HookHit] StringLookup LEAVE original call={} result={}", s_callCount, result);
-                HookCrashers::Util::Logger::Instance().Get()->flush();
-            }
-            return result;
-        }
-        return 0;
     }
 
 

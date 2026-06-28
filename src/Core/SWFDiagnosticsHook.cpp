@@ -671,54 +671,19 @@ namespace HookCrashers::Core {
 	}
 
 	int __fastcall DetouredSWFMovieCtor(int thisPtr, void*, int a2, int* name, int swfBuffer, char flags) {
-		static int s_callCount = 0;
-		++s_callCount;
-		const bool logThisCall = s_callCount <= 40 || (s_callCount % 100) == 0;
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFMovieCtor ENTER call={} this=0x{:X} a2=0x{:X} name=0x{:X} swf_buffer=0x{:X} flags={}", s_callCount, thisPtr, a2, reinterpret_cast<uintptr_t>(name), swfBuffer, static_cast<int>(flags));
-			Util::Logger::Instance().Get()->flush();
-		}
-		int result = g_originalSWFMovieCtor(thisPtr, a2, name, swfBuffer, flags);
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFMovieCtor LEAVE call={} result=0x{:X}", s_callCount, result);
-			Util::Logger::Instance().Get()->flush();
-		}
-		return result;
+		return g_originalSWFMovieCtor(thisPtr, a2, name, swfBuffer, flags);
 	}
 
 	char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int pathObject, char flags) {
-		static int s_callCount = 0;
-		++s_callCount;
-		const bool logThisCall = s_callCount <= 40 || (s_callCount % 100) == 0;
 		const std::string previousPath = g_currentSWFPath;
 		g_currentSWFPath = BestStringGuess(reinterpret_cast<int*>(pathObject));
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFNodeCtorLoadCOK6 ENTER call={} this=0x{:X} a2=0x{:X} path_object=0x{:X} flags={} path='{}'", s_callCount, reinterpret_cast<uintptr_t>(thisPtr), a2, pathObject, static_cast<int>(flags), g_currentSWFPath);
-			Util::Logger::Instance().Get()->flush();
-		}
 		char* result = g_originalSWFNodeCtorLoadCOK6(thisPtr, a2, pathObject, flags);
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFNodeCtorLoadCOK6 LEAVE call={} result=0x{:X}", s_callCount, reinterpret_cast<uintptr_t>(result));
-			Util::Logger::Instance().Get()->flush();
-		}
 		g_currentSWFPath = previousPath;
 		return result;
 	}
 
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
-		static int s_callCount = 0;
-		++s_callCount;
-		const bool logThisCall = s_callCount <= 40 || (s_callCount % 100) == 0;
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFSceneParseHeader ENTER call={} scene=0x{:X}", s_callCount, scene);
-			Util::Logger::Instance().Get()->flush();
-		}
-		int result = g_originalSWFSceneParseHeader(scene);
-		if (logThisCall) {
-			Util::Logger::Instance().Get()->info("[HookHit] SWFSceneParseHeader LEAVE call={} result=0x{:X}", s_callCount, result);
-			Util::Logger::Instance().Get()->flush();
-		}
-		return result;
+		return g_originalSWFSceneParseHeader(scene);
 	}
 
 	bool SetupSWFDiagnosticsHook(uintptr_t moduleBase) {
