@@ -2,6 +2,8 @@
 #include "CharacterConfig.h"
 #include "../Util/MemoryPatcher.h"
 #include "../Util/Logger.h"
+#include <string>
+#include <vector>
 
 namespace HookCrashers::Save {
 	namespace {
@@ -10,14 +12,90 @@ namespace HookCrashers::Save {
 		constexpr bool kPhase4ExpandValidateAndRevokeDLCScan = true;
 		constexpr bool kPhase4SkipValidateAndRevokeDLCRebuild = false;
 		constexpr bool kPhase4EnableIsCharacterUnlockedForPlayer = true;
+		std::string g_saveName = "mod";
+		std::string g_saveFileName = "cc_save_mod.dat";
+		std::string g_saveBackupFileName = "cc_save_mod.dat.bak";
+
+		std::string SanitizeSaveName(const std::string& input) {
+			std::string out;
+			out.reserve(input.size());
+			for (char ch : input) {
+				const unsigned char c = static_cast<unsigned char>(ch);
+				if ((c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_' || c == '-') {
+					out.push_back(static_cast<char>(c));
+				}
+			}
+			return out.empty() ? "mod" : out;
+		}
+
+		void RefreshSaveFileNames() {
+			g_saveFileName = "cc_save_" + g_saveName + ".dat";
+			g_saveBackupFileName = g_saveFileName + ".bak";
+		}
+
+		std::vector<uint8_t> PointerBytes(const char* ptr) {
+			const uintptr_t value = reinterpret_cast<uintptr_t>(ptr);
+			return {
+				static_cast<uint8_t>(value & 0xFF),
+				static_cast<uint8_t>((value >> 8) & 0xFF),
+				static_cast<uint8_t>((value >> 16) & 0xFF),
+				static_cast<uint8_t>((value >> 24) & 0xFF)
+			};
+		}
+
+		bool PatchPointerReferences(const std::vector<uintptr_t>& operandRvas, const std::vector<uintptr_t>& pointerRvas, const char* replacement) {
+			bool success = true;
+			const std::vector<uint8_t> bytes = PointerBytes(replacement);
+			for (uintptr_t rva : operandRvas) {
+				success = Util::MemoryPatcher::PatchBytes(rva + 1, bytes) && success;
+			}
+			for (uintptr_t rva : pointerRvas) {
+				success = Util::MemoryPatcher::PatchBytes(rva, bytes) && success;
+			}
+			return success;
+		}	}
+	void RegisterSaveName(const std::string& name) {
+		g_saveName = SanitizeSaveName(name);
+		RefreshSaveFileNames();
+		Util::Logger::Instance().Get()->info("[Save] Registered mod save name '{}' -> '{}' / '{}'.", g_saveName, g_saveFileName, g_saveBackupFileName);
+	}
+
+	const std::string& GetSaveFileName() {
+		return g_saveFileName;
+	}
+
+	const std::string& GetSaveBackupFileName() {
+		return g_saveBackupFileName;
+	}
+
+	bool ApplySaveFileNamePatch() {
+		RefreshSaveFileNames();
+		const bool mainPatched = PatchPointerReferences(
+			{ 0xE8E8A, 0xE8EA6, 0xE8ED9, 0xE9096, 0xE90C7, 0xE912B, 0xE9344 },
+			{ 0x1C46EC },
+			g_saveFileName.c_str());
+		const bool bakPatched = PatchPointerReferences(
+			{ 0xE915F, 0xE9176 },
+			{ 0x1C46F0 },
+			g_saveBackupFileName.c_str());
+		Util::Logger::Instance().Get()->info(
+			"[Save] Save filename patch applied main='{}' bak='{}' success={}.",
+			g_saveFileName,
+			g_saveBackupFileName,
+			mainPatched && bakPatched);
+		return mainPatched && bakPatched;
 	}
 
 	bool ApplySaveExpansionPatches() {
+		const bool saveNamePatched = ApplySaveFileNamePatch();
+		if (!saveNamePatched) {
+			return false;
+		}
 		int N = CharacterConfig::Instance().GetAddonCount();
 		Util::Logger::Instance().Get()->info("[Save] Applying save expansion patches. phase={} addon_count={}.", kSavePatchPhase, N);
 		if (N <= 0) {
 			Util::Logger::Instance().Get()->info("[Save] No addon characters registered; save/lobby expansion patches are skipped and vanilla character/workshop behavior is preserved.");
-			return true;
+			return saveNamePatched;
 		}
 
 		// ============================================================

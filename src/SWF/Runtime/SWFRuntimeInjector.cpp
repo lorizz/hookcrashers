@@ -62,6 +62,12 @@ namespace HookCrashers::SWF::Runtime {
 			float y = 0.0f;
 		};
 
+		struct SvgPathSegment {
+			bool curved = false;
+			SvgPoint control;
+			SvgPoint anchor;
+		};
+
 		struct SvgTransform {
 			float a = 1.0f;
 			float b = 0.0f;
@@ -74,6 +80,8 @@ namespace HookCrashers::SWF::Runtime {
 		struct SvgShape {
 			ColorRgba fill;
 			std::vector<SvgPoint> points;
+			std::vector<SvgPathSegment> segments;
+			size_t pathGroup = 0;
 		};
 
 		struct SvgDocument {
@@ -89,11 +97,14 @@ namespace HookCrashers::SWF::Runtime {
 		struct PortraitDefinition {
 			std::string characterId;
 			std::string sourcePath;
+			std::vector<uint8_t> importedShapePayload;
 			uint16_t bitmapId = 0;
 			uint16_t shapeId = 0;
+			uint16_t importedShapeTagCode = 0;
 			ImageRgba image;
 			SvgDocument svg;
 			bool isSvg = false;
+			bool isImportedSwf = false;
 		};
 
 		struct CharacterPortraitPlan {
@@ -126,12 +137,29 @@ namespace HookCrashers::SWF::Runtime {
 			std::vector<PortraitDefinition> definitions;
 			std::vector<PortraitPlacement> classicPlacements;
 			std::vector<PortraitPlacement> freshPlacements;
+			std::vector<uint8_t> shapeTemplate151;
+			uint16_t shapeTemplate151TagCode = 0;
 			std::vector<uint8_t> shapeTemplate152;
+			uint16_t shapeTemplate152TagCode = 0;
 			RectI32 shapeTemplate152Bounds;
 			std::vector<uint8_t> shapeTemplate152BoundsBytes;
 		};
 
 		std::vector<std::unique_ptr<std::vector<uint8_t>>> g_ownedPatchedBuffers;
+		std::vector<std::pair<uint16_t, uint16_t>> g_injectedPortraitDepths;
+
+		void RegisterInjectedPortraitDepth(uint16_t shapeId, uint16_t depth) {
+			if (!shapeId) {
+				return;
+			}
+			for (auto& entry : g_injectedPortraitDepths) {
+				if (entry.first == shapeId) {
+					entry.second = depth;
+					return;
+				}
+			}
+			g_injectedPortraitDepths.emplace_back(shapeId, depth);
+		}
 
 		bool PathContainsLobby(const std::string& path) {
 			std::string lower = path;
@@ -510,7 +538,251 @@ namespace HookCrashers::SWF::Runtime {
 			rect.ymax = ReadPackedSignedBits(data, bitOffset, nbits);
 			return true;
 		}
+		std::string HexPreview(const uint8_t* data, size_t length, size_t maxBytes = 32) {
+			if (!data || length == 0) {
+				return "";
+			}
+			std::ostringstream stream;
+			stream << std::hex << std::uppercase;
+			const size_t count = std::min(length, maxBytes);
+			for (size_t i = 0; i < count; ++i) {
+				if (i) {
+					stream << ' ';
+				}
+				stream.width(2);
+				stream.fill('0');
+				stream << static_cast<int>(data[i]);
+			}
+			if (length > maxBytes) {
+				stream << " ...";
+			}
+			return stream.str();
+		}
 
+		struct ShapeDiagnostics {
+			uint16_t shapeId = 0;
+			uint16_t tagCode = 0;
+			bool rgbaColors = false;
+			RectI32 bounds;
+			size_t boundsBytes = 0;
+			size_t payloadBytes = 0;
+			size_t shapeRecordsBytes = 0;
+			uint32_t fillStyles = 0;
+			uint32_t lineStyles = 0;
+			uint32_t fillBits = 0;
+			uint32_t lineBits = 0;
+			uint32_t styleChanges = 0;
+			uint32_t moveRecords = 0;
+			uint32_t fill0Changes = 0;
+			uint32_t fill1Changes = 0;
+			uint32_t lineChanges = 0;
+			uint32_t straightEdges = 0;
+			uint32_t curvedEdges = 0;
+			uint32_t newStyleRecords = 0;
+			uint32_t endRecords = 0;
+			bool valid = false;
+			std::string error;
+		};
+
+		bool DecodeMatrixByteLength(const uint8_t* data, size_t length, size_t& byteLength) {
+			if (!data || length == 0) {
+				return false;
+			}
+			size_t bitOffset = 0;
+			if (ReadPackedBits(data, bitOffset, 1)) {
+				bitOffset += 1;
+				if (bitOffset + 5 > length * 8u) return false;
+				const uint32_t scaleBits = ReadPackedBits(data, bitOffset, 5);
+				bitOffset += 5 + 2u * scaleBits;
+			}
+			else {
+				bitOffset += 1;
+			}
+			if (bitOffset + 1 > length * 8u) return false;
+			if (ReadPackedBits(data, bitOffset, 1)) {
+				bitOffset += 1;
+				if (bitOffset + 5 > length * 8u) return false;
+				const uint32_t rotateBits = ReadPackedBits(data, bitOffset, 5);
+				bitOffset += 5 + 2u * rotateBits;
+			}
+			else {
+				bitOffset += 1;
+			}
+			if (bitOffset + 5 > length * 8u) return false;
+			const uint32_t translateBits = ReadPackedBits(data, bitOffset, 5);
+			bitOffset += 5 + 2u * translateBits;
+			byteLength = (bitOffset + 7u) / 8u;
+			return byteLength <= length;
+		}
+
+		bool SkipFillStyle(const uint8_t*& cursor, const uint8_t* end, bool rgbaColors) {
+			if (cursor >= end) {
+				return false;
+			}
+			const uint8_t type = *cursor++;
+			const size_t colorBytes = rgbaColors ? 4u : 3u;
+			if (type == 0x00) {
+				if (static_cast<size_t>(end - cursor) < colorBytes) return false;
+				cursor += colorBytes;
+				return true;
+			}
+			if (type == 0x10 || type == 0x12 || type == 0x13) {
+				size_t matrixBytes = 0;
+				if (!DecodeMatrixByteLength(cursor, static_cast<size_t>(end - cursor), matrixBytes)) return false;
+				cursor += matrixBytes;
+				if (cursor >= end) return false;
+				uint32_t count = *cursor++;
+				if (count == 0xFF) {
+					if (end - cursor < 2) return false;
+					count = ReadU16(cursor);
+					cursor += 2;
+				}
+				const size_t bytes = static_cast<size_t>(count) * (1u + colorBytes);
+				if (static_cast<size_t>(end - cursor) < bytes) return false;
+				cursor += bytes;
+				return true;
+			}
+			if (type == 0x40 || type == 0x41 || type == 0x42 || type == 0x43) {
+				if (end - cursor < 2) return false;
+				cursor += 2;
+				size_t matrixBytes = 0;
+				if (!DecodeMatrixByteLength(cursor, static_cast<size_t>(end - cursor), matrixBytes)) return false;
+				cursor += matrixBytes;
+				return true;
+			}
+			return false;
+		}
+
+		bool AnalyzeDefineShapePayload(const std::vector<uint8_t>& payload, uint16_t tagCode, ShapeDiagnostics& diag) {
+			diag = ShapeDiagnostics{};
+			diag.payloadBytes = payload.size();
+			diag.tagCode = tagCode;
+			diag.rgbaColors = tagCode >= 32;
+			if (payload.size() < 4) {
+				diag.error = "payload too small";
+				return false;
+			}
+			diag.shapeId = ReadU16(payload.data());
+			size_t rectBytes = 0;
+			if (!DecodeRect(payload.data() + 2, payload.size() - 2, diag.bounds, rectBytes)) {
+				diag.error = "invalid bounds rect";
+				return false;
+			}
+			diag.boundsBytes = rectBytes;
+			const uint8_t* cursor = payload.data() + 2 + rectBytes;
+			const uint8_t* end = payload.data() + payload.size();
+			if (cursor >= end) { diag.error = "missing fill style count"; return false; }
+			diag.fillStyles = *cursor++;
+			if (diag.fillStyles == 0xFF) {
+				if (end - cursor < 2) { diag.error = "truncated extended fill count"; return false; }
+				diag.fillStyles = ReadU16(cursor);
+				cursor += 2;
+			}
+			for (uint32_t i = 0; i < diag.fillStyles; ++i) {
+				if (!SkipFillStyle(cursor, end, diag.rgbaColors)) {
+					diag.error = "truncated/unknown fill style";
+					return false;
+				}
+			}
+			if (cursor >= end) { diag.error = "missing line style count"; return false; }
+			diag.lineStyles = *cursor++;
+			if (diag.lineStyles == 0xFF) {
+				if (end - cursor < 2) { diag.error = "truncated extended line count"; return false; }
+				diag.lineStyles = ReadU16(cursor);
+				cursor += 2;
+			}
+			const size_t lineBytes = static_cast<size_t>(diag.lineStyles) * (2u + (diag.rgbaColors ? 4u : 3u));
+			if (static_cast<size_t>(end - cursor) < lineBytes) { diag.error = "truncated line styles"; return false; }
+			cursor += lineBytes;
+			if (cursor >= end) { diag.error = "missing shape record bits"; return false; }
+			diag.shapeRecordsBytes = static_cast<size_t>(end - cursor);
+			size_t bitOffset = 0;
+			diag.fillBits = ReadPackedBits(cursor, bitOffset, 4);
+			bitOffset += 4;
+			diag.lineBits = ReadPackedBits(cursor, bitOffset, 4);
+			bitOffset += 4;
+			const size_t recordBitsLimit = diag.shapeRecordsBytes * 8u;
+			while (bitOffset + 6 <= recordBitsLimit) {
+				const uint32_t typeFlag = ReadPackedBits(cursor, bitOffset, 1);
+				bitOffset += 1;
+				if (typeFlag) {
+					if (bitOffset + 1 > recordBitsLimit) break;
+					const uint32_t straightFlag = ReadPackedBits(cursor, bitOffset, 1);
+					bitOffset += 1;
+					if (straightFlag) {
+						++diag.straightEdges;
+						if (bitOffset + 5 > recordBitsLimit) break;
+						const uint32_t nbits = ReadPackedBits(cursor, bitOffset, 4) + 2;
+						bitOffset += 4;
+						const uint32_t generalLine = ReadPackedBits(cursor, bitOffset, 1);
+						bitOffset += 1;
+						const size_t edgeBits = generalLine ? 2u * nbits : 1u + nbits;
+						if (bitOffset + edgeBits > recordBitsLimit) break;
+						bitOffset += edgeBits;
+					}
+					else {
+						++diag.curvedEdges;
+						if (bitOffset + 4 > recordBitsLimit) break;
+						const uint32_t nbits = ReadPackedBits(cursor, bitOffset, 4) + 2;
+						if (bitOffset + 4u + 4u * nbits > recordBitsLimit) break;
+						bitOffset += 4 + 4u * nbits;
+					}
+					continue;
+				}
+				if (bitOffset + 5 > recordBitsLimit) break;
+				const uint32_t flags = ReadPackedBits(cursor, bitOffset, 5);
+				bitOffset += 5;
+				if (flags == 0) { ++diag.endRecords; break; }
+				++diag.styleChanges;
+				if (flags & 0x01) {
+					++diag.moveRecords;
+					if (bitOffset + 5 > recordBitsLimit) break;
+					const uint32_t moveBits = ReadPackedBits(cursor, bitOffset, 5);
+					if (bitOffset + 5u + 2u * moveBits > recordBitsLimit) break;
+					bitOffset += 5 + 2u * moveBits;
+				}
+				if (flags & 0x02) { if (bitOffset + diag.fillBits > recordBitsLimit) break; ++diag.fill0Changes; bitOffset += diag.fillBits; }
+				if (flags & 0x04) { if (bitOffset + diag.fillBits > recordBitsLimit) break; ++diag.fill1Changes; bitOffset += diag.fillBits; }
+				if (flags & 0x08) { if (bitOffset + diag.lineBits > recordBitsLimit) break; ++diag.lineChanges; bitOffset += diag.lineBits; }
+				if (flags & 0x10) { ++diag.newStyleRecords; break; }
+			}
+			diag.valid = true;
+			return true;
+		}
+
+		void LogShapeDiagnostics(const char* label, const std::vector<uint8_t>& payload, uint16_t tagCode) {
+			ShapeDiagnostics diag;
+			AnalyzeDefineShapePayload(payload, tagCode, diag);
+			Util::Logger::Instance().Get()->info(
+				"[SWFInject][ShapeDiag] {} valid={} tag={} rgba_colors={} error='{}' shape_id={} payload_bytes={} bounds=[{},{} -> {},{}] bounds_bytes={} fill_styles={} line_styles={} fill_bits={} line_bits={} records_bytes={} style_changes={} moves={} fill0={} fill1={} lines={} straight_edges={} curved_edges={} new_styles={} ends={} head=[{}].",
+				label ? label : "shape",
+				diag.valid,
+				diag.tagCode,
+				diag.rgbaColors,
+				diag.error,
+				diag.shapeId,
+				diag.payloadBytes,
+				diag.bounds.xmin,
+				diag.bounds.ymin,
+				diag.bounds.xmax,
+				diag.bounds.ymax,
+				diag.boundsBytes,
+				diag.fillStyles,
+				diag.lineStyles,
+				diag.fillBits,
+				diag.lineBits,
+				diag.shapeRecordsBytes,
+				diag.styleChanges,
+				diag.moveRecords,
+				diag.fill0Changes,
+				diag.fill1Changes,
+				diag.lineChanges,
+				diag.straightEdges,
+				diag.curvedEdges,
+				diag.newStyleRecords,
+				diag.endRecords,
+				HexPreview(payload.data(), payload.size(), 48));
+		}
 		std::vector<uint8_t> PackBits(const std::vector<uint8_t>& bits) {
 			std::vector<uint8_t> out;
 			uint8_t cur = 0;
@@ -563,6 +835,17 @@ namespace HookCrashers::SWF::Runtime {
 			PutBits(bits, 1, 1);
 			PutSignedBits(bits, dx, n);
 			PutSignedBits(bits, dy, n);
+		}
+
+		void PutCurvedEdge(std::vector<uint8_t>& bits, int32_t controlDx, int32_t controlDy, int32_t anchorDx, int32_t anchorDy) {
+			PutBits(bits, 1, 1);
+			PutBits(bits, 0, 1);
+			const int n = std::max(2, SignedBitCount({ controlDx, controlDy, anchorDx, anchorDy }));
+			PutBits(bits, static_cast<uint32_t>(n - 2), 4);
+			PutSignedBits(bits, controlDx, n);
+			PutSignedBits(bits, controlDy, n);
+			PutSignedBits(bits, anchorDx, n);
+			PutSignedBits(bits, anchorDy, n);
 		}
 
 		std::vector<uint8_t> EncodePlaceObject2(uint16_t characterId, uint16_t depth) {
@@ -644,18 +927,19 @@ namespace HookCrashers::SWF::Runtime {
 		}
 
 		void PutStyleChangeMoveFill(std::vector<uint8_t>& bits, int32_t x, int32_t y, uint16_t fillIndex, int fillBits) {
-			PutBits(bits, 0, 1);
-			PutBits(bits, 0, 1);
-			PutBits(bits, 0, 1);
-			PutBits(bits, 1, 1);
-			PutBits(bits, 1, 1);
-			PutBits(bits, 1, 1);
+			PutBits(bits, 0, 1); // StyleChangeRecord
+			PutBits(bits, 0, 1); // NewStyles
+			PutBits(bits, 0, 1); // LineStyle
+			PutBits(bits, 0, 1); // FillStyle1 = false
+			PutBits(bits, 1, 1); // FillStyle0 = true
+			PutBits(bits, 1, 1); // MoveTo
+
 			const int moveBits = SignedBitCount({ x, y });
 			PutBits(bits, static_cast<uint32_t>(moveBits), 5);
 			PutSignedBits(bits, x, moveBits);
 			PutSignedBits(bits, y, moveBits);
+
 			PutBits(bits, fillIndex, fillBits);
-			PutBits(bits, 0, fillBits);
 		}
 
 		std::vector<uint8_t> EncodeVectorShapeFromImage(const PortraitDefinition& portrait, const RectI32& bounds, const std::vector<uint8_t>& boundsBytes) {
@@ -918,6 +1202,90 @@ namespace HookCrashers::SWF::Runtime {
 			return stream.str();
 		}
 
+		std::vector<uint8_t> ReadBinaryFile(const std::string& path) {
+			std::ifstream file(path, std::ios::binary);
+			if (!file) return {};
+			return std::vector<uint8_t>(
+				std::istreambuf_iterator<char>(file),
+				std::istreambuf_iterator<char>()
+			);
+		}
+
+		bool ExtractFirstDefineShapeFromSwf(
+			const std::string& path,
+			uint16_t newShapeId,
+			std::vector<uint8_t>& outPayload,
+			uint16_t& outTagCode
+		) {
+			const std::vector<uint8_t> swf = ReadBinaryFile(path);
+
+			if (!FileExistsA(path)) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] file does not exist '{}'.",
+					path
+				);
+				return false;
+			}
+
+			if (swf.size() < 8 || swf[1] != 'W' || swf[2] != 'S') {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] '{}' is not a SWF.",
+					path
+				);
+				return false;
+			}
+
+			if (swf[0] != 'F') {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] '{}' is compressed (%cWS). Export as FWS.",
+					path,
+					swf[0]
+				);
+				return false;
+			}
+
+			size_t rectBytes = 0;
+			RectI32 dummy{};
+			if (!DecodeRect(swf.data() + 8, swf.size() - 8, dummy, rectBytes)) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] failed to decode SWF header RECT from '{}'.", path);
+				return false;
+			}
+
+			const uint8_t* cursor = swf.data() + 8 + rectBytes + 4; // RECT + FPS + FrameCount
+			const uint8_t* end = swf.data() + swf.size();
+
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) break;
+				Util::Logger::Instance().Get()->info(
+					"[SWFInject] tag={} len={}",
+					tag.code,
+					tag.length
+				);
+				if ((tag.code == 32 || tag.code == 83 || tag.code == 22 || tag.code == 2) && tag.length >= 2) {
+					outPayload.assign(tag.payload, tag.payload + tag.length);
+					PatchU16(outPayload, 0, newShapeId);
+					outTagCode = tag.code;
+
+					Util::Logger::Instance().Get()->info(
+						"[SWFInject] imported DefineShape tag={} bytes={} old_id={} new_id={} from '{}'.",
+						tag.code,
+						tag.length,
+						ReadU16(tag.payload),
+						newShapeId,
+						path
+					);
+					return true;
+				}
+
+				if (tag.code == 0) break;
+				cursor = tag.next;
+			}
+
+			Util::Logger::Instance().Get()->warn("[SWFInject] no DefineShape found in '{}'.", path);
+			return false;
+		}
+
 		std::string SvgAttribute(const std::string& tag, const char* name) {
 			size_t pos = tag.find(name);
 			while (pos != std::string::npos) {
@@ -1094,19 +1462,30 @@ namespace HookCrashers::SWF::Runtime {
 			return out;
 		}
 
-		void AddSvgShape(SvgDocument& doc, const ColorRgba& fill, const std::vector<SvgPoint>& points) {
+		std::vector<SvgPathSegment> ApplySvgTransform(const SvgTransform& transform, const std::vector<SvgPathSegment>& segments) {
+			std::vector<SvgPathSegment> out;
+			out.reserve(segments.size());
+			for (const SvgPathSegment& segment : segments) {
+				out.push_back({ segment.curved, ApplySvgTransform(transform, segment.control), ApplySvgTransform(transform, segment.anchor) });
+			}
+			return out;
+		}
+
+		void AddSvgShape(SvgDocument& doc, const ColorRgba& fill, const std::vector<SvgPoint>& points, size_t pathGroup = 0, const std::vector<SvgPathSegment>& segments = {}) {
 			if (fill.a == 0 || points.size() < 3) {
 				return;
 			}
-			doc.shapes.push_back({ fill, points });
+			doc.shapes.push_back({ fill, points, segments, pathGroup });
 		}
 
-		void ParseSvgPathData(SvgDocument& doc, const std::string& d, const ColorRgba& fill, const SvgTransform& transform) {
+		void ParseSvgPathData(SvgDocument& doc, const std::string& d, const ColorRgba& fill, const SvgTransform& transform, size_t pathGroup) {
+			static constexpr int kSvgCurveSegments = 4;
 			size_t i = 0;
 			char cmd = 0;
 			SvgPoint cur{};
 			SvgPoint start{};
 			std::vector<SvgPoint> poly;
+			std::vector<SvgPathSegment> segments;
 			auto skip = [&]() {
 				while (i < d.size() && (std::isspace(static_cast<unsigned char>(d[i])) || d[i] == ',')) {
 					++i;
@@ -1125,9 +1504,10 @@ namespace HookCrashers::SWF::Runtime {
 				};
 			auto closePoly = [&]() {
 				if (poly.size() >= 3) {
-					AddSvgShape(doc, fill, ApplySvgTransform(transform, poly));
+					AddSvgShape(doc, fill, ApplySvgTransform(transform, poly), pathGroup, ApplySvgTransform(transform, segments));
 				}
 				poly.clear();
+				segments.clear();
 				};
 			while (i < d.size()) {
 				skip();
@@ -1139,10 +1519,19 @@ namespace HookCrashers::SWF::Runtime {
 				const char op = static_cast<char>(std::toupper(static_cast<unsigned char>(cmd)));
 				if (op == 'M') {
 					if (!hasNumber()) continue;
-					closePoly();
+
+					if (!poly.empty()) {
+						if (cur.x != start.x || cur.y != start.y) {
+							segments.push_back({ false, {}, start });
+							poly.push_back(start);
+						}
+						closePoly();
+					}
+
 					float x = read();
 					float y = read();
 					if (rel) { x += cur.x; y += cur.y; }
+
 					cur = { x, y };
 					start = cur;
 					poly.push_back(cur);
@@ -1153,7 +1542,9 @@ namespace HookCrashers::SWF::Runtime {
 						float x = read();
 						float y = read();
 						if (rel) { x += cur.x; y += cur.y; }
-						cur = { x, y };
+						const SvgPoint next{ x, y };
+						segments.push_back({ false, {}, next });
+						cur = next;
 						poly.push_back(cur);
 					}
 				}
@@ -1161,7 +1552,9 @@ namespace HookCrashers::SWF::Runtime {
 					while (hasNumber()) {
 						float x = read();
 						if (rel) x += cur.x;
-						cur.x = x;
+						const SvgPoint next{ x, cur.y };
+						segments.push_back({ false, {}, next });
+						cur = next;
 						poly.push_back(cur);
 					}
 				}
@@ -1169,7 +1562,9 @@ namespace HookCrashers::SWF::Runtime {
 					while (hasNumber()) {
 						float y = read();
 						if (rel) y += cur.y;
-						cur.y = y;
+						const SvgPoint next{ cur.x, y };
+						segments.push_back({ false, {}, next });
+						cur = next;
 						poly.push_back(cur);
 					}
 				}
@@ -1184,13 +1579,15 @@ namespace HookCrashers::SWF::Runtime {
 							end.x += cur.x; end.y += cur.y;
 						}
 						const SvgPoint p0 = cur;
-						for (int step = 1; step <= 12; ++step) {
-							const float t = static_cast<float>(step) / 12.0f;
+						for (int step = 1; step <= kSvgCurveSegments; ++step) {
+							const float t = static_cast<float>(step) / static_cast<float>(kSvgCurveSegments);
 							const float u = 1.0f - t;
-							poly.push_back({
+							const SvgPoint next{
 								u * u * u * p0.x + 3.0f * u * u * t * c1.x + 3.0f * u * t * t * c2.x + t * t * t * end.x,
 								u * u * u * p0.y + 3.0f * u * u * t * c1.y + 3.0f * u * t * t * c2.y + t * t * t * end.y
-								});
+								};
+							segments.push_back({ false, {}, next });
+							poly.push_back(next);
 						}
 						cur = end;
 					}
@@ -1204,8 +1601,9 @@ namespace HookCrashers::SWF::Runtime {
 							end.x += cur.x; end.y += cur.y;
 						}
 						const SvgPoint p0 = cur;
-						for (int step = 1; step <= 12; ++step) {
-							const float t = static_cast<float>(step) / 12.0f;
+						segments.push_back({ true, c, end });
+						for (int step = 1; step <= kSvgCurveSegments; ++step) {
+							const float t = static_cast<float>(step) / static_cast<float>(kSvgCurveSegments);
 							const float u = 1.0f - t;
 							poly.push_back({
 								u * u * p0.x + 2.0f * u * t * c.x + t * t * end.x,
@@ -1216,12 +1614,21 @@ namespace HookCrashers::SWF::Runtime {
 					}
 				}
 				else if (op == 'Z') {
+					if (cur.x != start.x || cur.y != start.y) {
+						segments.push_back({ false, {}, start });
+					}
 					poly.push_back(start);
 					closePoly();
 				}
 				else {
 					Util::Logger::Instance().Get()->warn("[SWFInject] unsupported SVG path command '{}'; partial path converted.", cmd);
 					break;
+				}
+			}
+			if (!poly.empty()) {
+				if (cur.x != start.x || cur.y != start.y) {
+					segments.push_back({ false, {}, start });
+					poly.push_back(start);
 				}
 			}
 			closePoly();
@@ -1259,11 +1666,33 @@ namespace HookCrashers::SWF::Runtime {
 				doc.viewWidth = doc.width;
 				doc.viewHeight = doc.height;
 			}
-			if (text.find("<g") != std::string::npos && text.find("transform=") != std::string::npos) {
+			SvgTransform inheritedTransform;
+			bool hasInheritedTransform = false;
+			const size_t groupStart = text.find("<g");
+			if (groupStart != std::string::npos) {
+				const size_t groupEnd = text.find('>', groupStart);
+				const size_t groupClose = groupEnd == std::string::npos ? std::string::npos : text.find("</g>", groupEnd);
+				if (groupEnd != std::string::npos && groupClose != std::string::npos) {
+					const std::string groupTag = text.substr(groupStart, groupEnd - groupStart + 1);
+					const std::string groupTransform = SvgAttribute(groupTag, "transform");
+					if (!groupTransform.empty()) {
+						inheritedTransform = ParseSvgTransform(groupTransform);
+						hasInheritedTransform = true;
+						Util::Logger::Instance().Get()->info(
+							"[SWFInject] applying root SVG group transform for portrait '{}': '{}'.",
+							path,
+							groupTransform);
+					}
+				}
+			}
+			if (!hasInheritedTransform && text.find("<g") != std::string::npos && text.find("transform=") != std::string::npos) {
 				Util::Logger::Instance().Get()->warn(
-					"[SWFInject] SVG portrait '{}' contains group transforms; direct element transforms are applied, inherited group transforms are not supported yet.",
+					"[SWFInject] SVG portrait '{}' contains group transforms, but no supported root group transform was applied.",
 					path);
 			}
+			auto combineTransform = [&](const std::string& elementTransform) {
+				return MultiplySvgTransform(inheritedTransform, ParseSvgTransform(elementTransform));
+				};
 
 			auto forEachTag = [&](const char* name, const auto& fn) {
 				std::string open = std::string("<") + name;
@@ -1276,43 +1705,44 @@ namespace HookCrashers::SWF::Runtime {
 				}
 				};
 
+			size_t nextPathGroup = 1;
 			forEachTag("path", [&](const std::string& tag) {
-				ParseSvgPathData(doc, SvgAttribute(tag, "d"), ParseSvgFill(tag), ParseSvgTransform(SvgAttribute(tag, "transform")));
+				ParseSvgPathData(doc, SvgAttribute(tag, "d"), ParseSvgFill(tag), combineTransform(SvgAttribute(tag, "transform")), nextPathGroup++);
 				});
 			forEachTag("polygon", [&](const std::string& tag) {
 				const ColorRgba fill = ParseSvgFill(tag);
-				const SvgTransform transform = ParseSvgTransform(SvgAttribute(tag, "transform"));
+				const SvgTransform transform = combineTransform(SvgAttribute(tag, "transform"));
 				const std::vector<float> n = ParseSvgNumbers(SvgAttribute(tag, "points"));
 				std::vector<SvgPoint> points;
 				for (size_t i = 0; i + 1 < n.size(); i += 2) {
 					points.push_back({ n[i], n[i + 1] });
 				}
-				AddSvgShape(doc, fill, ApplySvgTransform(transform, points));
+				AddSvgShape(doc, fill, ApplySvgTransform(transform, static_cast<const std::vector<SvgPoint>&>(points)));
 				});
 			forEachTag("polyline", [&](const std::string& tag) {
 				const ColorRgba fill = ParseSvgFill(tag);
-				const SvgTransform transform = ParseSvgTransform(SvgAttribute(tag, "transform"));
+				const SvgTransform transform = combineTransform(SvgAttribute(tag, "transform"));
 				const std::vector<float> n = ParseSvgNumbers(SvgAttribute(tag, "points"));
 				std::vector<SvgPoint> points;
 				for (size_t i = 0; i + 1 < n.size(); i += 2) {
 					points.push_back({ n[i], n[i + 1] });
 				}
-				AddSvgShape(doc, fill, ApplySvgTransform(transform, points));
+				AddSvgShape(doc, fill, ApplySvgTransform(transform, static_cast<const std::vector<SvgPoint>&>(points)));
 				});
 			forEachTag("rect", [&](const std::string& tag) {
 				const float x = ParseSvgFloat(SvgAttribute(tag, "x"));
 				const float y = ParseSvgFloat(SvgAttribute(tag, "y"));
 				const float w = ParseSvgFloat(SvgAttribute(tag, "width"));
 				const float h = ParseSvgFloat(SvgAttribute(tag, "height"));
-				const SvgTransform transform = ParseSvgTransform(SvgAttribute(tag, "transform"));
-				AddSvgShape(doc, ParseSvgFill(tag), ApplySvgTransform(transform, { {x, y}, {x + w, y}, {x + w, y + h}, {x, y + h} }));
+				const SvgTransform transform = combineTransform(SvgAttribute(tag, "transform"));
+				AddSvgShape(doc, ParseSvgFill(tag), ApplySvgTransform(transform, std::vector<SvgPoint>{ {x, y}, { x + w, y }, { x + w, y + h }, { x, y + h } }));
 				});
 			auto ellipseFn = [&](const std::string& tag, bool circle) {
 				const float cx = ParseSvgFloat(SvgAttribute(tag, "cx"));
 				const float cy = ParseSvgFloat(SvgAttribute(tag, "cy"));
 				const float rx = circle ? ParseSvgFloat(SvgAttribute(tag, "r")) : ParseSvgFloat(SvgAttribute(tag, "rx"));
 				const float ry = circle ? rx : ParseSvgFloat(SvgAttribute(tag, "ry"));
-				const SvgTransform transform = ParseSvgTransform(SvgAttribute(tag, "transform"));
+				const SvgTransform transform = combineTransform(SvgAttribute(tag, "transform"));
 				std::vector<SvgPoint> points;
 				for (int i = 0; i < 32; ++i) {
 					const float a = static_cast<float>(i) * 6.28318530718f / 32.0f;
@@ -1376,7 +1806,7 @@ namespace HookCrashers::SWF::Runtime {
 			return byteLength <= length ? byteLength : 0;
 		}
 
-		std::vector<uint8_t> FindShapePayload(const SWFBufferView& view, uint16_t shapeId) {
+		std::vector<uint8_t> FindShapePayload(const SWFBufferView& view, uint16_t shapeId, uint16_t* tagCodeOut = nullptr) {
 			const uint8_t* cursor = view.tags;
 			const uint8_t* end = view.base + view.fileLength;
 			while (cursor < end) {
@@ -1388,6 +1818,9 @@ namespace HookCrashers::SWF::Runtime {
 					break;
 				}
 				if ((tag.code == 2 || tag.code == 22 || tag.code == 32) && tag.length >= 2 && ReadU16(tag.payload) == shapeId) {
+					if (tagCodeOut) {
+						*tagCodeOut = tag.code;
+					}
 					return std::vector<uint8_t>(tag.payload, tag.next);
 				}
 				cursor = tag.next;
@@ -1452,7 +1885,7 @@ namespace HookCrashers::SWF::Runtime {
 			out.insert(out.end(), boundsBytes.begin(), boundsBytes.end());
 
 			out.push_back(1);
-			out.push_back(0x41);
+			out.push_back(0x40);
 			WriteU16(out, portrait.bitmapId);
 			const std::vector<uint8_t> matrix = EncodeMatrix(scaleX, scaleY);
 			out.insert(out.end(), matrix.begin(), matrix.end());
@@ -1562,7 +1995,6 @@ namespace HookCrashers::SWF::Runtime {
 				out.push_back(fill.r);
 				out.push_back(fill.g);
 				out.push_back(fill.b);
-				out.push_back(fill.a);
 			}
 			out.push_back(0);
 
@@ -1570,26 +2002,143 @@ namespace HookCrashers::SWF::Runtime {
 			const int fillBits = 6;
 			PutBits(bits, static_cast<uint32_t>(fillBits), 4);
 			PutBits(bits, 0, 4);
+			struct EncodedSegment {
+				bool curved = false;
+				std::pair<int32_t, int32_t> control{};
+				std::pair<int32_t, int32_t> anchor{};
+			};
+			struct EncodedContour {
+				size_t shapeIndex = 0;
+				size_t pathGroup = 0;
+				int64_t signedArea2 = 0;
+				uint64_t absArea2 = 0;
+				std::vector<std::pair<int32_t, int32_t>> points;
+				std::vector<EncodedSegment> segments;
+			};
+			std::vector<EncodedContour> contours;
+			contours.reserve(portrait.svg.shapes.size());
 			for (size_t i = 0; i < portrait.svg.shapes.size(); ++i) {
 				const SvgShape& shape = portrait.svg.shapes[i];
 				if (shape.points.size() < 3) {
 					continue;
 				}
-				const auto first = mapPoint(shape.points.front());
-				PutStyleChangeMoveFill(bits, first.first, first.second, shapeFillIndices[i], fillBits);
+				EncodedContour contour;
+				contour.shapeIndex = i;
+				contour.pathGroup = shape.pathGroup;
+				contour.points.reserve(shape.points.size());
+				for (const SvgPoint& point : shape.points) {
+					const auto mapped = mapPoint(point);
+					if (contour.points.empty() || contour.points.back() != mapped) {
+						contour.points.push_back(mapped);
+					}
+				}
+				contour.segments.reserve(shape.segments.size());
+				for (const SvgPathSegment& segment : shape.segments) {
+					contour.segments.push_back({ segment.curved, mapPoint(segment.control), mapPoint(segment.anchor) });
+				}
+				if (contour.points.size() < 3) {
+					continue;
+				}
+				for (size_t p = 0; p < contour.points.size(); ++p) {
+					const auto& a = contour.points[p];
+					const auto& b = contour.points[(p + 1) % contour.points.size()];
+					contour.signedArea2 += static_cast<int64_t>(a.first) * b.second - static_cast<int64_t>(b.first) * a.second;
+				}
+				contour.absArea2 = static_cast<uint64_t>(contour.signedArea2 < 0 ? -contour.signedArea2 : contour.signedArea2);
+				contours.push_back(std::move(contour));
+			}
+
+			auto pointInContour = [](const std::pair<int32_t, int32_t>& point, const std::vector<std::pair<int32_t, int32_t>>& polygon) {
+				bool inside = false;
+				const double x = static_cast<double>(point.first);
+				const double y = static_cast<double>(point.second);
+				for (size_t i = 0, j = polygon.size() - 1; i < polygon.size(); j = i++) {
+					const double xi = static_cast<double>(polygon[i].first);
+					const double yi = static_cast<double>(polygon[i].second);
+					const double xj = static_cast<double>(polygon[j].first);
+					const double yj = static_cast<double>(polygon[j].second);
+					if (((yi > y) != (yj > y)) && (x < (xj - xi) * (y - yi) / (yj - yi) + xi)) {
+						inside = !inside;
+					}
+				}
+				return inside;
+				};
+
+			std::vector<size_t> pathGroups;
+			for (const EncodedContour& contour : contours) {
+				if (contour.pathGroup != 0 && std::find(pathGroups.begin(), pathGroups.end(), contour.pathGroup) == pathGroups.end()) {
+					pathGroups.push_back(contour.pathGroup);
+				}
+			}
+
+			size_t fill0Contours = 0;
+			size_t fill1Contours = 0;
+			size_t groupedHoleContours = 0;
+			for (const EncodedContour& contour : contours) {
+				size_t containmentDepth = 0;
+				if (contour.pathGroup != 0) {
+					double cx = 0.0, cy = 0.0;
+					for (const auto& p : contour.points) {
+						cx += static_cast<double>(p.first);
+						cy += static_cast<double>(p.second);
+					}
+					cx /= static_cast<double>(contour.points.size());
+					cy /= static_cast<double>(contour.points.size());
+					const std::pair<int32_t, int32_t> centroid{
+						static_cast<int32_t>(cx),
+						static_cast<int32_t>(cy),
+					};
+
+					for (const EncodedContour& other : contours) {
+						if (&other == &contour || other.pathGroup != contour.pathGroup || other.absArea2 <= contour.absArea2) {
+							continue;
+						}
+						if (pointInContour(centroid, other.points)) {
+							++containmentDepth;
+						}
+					}
+				}
+				const bool isHole = contour.pathGroup != 0 && (containmentDepth % 2u) == 1u;
+				const bool clockwiseScreen = contour.signedArea2 > 0;
+				const bool useFillStyle1 = isHole ? !clockwiseScreen : clockwiseScreen;
+				if (useFillStyle1) {
+					++fill1Contours;
+				}
+				else {
+					++fill0Contours;
+					++groupedHoleContours;
+				}
+
+				const auto first = contour.points.front();
+				PutStyleChangeMoveFill(bits, first.first, first.second, shapeFillIndices[contour.shapeIndex], fillBits);
 				int32_t prevX = first.first;
 				int32_t prevY = first.second;
-				for (size_t p = 1; p < shape.points.size(); ++p) {
-					const auto mapped = mapPoint(shape.points[p]);
-					if (mapped.first == prevX && mapped.second == prevY) {
-						continue;
+				if (!contour.segments.empty()) {
+					for (const EncodedSegment& segment : contour.segments) {
+						if (segment.curved) {
+							const int32_t controlDx = segment.control.first - prevX;
+							const int32_t controlDy = segment.control.second - prevY;
+							const int32_t anchorDx = segment.anchor.first - segment.control.first;
+							const int32_t anchorDy = segment.anchor.second - segment.control.second;
+							PutCurvedEdge(bits, controlDx, controlDy, anchorDx, anchorDy);
+						}
+						else {
+							PutStraightEdge(bits, segment.anchor.first - prevX, segment.anchor.second - prevY);
+						}
+						prevX = segment.anchor.first;
+						prevY = segment.anchor.second;
 					}
-					PutStraightEdge(bits, mapped.first - prevX, mapped.second - prevY);
-					prevX = mapped.first;
-					prevY = mapped.second;
 				}
-				if (first.first != prevX || first.second != prevY) {
-					PutStraightEdge(bits, first.first - prevX, first.second - prevY);
+				else {
+					for (size_t p = 1; p < contour.points.size(); ++p) {
+						const auto mapped = contour.points[p];
+						PutStraightEdge(bits, mapped.first - prevX, mapped.second - prevY);
+						prevX = mapped.first;
+						prevY = mapped.second;
+					}
+					if (first.first != prevX || first.second != prevY) {
+						PutStraightEdge(bits, first.first - prevX, first.second - prevY);
+					}
 				}
 			}
 			PutBits(bits, 0, 1);
@@ -1597,13 +2146,18 @@ namespace HookCrashers::SWF::Runtime {
 			const std::vector<uint8_t> packed = PackBits(bits);
 			out.insert(out.end(), packed.begin(), packed.end());
 			Util::Logger::Instance().Get()->info(
-				"[SWFInject] encoded SVG shape source='{}' shape_id={} fills={} merged_fills={} fill_bits={} paths={} bounds=[{},{} -> {},{}] viewBox=[{},{} {}x{}] scale={} offset=({}, {}) shape_tag_bytes={}.",
+				"[SWFInject] encoded SVG shape source='{}' shape_id={} fills={} merged_fills={} fill_bits={} paths={} fill0_contours={} fill1_contours={} grouped_holes={} contours={} groups={} bounds=[{},{} -> {},{}] viewBox=[{},{} {}x{}] scale={} offset=({}, {}) shape_tag_bytes={}.",
 				portrait.sourcePath,
 				portrait.shapeId,
 				fills.size(),
 				mergedFills,
 				fillBits,
 				portrait.svg.shapes.size(),
+				fill0Contours,
+				fill1Contours,
+				groupedHoleContours,
+				contours.size(),
+				pathGroups.size(),
 				bounds.xmin,
 				bounds.ymin,
 				bounds.xmax,
@@ -1686,6 +2240,7 @@ namespace HookCrashers::SWF::Runtime {
 				std::vector<uint8_t> clonedFrame = framePayload;
 				uint16_t oldCharacterId = 0;
 				const bool patchedPlace = PatchFirstDepth1PlaceObject2(clonedFrame, placement.shapeId, &oldCharacterId);
+				RegisterInjectedPortraitDepth(placement.shapeId, 1);
 				if (!patchedPlace) {
 					Util::Logger::Instance().Get()->info(
 						"[SWFInject] sprite={} clone_frame={} failed to find PlaceObject2 depth=1; appending fallback PlaceObject2 shape_id={}.",
@@ -1707,10 +2262,10 @@ namespace HookCrashers::SWF::Runtime {
 			}
 		}
 
-		constexpr uint16_t kLobbyPortraitSpriteId = 179;
+		constexpr uint16_t kLobbyPortraitSpriteId = 180;
 
-		bool PatchLobbyPortraitSprite(const uint8_t* payload, uint32_t length, const InjectionSet& injections, std::vector<uint8_t>& out) {
-			if (!payload || length < 4 || ReadU16(payload) != kLobbyPortraitSpriteId) {
+		bool PatchLobbyPortraitSprite(const uint8_t* payload, uint32_t length, const InjectionSet& injections, std::vector<uint8_t>& out, uint16_t spriteId) {
+			if (!payload || length < 4) {
 				return false;
 			}
 			const uint8_t* end = payload + length;
@@ -1726,7 +2281,7 @@ namespace HookCrashers::SWF::Runtime {
 			out[3] = static_cast<uint8_t>((newFrameCount >> 8) & 0xFF);
 			Util::Logger::Instance().Get()->info(
 				"[SWFInject] sprite={} frame_count old={} new={} clone_source_frame=135 fresh_to_insert={}.",
-				kLobbyPortraitSpriteId,
+				spriteId,
 				oldFrameCount,
 				newFrameCount,
 				injections.freshPlacements.size());
@@ -1746,7 +2301,7 @@ namespace HookCrashers::SWF::Runtime {
 				if (tag.code == 1) {
 					++frame;
 					if (frame == 135 && !insertedFresh && !injections.freshPlacements.empty()) {
-						AppendClonedPortraitFrames(out, injections.freshPlacements, kLobbyPortraitSpriteId, frame, currentFramePayload);
+						AppendClonedPortraitFrames(out, injections.freshPlacements, spriteId, frame, currentFramePayload);
 						insertedFresh = true;
 					}
 					currentFramePayload.clear();
@@ -1757,40 +2312,45 @@ namespace HookCrashers::SWF::Runtime {
 			}
 			return insertedFresh;
 		}
-
 		void AppendDefinitions(std::vector<uint8_t>& out, const InjectionSet& injections) {
-			Util::Logger::Instance().Get()->info(
-				"[SWFInject] appending {} SVG portrait shape definitions before root End.",
-				injections.definitions.size());
 			for (const PortraitDefinition& portrait : injections.definitions) {
 				const std::vector<uint8_t> metadata = EncodeMetadata(portrait);
 				const std::vector<uint8_t> bounds = injections.shapeTemplate152BoundsBytes.empty()
 					? EncodeRect(0, static_cast<int32_t>(portrait.svg.width) * 20, 0, static_cast<int32_t>(portrait.svg.height) * 20)
 					: injections.shapeTemplate152BoundsBytes;
-				const std::vector<uint8_t> shape = EncodeSvgShape(
-					portrait,
-					injections.shapeTemplate152Bounds,
-					bounds);
-				Util::Logger::Instance().Get()->info(
-					"[SWFInject] define SVG portrait character='{}' source='{}' shape_id={} tag=DefineShape3 force_shape_long_tag=true shape_tag_bytes={} bounds_template_152=true.",
-					portrait.characterId,
-					portrait.sourcePath,
-					portrait.shapeId,
-					shape.size());
 				AppendTag(out, 77, metadata);
-				AppendTagLong(out, 32, shape);
+				if (portrait.isImportedSwf) {
+					AppendTagLong(out, portrait.importedShapeTagCode, portrait.importedShapePayload);
+					LogShapeDiagnostics("imported_swf", portrait.importedShapePayload, portrait.importedShapeTagCode);
+					AppendTagLong(out, 77, metadata);
+					continue;
+				}
+				if (portrait.isSvg) {
+					const std::vector<uint8_t> shape = EncodeSvgShape(portrait, injections.shapeTemplate152Bounds, bounds);
+					LogShapeDiagnostics("injected_svg", shape, 2);
+					AppendTagLong(out, 2, shape);
+				}
+				else {
+					const std::vector<uint8_t> bitmap = EncodeDefineBitsLossless2(portrait);
+					AppendTagLong(out, 20, bitmap);
+					const std::vector<uint8_t> shape = EncodeBitmapFillShape(portrait, injections.shapeTemplate152Bounds, bounds);
+					AppendTagLong(out, 2, shape);
+				}
 			}
 		}
 
 		InjectionSet BuildInjectionSet(uint8_t* swfBuffer, const SWFBufferView& view) {
 			InjectionSet set;
-			set.shapeTemplate152 = FindShapePayload(view, 152);
+			set.shapeTemplate151 = FindShapePayload(view, 151, &set.shapeTemplate151TagCode);
+			set.shapeTemplate152 = FindShapePayload(view, 152, &set.shapeTemplate152TagCode);
 			if (set.shapeTemplate152.size() > 2) {
 				size_t rectLen = 0;
 				if (DecodeRect(set.shapeTemplate152.data() + 2, set.shapeTemplate152.size() - 2, set.shapeTemplate152Bounds, rectLen)) {
 					set.shapeTemplate152BoundsBytes.assign(set.shapeTemplate152.begin() + 2, set.shapeTemplate152.begin() + 2 + rectLen);
 				}
 			}
+			LogShapeDiagnostics("vanilla_151", set.shapeTemplate151, set.shapeTemplate151TagCode);
+			LogShapeDiagnostics("vanilla_152", set.shapeTemplate152, set.shapeTemplate152TagCode);
 			Util::Logger::Instance().Get()->info(
 				"[SWFInject] shape template 152 found={} bytes={} bounds=[{},{} -> {},{}] bounds_bytes={}.",
 				!set.shapeTemplate152.empty(),
@@ -1820,9 +2380,40 @@ namespace HookCrashers::SWF::Runtime {
 					if (!FileExistsA(path) || nextId > 65533) {
 						return {};
 					}
-					if (!EndsWithInsensitive(path, ".svg")) {
+					if (!EndsWithInsensitive(path, ".svg") && !EndsWithInsensitive(path, ".png") && !EndsWithInsensitive(path, ".swf")) {
 						Util::Logger::Instance().Get()->warn("[SWFInject] portrait '{}' for character '{}' is not SVG; PNG/vector conversion is intentionally deferred.", path, addon.id);
 						return {};
+					}
+					if (EndsWithInsensitive(path, ".swf")) {
+						PortraitDefinition def;
+						def.characterId = addon.id;
+						def.sourcePath = path;
+						def.shapeId = nextId++;
+
+						if (!ExtractFirstDefineShapeFromSwf(path, def.shapeId, def.importedShapePayload, def.importedShapeTagCode)) {
+							return {};
+						}
+
+						def.isImportedSwf = true;
+						const PortraitPlacement placement{ def.shapeId };
+						set.definitions.push_back(std::move(def));
+						return placement;
+					}
+					if (EndsWithInsensitive(path, ".png")) {
+						ImageRgba img;
+						if (!DecodeImageWic(path, img)) {
+							return {};
+						}
+						PortraitDefinition def;
+						def.characterId = addon.id;
+						def.sourcePath = path;
+						def.shapeId = nextId++;
+						def.bitmapId = nextId++;
+						def.image = std::move(img);
+						def.isSvg = false;
+						const PortraitPlacement placement{ def.shapeId };
+						set.definitions.push_back(std::move(def));
+						return placement;
 					}
 					SvgDocument svg;
 					if (!LoadSvgDocument(path, svg)) {
@@ -1850,6 +2441,29 @@ namespace HookCrashers::SWF::Runtime {
 		}
 	}
 
+	bool IsInjectedPortraitShape(uint16_t shapeId, uint16_t* depthOut) {
+		for (const auto& entry : g_injectedPortraitDepths) {
+			if (entry.first == shapeId) {
+				if (depthOut) {
+					*depthOut = entry.second;
+				}
+				return true;
+			}
+		}
+		return false;
+	}
+
+	bool TryPatchDisplayObjectSortDepth(void* displayObject, int depthValue) {
+		if (!displayObject || depthValue < 0 || depthValue > 65535) {
+			return false;
+		}
+		int* sortDepth = reinterpret_cast<int*>(reinterpret_cast<uint8_t*>(displayObject) + 0x20);
+		if (*sortDepth == depthValue) {
+			return false;
+		}
+		*sortDepth = depthValue;
+		return true;
+	}
 	bool TryInjectLobbyPortraits(SWFScene* scene, const std::string& swfPath) {
 		if (!scene || !scene->swfBuffer) {
 			return false;
@@ -1899,6 +2513,31 @@ namespace HookCrashers::SWF::Runtime {
 		patched.reserve(view.fileLength + injections.definitions.size() * 512 * 1024);
 		patched.insert(patched.end(), view.base, view.tags);
 
+		bool configuredSpriteExists = false;
+		{
+			const uint8_t* scan = view.tags;
+			const uint8_t* scanEnd = view.base + view.fileLength;
+			while (scan < scanEnd) {
+				Tag scanTag;
+				if (!ReadTag(scan, scanEnd, scanTag)) {
+					break;
+				}
+				if (scanTag.code == 39 && scanTag.length >= 4 && ReadU16(scanTag.payload) == kLobbyPortraitSpriteId) {
+					configuredSpriteExists = true;
+					break;
+				}
+				if (scanTag.code == 0) {
+					break;
+				}
+				scan = scanTag.next;
+			}
+		}
+		if (!configuredSpriteExists) {
+			Util::Logger::Instance().Get()->warn(
+				"[SWFInject] configured lobby portrait sprite {} not present in root tags; fallback discovery enabled.",
+				kLobbyPortraitSpriteId);
+		}
+
 		bool patchedSprite = false;
 		const uint8_t* cursor = view.tags;
 		const uint8_t* end = view.base + view.fileLength;
@@ -1917,11 +2556,27 @@ namespace HookCrashers::SWF::Runtime {
 				break;
 			}
 
-			if (!patchedSprite && tag.code == 39 && tag.length >= 4 && ReadU16(tag.payload) == kLobbyPortraitSpriteId) {
-				std::vector<uint8_t> spritePayload;
-				if (PatchLobbyPortraitSprite(tag.payload, tag.length, injections, spritePayload)) {
-					AppendTag(patched, 39, spritePayload);
-					patchedSprite = true;
+			if (!patchedSprite && tag.code == 39 && tag.length >= 4) {
+				const uint16_t spriteId = ReadU16(tag.payload);
+				const uint16_t frameCount = ReadU16(tag.payload + 2);
+				const bool isConfiguredSprite = spriteId == kLobbyPortraitSpriteId;
+				const bool isFallbackCandidate = !configuredSpriteExists && !isConfiguredSprite && frameCount >= 135 && !injections.freshPlacements.empty();
+				if (isConfiguredSprite || isFallbackCandidate) {
+					if (isFallbackCandidate) {
+						Util::Logger::Instance().Get()->warn(
+							"[SWFInject] trying DefineSprite {} as lobby portrait fallback for missing configured sprite {} frame_count={}.",
+							spriteId,
+							kLobbyPortraitSpriteId,
+							frameCount);
+					}
+					std::vector<uint8_t> spritePayload;
+					if (PatchLobbyPortraitSprite(tag.payload, tag.length, injections, spritePayload, spriteId)) {
+						AppendTag(patched, 39, spritePayload);
+						patchedSprite = true;
+					}
+					else {
+						patched.insert(patched.end(), tag.begin, tag.next);
+					}
 				}
 				else {
 					patched.insert(patched.end(), tag.begin, tag.next);

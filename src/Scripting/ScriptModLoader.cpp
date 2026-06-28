@@ -1,6 +1,7 @@
 #include "ScriptModLoader.h"
 #include "../../include/HookCrashers/Public/Enums.h"
 #include "../Save/CharacterConfig.h"
+#include "../Save/SavePatches.h"
 #include "../Util/Logger.h"
 #include <json.hpp>
 #include <Windows.h>
@@ -197,6 +198,11 @@ int Lua_RegisterCharacter(lua_State* L) {
     return 0;
 }
 
+int Lua_RegisterSaveName(lua_State* L) {
+    const char* name = luaL_checkstring(L, 1);
+    HookCrashers::Save::RegisterSaveName(name ? name : "mod");
+    return 0;
+}
 int Lua_LogInfo(lua_State* L) {
     const char* message = luaL_checkstring(L, 1);
     HookCrashers::Util::Logger::Instance().Get()->info("[Lua] {}", message);
@@ -226,6 +232,15 @@ int Lua_OpenHookCrashers(lua_State* L) {
     lua_getfield(L, -1, "Character");
     lua_getfield(L, -1, "Register");
     lua_setfield(L, -3, "RegisterCharacter");
+    lua_pop(L, 1);
+    lua_newtable(L);
+    lua_pushcfunction(L, Lua_RegisterSaveName);
+    lua_setfield(L, -2, "RegisterName");
+    lua_setfield(L, -2, "Save");
+
+    lua_getfield(L, -1, "Save");
+    lua_getfield(L, -1, "RegisterName");
+    lua_setfield(L, -3, "RegisterSaveName");
     lua_pop(L, 1);
 
     lua_newtable(L);
