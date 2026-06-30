@@ -753,7 +753,7 @@ namespace HookCrashers::SWF::Runtime {
 		void LogShapeDiagnostics(const char* label, const std::vector<uint8_t>& payload, uint16_t tagCode) {
 			ShapeDiagnostics diag;
 			AnalyzeDefineShapePayload(payload, tagCode, diag);
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject][ShapeDiag] {} valid={} tag={} rgba_colors={} error='{}' shape_id={} payload_bytes={} bounds=[{},{} -> {},{}] bounds_bytes={} fill_styles={} line_styles={} fill_bits={} line_bits={} records_bytes={} style_changes={} moves={} fill0={} fill1={} lines={} straight_edges={} curved_edges={} new_styles={} ends={} head=[{}].",
 				label ? label : "shape",
 				diag.valid,
@@ -873,7 +873,7 @@ namespace HookCrashers::SWF::Runtime {
 			WriteU16(out, portrait.image.height);
 			const std::vector<uint8_t> compressed = ZlibDeflateFixed(bitmap);
 			out.insert(out.end(), compressed.begin(), compressed.end());
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] compressed lossless portrait source='{}' bitmap_id={} png={}x{} raw_argb_bytes={} zlib_bytes={}.",
 				portrait.sourcePath,
 				portrait.bitmapId,
@@ -1099,7 +1099,7 @@ namespace HookCrashers::SWF::Runtime {
 			PutBits(bits, 0, 5);
 			const std::vector<uint8_t> packed = PackBits(bits);
 			out.insert(out.end(), packed.begin(), packed.end());
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] vectorized portrait source='{}' shape_id={} fills={} runs={} bounds=[{},{} -> {},{}] png={}x{} shape_bytes={}.",
 				portrait.sourcePath,
 				portrait.shapeId,
@@ -1257,7 +1257,7 @@ namespace HookCrashers::SWF::Runtime {
 			while (cursor < end) {
 				Tag tag;
 				if (!ReadTag(cursor, end, tag)) break;
-				Util::Logger::Instance().Get()->info(
+				Util::Logger::Instance().Get()->debug(
 					"[SWFInject] tag={} len={}",
 					tag.code,
 					tag.length
@@ -1267,7 +1267,7 @@ namespace HookCrashers::SWF::Runtime {
 					PatchU16(outPayload, 0, newShapeId);
 					outTagCode = tag.code;
 
-					Util::Logger::Instance().Get()->info(
+					Util::Logger::Instance().Get()->debug(
 						"[SWFInject] imported DefineShape tag={} bytes={} old_id={} new_id={} from '{}'.",
 						tag.code,
 						tag.length,
@@ -1678,7 +1678,7 @@ namespace HookCrashers::SWF::Runtime {
 					if (!groupTransform.empty()) {
 						inheritedTransform = ParseSvgTransform(groupTransform);
 						hasInheritedTransform = true;
-						Util::Logger::Instance().Get()->info(
+						Util::Logger::Instance().Get()->debug(
 							"[SWFInject] applying root SVG group transform for portrait '{}': '{}'.",
 							path,
 							groupTransform);
@@ -1753,7 +1753,7 @@ namespace HookCrashers::SWF::Runtime {
 			forEachTag("circle", [&](const std::string& tag) { ellipseFn(tag, true); });
 			forEachTag("ellipse", [&](const std::string& tag) { ellipseFn(tag, false); });
 
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] loaded SVG portrait '{}' size={}x{} viewBox=[{},{} {}x{}] shapes={}.",
 				path,
 				doc.width,
@@ -1921,7 +1921,7 @@ namespace HookCrashers::SWF::Runtime {
 			PutBits(bits, 0, 5);
 			const std::vector<uint8_t> packed = PackBits(bits);
 			out.insert(out.end(), packed.begin(), packed.end());
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] generated bitmap-fill shape source='{}' bitmap_id={} shape_id={} bounds=[{},{} -> {},{}] scale=({}, {}) shape_tag_bytes={}.",
 				portrait.sourcePath,
 				portrait.bitmapId,
@@ -2163,7 +2163,7 @@ namespace HookCrashers::SWF::Runtime {
 			PutBits(bits, 0, 5);
 			const std::vector<uint8_t> packed = PackBits(bits);
 			out.insert(out.end(), packed.begin(), packed.end());
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] encoded SVG shape source='{}' shape_id={} fills={} merged_fills={} fill_bits={} paths={} fill0_contours={} fill1_contours={} grouped_holes={} contours={} groups={} bounds=[{},{} -> {},{}] viewBox=[{},{} {}x{}] scale={} offset=({}, {}) shape_tag_bytes={}.",
 				portrait.sourcePath,
 				portrait.shapeId,
@@ -2260,7 +2260,7 @@ namespace HookCrashers::SWF::Runtime {
 				const bool patchedPlace = PatchFirstDepth1PlaceObject2(clonedFrame, placement.shapeId, &oldCharacterId);
 				RegisterInjectedPortraitDepth(placement.shapeId, 1);
 				if (!patchedPlace) {
-					Util::Logger::Instance().Get()->info(
+					Util::Logger::Instance().Get()->debug(
 						"[SWFInject] sprite={} clone_frame={} failed to find PlaceObject2 depth=1; appending fallback PlaceObject2 shape_id={}.",
 						spriteId,
 						sourceFrame,
@@ -2269,7 +2269,7 @@ namespace HookCrashers::SWF::Runtime {
 					AppendTag(out, 26, place);
 				}
 				out.insert(out.end(), clonedFrame.begin(), clonedFrame.end());
-				Util::Logger::Instance().Get()->info(
+				Util::Logger::Instance().Get()->debug(
 					"[SWFInject] sprite={} cloned frame {} -> new frame with PlaceObject2 depth=1 old_character_id={} new_shape_id={} cloned_frame_bytes={} patched_place={}.",
 					spriteId,
 					sourceFrame,
@@ -2297,7 +2297,7 @@ namespace HookCrashers::SWF::Runtime {
 			const uint16_t newFrameCount = static_cast<uint16_t>(std::min(65535, static_cast<int>(oldFrameCount + addedFrames)));
 			out[2] = static_cast<uint8_t>(newFrameCount & 0xFF);
 			out[3] = static_cast<uint8_t>((newFrameCount >> 8) & 0xFF);
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] sprite={} frame_count old={} new={} clone_source_frame=135 fresh_to_insert={}.",
 				spriteId,
 				oldFrameCount,
@@ -2368,7 +2368,7 @@ namespace HookCrashers::SWF::Runtime {
 			}
 			LogShapeDiagnostics("vanilla_151", set.shapeTemplate151, set.shapeTemplate151TagCode);
 			LogShapeDiagnostics("vanilla_152", set.shapeTemplate152, set.shapeTemplate152TagCode);
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFInject] shape template 152 found={} bytes={} bounds=[{},{} -> {},{}] bounds_bytes={}.",
 				!set.shapeTemplate152.empty(),
 				set.shapeTemplate152.size(),
@@ -2382,7 +2382,7 @@ namespace HookCrashers::SWF::Runtime {
 				return set;
 			}
 			uint16_t nextId = static_cast<uint16_t>(MaxDefineShapeId(view.tags, view.base + view.fileLength) + 1);
-            Util::Logger::Instance().Get()->info("[SWFInject][GREEN] next imported portrait shape id={} max_character_id={}.", nextId, MaxCharacterId(view.tags, view.base + view.fileLength));
+            Util::Logger::Instance().Get()->debug("[SWFInject] next imported portrait shape id={} max_character_id={}.", nextId, MaxCharacterId(view.tags, view.base + view.fileLength));
 			const auto& addons = Save::CharacterConfig::Instance().GetAddons();
 			for (const auto& addon : addons) {
 				if (addon.portraitClassicPath.empty() && addon.portraitFreshPath.empty()) {
@@ -2489,7 +2489,7 @@ namespace HookCrashers::SWF::Runtime {
 		if (!PathContainsLobby(swfPath)) {
 			return false;
 		}
-		Util::Logger::Instance().Get()->info("[SWFInject] lobby candidate path='{}' scene={} swf={}.",
+		Util::Logger::Instance().Get()->debug("[SWFInject] lobby candidate path='{}' scene={} swf={}.",
 			swfPath,
 			static_cast<void*>(scene),
 			static_cast<void*>(scene->swfBuffer));
@@ -2519,7 +2519,7 @@ namespace HookCrashers::SWF::Runtime {
 				injections.freshPlacements.size());
 			return false;
 		}
-		Util::Logger::Instance().Get()->info(
+		Util::Logger::Instance().Get()->debug(
 			"[SWFInject] prepared lobby portraits definitions={} classic_frames={} fresh_frames={} file_length={} header_size={}.",
 			injections.definitions.size(),
 			injections.classicPlacements.size(),
@@ -2574,8 +2574,8 @@ namespace HookCrashers::SWF::Runtime {
 				scan = scanTag.next;
 			}
 		}
-		Util::Logger::Instance().Get()->info(
-			"[SWFInject][GREEN] imported portrait definitions will be appended after last root DefineShape at offset=0x{:X}.",
+		Util::Logger::Instance().Get()->debug(
+			"[SWFInject] imported portrait definitions will be appended after last root DefineShape at offset=0x{:X}.",
 			appendDefinitionsAfter ? static_cast<unsigned>(appendDefinitionsAfter - view.base) : 0);
 
 		bool patchedSprite = false;
@@ -2631,8 +2631,8 @@ namespace HookCrashers::SWF::Runtime {
 			if (!appendedDefinitions && tag.next == appendDefinitionsAfter) {
 				AppendDefinitions(patched, injections);
 				appendedDefinitions = true;
-				Util::Logger::Instance().Get()->info(
-					"[SWFInject][GREEN] appended imported portrait definitions after root DefineShape offset=0x{:X}.",
+				Util::Logger::Instance().Get()->debug(
+					"[SWFInject] appended imported portrait definitions after root DefineShape offset=0x{:X}.",
 					static_cast<unsigned>(tag.next - view.base));
 			}
 			cursor = tag.next;
@@ -2656,7 +2656,7 @@ namespace HookCrashers::SWF::Runtime {
 		auto owned = std::make_unique<std::vector<uint8_t>>(std::move(patched));
 		scene->swfBuffer = owned->data();
 		g_ownedPatchedBuffers.push_back(std::move(owned));
-		Util::Logger::Instance().Get()->info(
+		Util::Logger::Instance().Get()->debug(
 			"[SWFInject] patched lobby portraits definitions={} classic_frames={} fresh_frames={} old_size={} new_size={}.",
 			injections.definitions.size(),
 			injections.classicPlacements.size(),
@@ -2666,3 +2666,4 @@ namespace HookCrashers::SWF::Runtime {
 		return true;
 	}
 }
+

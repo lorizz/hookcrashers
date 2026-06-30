@@ -10,7 +10,7 @@ CharacterConfig& CharacterConfig::Instance() {
 }
 
 void CharacterConfig::LoadFromHookCrashersConfig() {
-    Util::Logger::Instance().Get()->info(
+    Util::Logger::Instance().Get()->debug(
         "[Save] Character registry ready: addons={} base_slots={} expanded_slots={} safe_slots={}.",
         m_addons.size(),
         BASE_CHAR_COUNT,
@@ -26,7 +26,7 @@ void CharacterConfig::RegisterCharacter(const Config::AddonCharacterDef& def) {
 }
 
 void CharacterConfig::ClearRegisteredCharacters() {
-    Util::Logger::Instance().Get()->info("[Save] Cleared addon character registry.");
+    Util::Logger::Instance().Get()->debug("[Save] Cleared addon character registry.");
     m_addons.clear();
 }
 

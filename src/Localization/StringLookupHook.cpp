@@ -46,7 +46,7 @@ namespace HookCrashers::Localization {
 
 
     bool SetupStringLookupHook(uintptr_t moduleBase) {
-        HookCrashers::Util::Logger::Instance().Get()->info("[Hook] Installing hook | name=StringLookup | RVA=0x{:X} | VA=0x{:X}.", STRING_LOOKUP_OFFSET, moduleBase + STRING_LOOKUP_OFFSET);
+        HookCrashers::Util::Logger::Instance().Get()->debug("[Hook] Installing hook | name=StringLookup | RVA=0x{:X} | VA=0x{:X}.", STRING_LOOKUP_OFFSET, moduleBase + STRING_LOOKUP_OFFSET);
 
         uintptr_t targetAddress = moduleBase + STRING_LOOKUP_OFFSET;
         g_originalLookup = reinterpret_cast<OriginalStringLookup_t>(targetAddress);
@@ -68,7 +68,7 @@ namespace HookCrashers::Localization {
             return false;
         }
 
-        HookCrashers::Util::Logger::Instance().Get()->info("[Hook] Hook installed | name=StringLookup | RVA=0x{:X} | VA=0x{:X}.", STRING_LOOKUP_OFFSET, moduleBase + STRING_LOOKUP_OFFSET);
+        HookCrashers::Util::Logger::Instance().Get()->debug("[Hook] Hook installed | name=StringLookup | RVA=0x{:X} | VA=0x{:X}.", STRING_LOOKUP_OFFSET, moduleBase + STRING_LOOKUP_OFFSET);
         return true;
     }
 }

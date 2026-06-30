@@ -36,7 +36,7 @@ namespace HookCrashers {
 
 				g_customFunctions[functionId] = function;
 				g_customFunctionNames[functionId] = functionName;
-				L.Get()->info("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
+				L.Get()->debug("Registered custom SWF function handler: '{}' (ID: {})", functionName, functionId);
 				return true;
 			}
 
@@ -54,7 +54,7 @@ namespace HookCrashers {
 				}
 
 				const std::string& funcName = GetRegisteredName(functionId);
-				L.Get()->info("Executing custom SWF function: '{}' (ID: {})", funcName, functionId);
+				L.Get()->debug("Executing custom SWF function: '{}' (ID: {})", funcName, functionId);
 
 				try {
 					it->second(paramCount, swfArgs, swfReturn);
@@ -96,21 +96,21 @@ namespace HookCrashers {
 			}
 
 			static void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
-				L.Get()->info("HelloWorld called!");
+				L.Get()->debug("HelloWorld called!");
 				L.Get()->flush();
 			}
 
 			void InitializeSystem() {
-				L.Get()->info("Initializing Custom SWF Functions system...");
+				L.Get()->debug("Initializing Custom SWF Functions system...");
 
 				Register(HC_SWFFunctionID::HelloWorld, "HelloWorld", HelloWorldHandler);
 
-				L.Get()->info("Custom SWF Functions system initialized.");
+				L.Get()->debug("Custom SWF Functions system initialized.");
 				L.Get()->flush();
 			}
 
 			void RegisterAllWithGame(void* gameThisPtr, uintptr_t originalRegisterFuncAddr) {
-				//L.Get()->info("Registering custom SWF functions with the game engine...");
+				//L.Get()->debug("Registering custom SWF functions with the game engine...");
 
 				if (!gameThisPtr) {
 					L.Get()->error("Cannot register custom functions with game: gameThisPtr is NULL.");
@@ -135,7 +135,7 @@ namespace HookCrashers {
 					}
 					L.Get()->flush();
 				}
-				//L.Get()->info("Finished attempting to register {} custom SWF functions with the game engine ({} successful calls logged).", idsToRegister.size(), count);
+				//L.Get()->debug("Finished attempting to register {} custom SWF functions with the game engine ({} successful calls logged).", idsToRegister.size(), count);
 				L.Get()->flush();
 			}
 		}

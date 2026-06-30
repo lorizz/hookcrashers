@@ -111,7 +111,7 @@ namespace HookCrashers::Save {
             return false;
         }
 
-        HookCrashers::Util::Logger::Instance().Get()->info("[PainterHook] Hooked sub_83C080 via __fastcall (Registers safe).");
+        HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Hooked sub_83C080 via __fastcall (Registers safe).");
         return true;
     }
 }

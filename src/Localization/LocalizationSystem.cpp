@@ -52,7 +52,7 @@ bool InitializeLocalizationSystem() {
     }
 
     SWF::Custom::Register(static_cast<SWF::Data::SWFFunctionID>(50200), "GetLocalization", GetLocalizationHandler);
-    Util::Logger::Instance().Get()->info("[Localization] Localization system initialized.");
+    Util::Logger::Instance().Get()->debug("[Localization] Localization system initialized.");
     return true;
 }
 

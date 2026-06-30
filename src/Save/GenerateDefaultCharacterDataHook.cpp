@@ -105,7 +105,7 @@ namespace HookCrashers::Save {
             return false;
         }
 
-        HookCrashers::Util::Logger::Instance().Get()->info("[GenerateDefaultCharData] Hook attached successfully!");
+        HookCrashers::Util::Logger::Instance().Get()->debug("[GenerateDefaultCharData] Hook attached successfully!");
         return true;
     }
 

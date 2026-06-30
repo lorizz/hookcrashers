@@ -25,7 +25,7 @@ namespace HookCrashers {
                 return true;
             }
             uintptr_t targetAddress = moduleBase + DECRYPT_FUNCTION_OFFSET;
-            L.Get()->info("[Hook] Installing hook | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Installing hook | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
             g_originalDecryptFunction = reinterpret_cast<DecryptFunc_t>(targetAddress);
 
             DetourTransactionBegin();
@@ -46,7 +46,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("[Hook] Hook installed | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Hook installed | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
             return true;
         }
     }

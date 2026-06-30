@@ -106,7 +106,7 @@ namespace HookCrashers::Save {
 		const bool log = kEnableSyncWorkshopDiagnostics && (callCount <= 40 || (callCount % 50) == 0);
 
 		if (log) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save][SyncWorkshopDiag] ENTER call={} lobby=0x{:X} save_vector=0x{:X} mode={} vector_count={} char_count_before={} vector={}.",
 				callCount,
 				reinterpret_cast<uintptr_t>(lobbyManager),
@@ -120,7 +120,7 @@ namespace HookCrashers::Save {
 		char result = g_originalSyncCharacterListFromSave(lobbyManager, saveVector, mode);
 
 		if (log) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save][SyncWorkshopDiag] LEAVE call={} result={} vector_count={} char_count_after={} slots={}.",
 				callCount,
 				static_cast<int>(result),
@@ -150,7 +150,7 @@ namespace HookCrashers::Save {
 			return false;
 		}
 
-		Util::Logger::Instance().Get()->info("[Save] Hook installed | name=SyncCharacterListFromSave | RVA=0x{:X}.", kSyncCharacterListFromSaveRva);
+		Util::Logger::Instance().Get()->debug("[Save] Hook installed | name=SyncCharacterListFromSave | RVA=0x{:X}.", kSyncCharacterListFromSaveRva);
 		return true;
 	}
 }

@@ -5,6 +5,7 @@
 #include "GenerateDefaultCharacterDataHook.h"
 #include "RebuildCharacterSlotTableHook.h"
 #include "ReceiveCharacterSyncHook.h"
+#include "NetworkCleanupDiagnosticsHook.h"
 #include "SyncCharacterListFromSaveHook.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
@@ -47,7 +48,7 @@ static void GetCustomSaveDataHandler(int paramCount, HC_SWFArgument** swfArgs, H
 bool InitializeSaveExpansion() {
     CharacterConfig::Instance().LoadFromHookCrashersConfig();
     const auto& addons = CharacterConfig::Instance().GetAddons();
-    Util::Logger::Instance().Get()->info("[Save] Initializing save expansion for {} addon characters.", addons.size());
+    Util::Logger::Instance().Get()->debug("[Save] Initializing save expansion for {} addon characters.", addons.size());
     for (const auto& addon : addons) {
         Util::Logger::Instance().Get()->info(
             "[Save] Addon character active id='{}' weapon={} pet={} initially_unlocked={} fresh_only={}.",
@@ -65,12 +66,13 @@ bool InitializeSaveExpansion() {
     success = SetupRebuildCharacterSlotTableHook() && success;
     success = SetupSyncCharacterListFromSaveHook() && success;
     success = SetupReceiveCharacterSyncHook() && success;
+    success = SetupNetworkCleanupDiagnosticsHook() && success;
 
     SWF::Custom::Register(static_cast<SWF::Data::SWFFunctionID>(50100), "GetCustomSaveData", GetCustomSaveDataHandler);
     const int addonCount = CharacterConfig::Instance().GetAddonCount();
     const int expandedBufferSize = BASE_SAVE_SIZE + (CHAR_DATA_SIZE * addonCount);
     const int expandedCapacity = BASE_SAVE_CAPACITY + (CHAR_DATA_SIZE * addonCount);
-    Util::Logger::Instance().Get()->info(
+    Util::Logger::Instance().Get()->debug(
         "[Save] Save expansion initialization finished success={} addon_count={} expanded_buffer_size={} expanded_capacity={} expanded_character_slots={} safe_character_slots={}.",
         success,
         addonCount,
@@ -83,3 +85,5 @@ bool InitializeSaveExpansion() {
 
 } // namespace Save
 } // namespace HookCrashers
+
+

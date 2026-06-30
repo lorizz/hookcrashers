@@ -13,7 +13,7 @@ namespace HookCrashers {
                 return;
             }
             m_moduleBase = moduleBase;
-            //l.Get()->info("Initialized BaseHook for ID {} with module base 0x{:X}", m_id, m_moduleBase);
+            //l.Get()->debug("Initialized BaseHook for ID {} with module base 0x{:X}", m_id, m_moduleBase);
         }
 
         uintptr_t BaseHook::GetFunctionAddress(uintptr_t relativeOffset) const {

@@ -34,7 +34,7 @@ namespace HookCrashers {
             // 2. Leggi il frame che il gioco HA APPENA selezionato.
             uint32_t selectedFrame = *(uint32_t*)((uintptr_t)this_ptr + 0xE0);
 
-            // 3. Controlla se abbiamo già visto questo frame ID.
+            // 3. Controlla se abbiamo gi? visto questo frame ID.
             //    g_discoveredFrameIds.find(...) == g_discoveredFrameIds.end() significa "non trovato".
             if (g_discoveredFrameIds.find(selectedFrame) == g_discoveredFrameIds.end()) {
                 g_discoveredFrameIds.insert(selectedFrame);
@@ -64,7 +64,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("UI Input Handler hook attached successfully!");
+            L.Get()->debug("UI Input Handler hook attached successfully!");
             L.Get()->flush();
             return true;
         }

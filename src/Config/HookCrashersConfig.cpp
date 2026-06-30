@@ -123,7 +123,7 @@ bool HookCrashersConfig::Load(const std::string& path) {
         }
     }
 
-    HookCrashers::Util::Logger::Instance().Get()->info(
+    HookCrashers::Util::Logger::Instance().Get()->debug(
         "[Config] Loaded HookCrashers.ini. Overlay={}, external console={}",
         m_settings.enableOverlay, m_settings.showExternalConsole);
     return true;

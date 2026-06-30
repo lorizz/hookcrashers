@@ -27,10 +27,10 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
     const std::string configPath = moduleDir + "HookCrashers.ini";
 
     HookCrashers::Util::Logger::SetDefaultLogDirectory(moduleDir);
-    HookCrashers::Util::Logger::Instance().Get()->info("[Bootstrap] HookCrashers InitThread started.");
-    HookCrashers::Util::Logger::Instance().Get()->info("[Bootstrap] Config path: {}", configPath);
+    HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] HookCrashers InitThread started.");
+    HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] Config path: {}", configPath);
     HookCrashers::Config::HookCrashersConfig::Instance().Load(configPath);
-    HookCrashers::Util::Logger::Instance().Get()->info(
+    HookCrashers::Util::Logger::Instance().Get()->debug(
         "[Bootstrap] ShowExternalConsole={}",
         HookCrashers::Config::HookCrashersConfig::Instance().Get().showExternalConsole);
 
@@ -92,7 +92,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
     }
     else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::UI::ShutdownOverlay();
-        HookCrashers::Util::Logger::Instance().Get()->info("===== HookCrashers DLL Detaching =====");
+        HookCrashers::Util::Logger::Instance().Get()->debug("===== HookCrashers DLL Detaching =====");
         HookCrashers::Util::Logger::Instance().Shutdown();
     }
     return TRUE;

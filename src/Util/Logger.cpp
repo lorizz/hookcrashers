@@ -80,7 +80,7 @@ namespace HookCrashers {
 					console_sink->set_level(spdlog::level::info);
 					_logger->sinks().push_back(console_sink);
 					_consoleAllocated = true;
-					Get()->info("Console logger initialized.");
+					Get()->debug("Console logger initialized.");
 				}
 				else {
 					Get()->error("Failed to allocate or attach console. GetLastError={}", GetLastError());
@@ -104,18 +104,18 @@ namespace HookCrashers {
 						0, 0,
 						SWP_NOSIZE | SWP_NOZORDER);
 
-					Get()->info("Console positioned on secondary monitor at ({}, {})",
+					Get()->debug("Console positioned on secondary monitor at ({}, {})",
 						mi.secondaryMonitorRect.left,
 						mi.secondaryMonitorRect.top);
 				}
 			}
 			else {
-				Get()->info("Secondary monitor not found, console remains on primary monitor");
+				Get()->debug("Secondary monitor not found, console remains on primary monitor");
 			}
 		}
 
 		void Logger::Shutdown() {
-			Get()->info("Logger shutting down.");
+			Get()->debug("Logger shutting down.");
 			Get()->flush();
 			spdlog::shutdown();
 			if (_consoleAllocated) {
@@ -147,7 +147,7 @@ namespace HookCrashers {
 				_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
 				_logger->set_level(spdlog::level::info);
 				_logger->flush_on(spdlog::level::info);
-				_logger->info("Logger initialized.");
+				_logger->debug("Logger initialized.");
 				_logger->flush();
 			}
 			catch (const spdlog::spdlog_ex& ex) {
