@@ -14,6 +14,7 @@ namespace HookCrashers::Save {
 		constexpr uintptr_t kSyncCharacterListFromSaveRva = 0x85B20; // updated
 		constexpr int kCharacterArrayEntrySize = 0x1090;
 		constexpr int kSkinEntryByIndexOffsetDwords = 1130;
+		constexpr bool kEnableSyncWorkshopDiagnostics = false;
 
 		using SyncCharacterListFromSaveFn = char(__thiscall*)(uint8_t* lobbyManager, uint32_t* saveVector, char mode);
 		SyncCharacterListFromSaveFn g_originalSyncCharacterListFromSave = nullptr;
@@ -102,7 +103,7 @@ namespace HookCrashers::Save {
 	char __fastcall DetouredSyncCharacterListFromSave(uint8_t* lobbyManager, void*, uint32_t* saveVector, char mode) {
 		static int callCount = 0;
 		++callCount;
-		const bool log = callCount <= 40 || (callCount % 50) == 0;
+		const bool log = kEnableSyncWorkshopDiagnostics && (callCount <= 40 || (callCount % 50) == 0);
 
 		if (log) {
 			Util::Logger::Instance().Get()->info(
@@ -149,7 +150,7 @@ namespace HookCrashers::Save {
 			return false;
 		}
 
-		Util::Logger::Instance().Get()->info("[Save] SyncCharacterListFromSave hook attached at rva=0x{:X}.", kSyncCharacterListFromSaveRva);
+		Util::Logger::Instance().Get()->info("[Save] Hook installed | name=SyncCharacterListFromSave | RVA=0x{:X}.", kSyncCharacterListFromSaveRva);
 		return true;
 	}
 }

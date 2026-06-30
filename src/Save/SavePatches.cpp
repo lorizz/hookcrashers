@@ -53,7 +53,188 @@ namespace HookCrashers::Save {
 				success = Util::MemoryPatcher::PatchBytes(rva, bytes) && success;
 			}
 			return success;
-		}	}
+		}
+
+		constexpr bool kEnableNetworkPacketExpansionPatches = true;
+
+		std::vector<uint8_t> U32(uint32_t value) {
+			return {
+				static_cast<uint8_t>(value & 0xFF),
+				static_cast<uint8_t>((value >> 8) & 0xFF),
+				static_cast<uint8_t>((value >> 16) & 0xFF),
+				static_cast<uint8_t>((value >> 24) & 0xFF)
+			};
+		}
+
+		bool PatchU32(uintptr_t rva, uint32_t value, const char* name) {
+			if (rva == 0) {
+				Util::Logger::Instance().Get()->error("[NetworkPatch] Missing RVA for {}. Fill the TODO_RVA_* value from IDA before enabling network packet expansion.", name);
+				return false;
+			}
+			return Util::MemoryPatcher::PatchBytes(rva, U32(value));
+		}
+
+		bool PatchU8(uintptr_t rva, uint8_t value, const char* name) {
+			if (rva == 0) {
+				Util::Logger::Instance().Get()->error("[NetworkPatch] Missing RVA for {}. Fill the TODO_RVA_* value from IDA before enabling network packet expansion.", name);
+				return false;
+			}
+			return Util::MemoryPatcher::PatchBytes(rva, { value });
+		}
+
+		bool ApplyNetworkPacketExpansionPatches(
+			int N,
+			int split,
+			int total,
+			int selected10ByteOffset,
+			int workshopSkinEntryIndex,
+			int workshopSkinEntryByteOffset,
+			int packetFlagOffset,
+			int syncObjFlagOffset,
+			int firstPacketBlockBytes,
+			int secondPacketOffset,
+			int workshopIdsOffset,
+			int workshopFlagsOffset,
+			int secondPacketTailOffset,
+			int finalPacketOffset,
+			int copyTailSrc0,
+			int copyTailDst0,
+			int copyTailSrc1,
+			int copyTailDst1,
+			int copyTailSrcByte,
+			int copyTailDstByte) {
+			if (!kEnableNetworkPacketExpansionPatches) {
+				Util::Logger::Instance().Get()->info("[NetworkPatch] Expanded packet byte patches are disabled. Fill TODO_RVA_* constants and set kEnableNetworkPacketExpansionPatches=true to test multiplayer addon sync.");
+				return true;
+			}
+
+			// All TODO_RVA_* values are RVAs, not VA addresses. IDA VA -> RVA = VA - 0x100000.
+			// Patch address must point at the immediate operand, not always the start of instruction.
+			// Example: C7 44 24 ?? 90 01 00 00 -> patch the first byte of 90 01 00 00.
+
+			constexpr uintptr_t TODO_RVA_Clear_MemsetFirstBlockSize = 0x5FD44;  // push 0x108 for FastMemset(this + 0x08, 0, 0x108).
+			constexpr uintptr_t TODO_RVA_Clear_SelectedBlockOffset = 0x5FD5D;    // lea eax, [esi+0x118] before FastMemset(..., 0x50).
+			constexpr uintptr_t TODO_RVA_Clear_FirstFlagsOword0 = 0x5FD64;       // movups [esi+0x168], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_SelectedBlockSize = 0x5FD69;      // push 0x50 for FastMemset(this + 0x118, 0, 0x50).
+			constexpr uintptr_t TODO_RVA_Clear_FirstFlagsOword1 = 0x5FD6D;       // movups [esi+0x178], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_FirstFlagsLastByte = 0x5FD75;     // mov byte ptr [esi+0x188], 0.
+			constexpr uintptr_t TODO_RVA_Clear_PlayerMaskByte = 0x5FD7D;         // mov byte ptr [esi+0x110], 0.
+			constexpr uintptr_t TODO_RVA_Clear_MemsetSecondBlockSize = 0x5FD88; // push 0x108 for FastMemset(this + 0x198, 0, 0x108).
+			constexpr uintptr_t TODO_RVA_Clear_SecondBlockOffset = 0x5FD91;      // lea eax, [esi+0x198].
+			constexpr uintptr_t TODO_RVA_Clear_SelectedFlagsQword = 0x5FD9B;     // movq [esi+0x189], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_SelectedFlagsWord = 0x5FDA3;      // mov word ptr [esi+0x191], 0.
+			constexpr uintptr_t TODO_RVA_Clear_FinalBlockOffset = 0x5FDB3;       // lea eax, [esi+0x2A0].
+			constexpr uintptr_t TODO_RVA_Clear_FinalBlockSize = 0x5FDB8;         // push 0x140 for FastMemset(this + 0x2A0, 0, 0x140).
+			constexpr uintptr_t TODO_RVA_Clear_CopyTailDst0 = 0x5FDBF;           // movups [esi+0x3E0], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_CopyTailDst1 = 0x5FDC8;           // movups [esi+0x3F0], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_CopyTailDstByte = 0x5FDCF;        // mov byte ptr [esi+0x400], 0.
+			constexpr uintptr_t TODO_RVA_Clear_SecondTailOffset = 0x5FDE2;       // movups [esi+0x401], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_SecondTailOffsetPlus10 = 0x5FDEB; // movups [esi+0x411], xmm0.
+			constexpr uintptr_t TODO_RVA_Clear_SecondTailOffsetPlus20 = 0x5FDF3; // movq [esi+0x421], xmm0.
+
+			constexpr uintptr_t TODO_RVA_CopyVanilla_FirstCopySizeDwords = 0x5FE15; // CopyVanillaBlocks: mov ecx, 0x42 before rep movsd.
+			constexpr uintptr_t TODO_RVA_CopyVanilla_FirstCopyDstOffset = 0x5FE21; // CopyVanillaBlocks: lea edi, [edx+0x198].
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailSrc0 = 0x5FE2A;             // CopyVanillaBlocks: movups xmm0, [ebx+0x160].
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailDst0 = 0x5FE33;             // CopyVanillaBlocks: movups [edx+0x3E0], xmm0.
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailSrc1 = 0x5FE3A;             // CopyVanillaBlocks: movups xmm0, [ebx+0x170].
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailDst1 = 0x5FE41;             // CopyVanillaBlocks: movups [edx+0x3F0], xmm0.
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailSrcByte = 0x5FE47;          // CopyVanillaBlocks: mov al, [ebx+0x180].
+			constexpr uintptr_t TODO_RVA_CopyVanilla_TailDstByte = 0x5FE4D;          // CopyVanillaBlocks: mov [edx+0x400], al.
+			constexpr uintptr_t TODO_RVA_CopyVanilla_FinalCopySizeDwords = 0x5FE5C;  // CopyVanillaBlocks: mov ecx, 0x64 before final rep movsd.
+
+			constexpr uintptr_t TODO_RVA_Merge_DestFreshBlock = 0x5FFDD;        // MergeCharacterSyncData: lea edx, [ecx+0x198].
+			constexpr uintptr_t TODO_RVA_Merge_IncomingFlagOffset = 0x5FFFE;    // MergeCharacterSyncData: mov cl, [eax+esi+0x160].
+			constexpr uintptr_t TODO_RVA_Merge_DestFlagOffset = 0x6000D;        // MergeCharacterSyncData: mov [eax+ebx+0x3E0], cl.
+			constexpr uintptr_t TODO_RVA_Merge_LoopLimit = 0x6001C;             // MergeCharacterSyncData: cmp eax, 0x21.
+			constexpr uintptr_t TODO_RVA_Merge_FinalCopySizeDwords = 0x6002F;    // MergeCharacterSyncData: mov ecx, 0x64 before final rep movsd.
+
+			constexpr uintptr_t TODO_RVA_Apply_PacketEntryBase = 0x8779B;     // ApplyCharacterSyncPacket: lea edi, [ebx+0x1A0].
+			constexpr uintptr_t TODO_RVA_Apply_WorkshopSplit = 0x877B2;     // ApplyCharacterSyncPacket: cmp edx, 0x21.
+			constexpr uintptr_t TODO_RVA_Apply_SyncFlagOffset = 0x877CE;     // ApplyCharacterSyncPacket: mov bl, [edx+ebx+0x3E0].
+			constexpr uintptr_t TODO_RVA_Apply_LoopLimitTotal = 0x87A1B;    // ApplyCharacterSyncPacket: cmp edx, 0x49.
+
+			constexpr uintptr_t TODO_RVA_Build_FirstPacketEntryBase = 0x88766;       // BuildCharacterSyncPacket: add ebx, 0x1A0.
+			constexpr uintptr_t TODO_RVA_Build_FirstLoopFlagOffset = 0x88965;        // BuildCharacterSyncPacket: mov [packet+edi+0x168], al.
+			constexpr uintptr_t TODO_RVA_Build_SplitLoopLimit = 0x88A85;             // BuildCharacterSyncPacket: cmp edi, 0x21.
+			constexpr uintptr_t TODO_RVA_Build_WorkshopTableByteOffset = 0x88A94;    // BuildCharacterSyncPacket: lea eax, [esi+0x122C] (1163*4).
+			constexpr uintptr_t TODO_RVA_Build_WorkshopDestOffset = 0x88AA8;         // BuildCharacterSyncPacket: lea edx, [ebx+0x2A0].
+			constexpr uintptr_t TODO_RVA_Build_WorkshopSyncFlagOffset = 0x88A60;     // BuildCharacterSyncPacket: mov [packet+edi+0x3E0], al.
+			constexpr uintptr_t TODO_RVA_Build_WorkshopTailFlagOffset = 0x88C76;     // BuildCharacterSyncPacket: mov [packet+ecx+0x401], al.
+			constexpr uintptr_t TODO_RVA_Build_Selected10ByteOffset = 0x88D02;       // BuildCharacterSyncPacket: lea eax, [esi+0x1468] (1306*4).
+			constexpr uintptr_t TODO_RVA_Build_SelectedPacketBlockOffset = 0x88D28;  // BuildCharacterSyncPacket: add ebx, 0x118.
+			constexpr uintptr_t TODO_RVA_Build_SelectedFlagWriteOffset = 0x8901A;    // BuildCharacterSyncPacket: mov [packet+edx+0x189], al.
+			constexpr uintptr_t TODO_RVA_Build_SelectedFlagCheckOffset = 0x890D0;    // BuildCharacterSyncPacket: cmp byte ptr [packet+edi+0x189], 0.
+			constexpr uintptr_t TODO_RVA_Build_SelectedFlagFallbackOffset = 0x890FD; // BuildCharacterSyncPacket: mov [packet+edi+0x189], al.
+			constexpr uintptr_t TODO_RVA_Build_WorkshopTableIndex = 0x8905E;         // BuildCharacterSyncPacket: mov ebx, 0x48B (1163).
+
+			bool ok = true;
+			ok = PatchU32(TODO_RVA_Clear_MemsetFirstBlockSize, firstPacketBlockBytes, "ClearCharacterSyncPacket first block memset size") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SelectedBlockOffset, workshopIdsOffset + 8, "ClearCharacterSyncPacket selected block offset") && ok;
+			ok = PatchU32(TODO_RVA_Clear_FirstFlagsOword0, packetFlagOffset + 8, "ClearCharacterSyncPacket first flags oword0") && ok;
+			ok = PatchU8(TODO_RVA_Clear_SelectedBlockSize, 0x50, "ClearCharacterSyncPacket selected block memset size") && ok;
+			ok = PatchU32(TODO_RVA_Clear_FirstFlagsOword1, packetFlagOffset + 0x18, "ClearCharacterSyncPacket first flags oword1") && ok;
+			ok = PatchU32(TODO_RVA_Clear_FirstFlagsLastByte, workshopFlagsOffset, "ClearCharacterSyncPacket first flags last byte") && ok;
+			ok = PatchU32(TODO_RVA_Clear_PlayerMaskByte, workshopIdsOffset, "ClearCharacterSyncPacket player mask byte") && ok;
+			ok = PatchU32(TODO_RVA_Clear_MemsetSecondBlockSize, firstPacketBlockBytes, "ClearCharacterSyncPacket second block memset size") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SecondBlockOffset, secondPacketOffset, "ClearCharacterSyncPacket second block offset") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SelectedFlagsQword, workshopFlagsOffset + 1, "ClearCharacterSyncPacket selected flags qword") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SelectedFlagsWord, workshopFlagsOffset + 9, "ClearCharacterSyncPacket selected flags word") && ok;
+			ok = PatchU32(TODO_RVA_Clear_FinalBlockOffset, finalPacketOffset, "ClearCharacterSyncPacket final block offset") && ok;
+			ok = PatchU32(TODO_RVA_Clear_FinalBlockSize, 0x140, "ClearCharacterSyncPacket final block size") && ok;
+			ok = PatchU32(TODO_RVA_Clear_CopyTailDst0, copyTailDst0, "ClearCharacterSyncPacket tail dst0") && ok;
+			ok = PatchU32(TODO_RVA_Clear_CopyTailDst1, copyTailDst1, "ClearCharacterSyncPacket tail dst1") && ok;
+			ok = PatchU32(TODO_RVA_Clear_CopyTailDstByte, copyTailDstByte, "ClearCharacterSyncPacket tail byte") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SecondTailOffset, secondPacketTailOffset, "ClearCharacterSyncPacket second tail offset") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SecondTailOffsetPlus10, secondPacketTailOffset + 0x10, "ClearCharacterSyncPacket second tail offset + 0x10") && ok;
+			ok = PatchU32(TODO_RVA_Clear_SecondTailOffsetPlus20, secondPacketTailOffset + 0x20, "ClearCharacterSyncPacket second tail offset + 0x20") && ok;
+
+			ok = PatchU32(TODO_RVA_CopyVanilla_FirstCopySizeDwords, firstPacketBlockBytes / 4, "CopyVanillaBlocks first copy dword count") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_FirstCopyDstOffset, secondPacketOffset, "CopyVanillaBlocks first copy destination offset") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailSrc0, copyTailSrc0, "CopyVanillaBlocks tail src0") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailDst0, copyTailDst0, "CopyVanillaBlocks tail dst0") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailSrc1, copyTailSrc1, "CopyVanillaBlocks tail src1") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailDst1, copyTailDst1, "CopyVanillaBlocks tail dst1") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailSrcByte, copyTailSrcByte, "CopyVanillaBlocks tail src byte") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_TailDstByte, copyTailDstByte, "CopyVanillaBlocks tail dst byte") && ok;
+			ok = PatchU32(TODO_RVA_CopyVanilla_FinalCopySizeDwords, (0x190 + (N * 8)) / 4, "CopyVanillaBlocks final copy dword count") && ok;
+
+			ok = PatchU8(TODO_RVA_Merge_LoopLimit, static_cast<uint8_t>(split), "MergeCharacterSyncData loop limit") && ok;
+			ok = PatchU32(TODO_RVA_Merge_DestFreshBlock, secondPacketOffset, "MergeCharacterSyncData dest fresh block") && ok;
+			ok = PatchU32(TODO_RVA_Merge_IncomingFlagOffset, packetFlagOffset, "MergeCharacterSyncData incoming flag offset") && ok;
+			ok = PatchU32(TODO_RVA_Merge_DestFlagOffset, syncObjFlagOffset, "MergeCharacterSyncData dest flag offset") && ok;
+			ok = PatchU32(TODO_RVA_Merge_FinalCopySizeDwords, (0x190 + (N * 8)) / 4, "MergeCharacterSyncData final copy dword count") && ok;
+
+			ok = PatchU32(TODO_RVA_Apply_PacketEntryBase, secondPacketOffset + 8, "ApplyCharacterSyncPacket packet entry base") && ok;
+			ok = PatchU8(TODO_RVA_Apply_WorkshopSplit, static_cast<uint8_t>(split), "ApplyCharacterSyncPacket workshop split") && ok;
+			ok = PatchU32(TODO_RVA_Apply_SyncFlagOffset, syncObjFlagOffset, "ApplyCharacterSyncPacket sync flag offset") && ok;
+			ok = PatchU8(TODO_RVA_Apply_LoopLimitTotal, static_cast<uint8_t>(total), "ApplyCharacterSyncPacket total loop limit") && ok;
+
+			ok = PatchU32(TODO_RVA_Build_FirstPacketEntryBase, secondPacketOffset + 8, "BuildCharacterSyncPacket first packet entry base") && ok;
+			ok = PatchU32(TODO_RVA_Build_FirstLoopFlagOffset, packetFlagOffset + 8, "BuildCharacterSyncPacket first loop flag offset") && ok;
+			ok = PatchU8(TODO_RVA_Build_SplitLoopLimit, static_cast<uint8_t>(split), "BuildCharacterSyncPacket first loop split") && ok;
+			ok = PatchU32(TODO_RVA_Build_WorkshopTableByteOffset, workshopSkinEntryByteOffset, "BuildCharacterSyncPacket workshop table byte offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_WorkshopDestOffset, finalPacketOffset, "BuildCharacterSyncPacket workshop dest offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_WorkshopSyncFlagOffset, syncObjFlagOffset, "BuildCharacterSyncPacket workshop sync flag offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_WorkshopTailFlagOffset, secondPacketTailOffset, "BuildCharacterSyncPacket workshop tail flag offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_Selected10ByteOffset, selected10ByteOffset, "BuildCharacterSyncPacket selected10 byte offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_SelectedPacketBlockOffset, workshopIdsOffset + 8, "BuildCharacterSyncPacket selected packet block offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_SelectedFlagWriteOffset, workshopFlagsOffset + 1, "BuildCharacterSyncPacket selected flag write offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_SelectedFlagCheckOffset, workshopFlagsOffset + 1, "BuildCharacterSyncPacket selected flag check offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_SelectedFlagFallbackOffset, workshopFlagsOffset + 1, "BuildCharacterSyncPacket selected flag fallback offset") && ok;
+			ok = PatchU32(TODO_RVA_Build_WorkshopTableIndex, workshopSkinEntryIndex, "BuildCharacterSyncPacket workshop table index") && ok;
+
+			Util::Logger::Instance().Get()->info(
+				"[NetworkPatch] Expanded packet patches applied success={} addon_count={} split={} total={} first_block=0x{:X} second_block=0x{:X} final_block=0x{:X}.",
+				ok,
+				N,
+				split,
+				total,
+				firstPacketBlockBytes,
+				secondPacketOffset,
+				finalPacketOffset);
+			return ok;
+		}
+	}
 	void RegisterSaveName(const std::string& name) {
 		g_saveName = SanitizeSaveName(name);
 		RefreshSaveFileNames();
@@ -486,11 +667,17 @@ namespace HookCrashers::Save {
 			"[NetworkPatch] Aligning workshop skin entry source for clone slot. index={} byte_offset=0x{:X}.",
 			workshopSkinEntryIndex,
 			workshopSkinEntryByteOffset);
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D02, { // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A94, { // updated
 			(uint8_t)(workshopSkinEntryByteOffset),
 			(uint8_t)(workshopSkinEntryByteOffset >> 8),
 			(uint8_t)(workshopSkinEntryByteOffset >> 16),
 			(uint8_t)(workshopSkinEntryByteOffset >> 24)
+			});
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D02, { // updated
+			(uint8_t)(selected10ByteOffset),
+			(uint8_t)(selected10ByteOffset >> 8),
+			(uint8_t)(selected10ByteOffset >> 16),
+			(uint8_t)(selected10ByteOffset >> 24)
 			});
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8905E, { // updated
 			(uint8_t)(workshopSkinEntryIndex),
@@ -504,39 +691,86 @@ namespace HookCrashers::Save {
 			(uint8_t)((selected10ByteOffset >> 8) & 0xFF),
 			0x00, 0x00
 			});*/
-#if 0
+		ApplyNetworkPacketExpansionPatches(
+			N,
+			split,
+			total,
+			selected10ByteOffset,
+			workshopSkinEntryIndex,
+			workshopSkinEntryByteOffset,
+			packetFlagOffset,
+			syncObjFlagOffset,
+			firstPacketBlockBytes,
+			secondPacketOffset,
+			workshopIdsOffset,
+			workshopFlagsOffset,
+			secondPacketTailOffset,
+			finalPacketOffset,
+			copyTailSrc0,
+			copyTailDst0,
+			copyTailSrc1,
+			copyTailDst1,
+			copyTailSrcByte,
+			copyTailDstByte);
+
 		// ResolveWorkshopCharacterConflicts
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8405D, { (uint8_t)(split) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x83FFD, { (uint8_t)(split) }); // updated
 		
 		// GetCurrentWorkshopSkinEntry
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D23C, { (uint8_t)(split) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D2CC, { (uint8_t)(split) }); // updated
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D26C, { (uint8_t)(split) }); // updated
 
-		// GetCharacterSlotName
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A629, {(uint8_t)(-split)}); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A635, { (uint8_t)(split - 1) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A644, { (uint8_t)(split - 2) }); // updated
+		// BuildCharacterSlotDisplayNameA
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A5C9, { (uint8_t)(-split) }); // lea eax, [edi - workshop_start]
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A5D5, { (uint8_t)(split - 1) }); // display add-on slot index from workshop_start
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A5E4, { (uint8_t)(split - 2) }); // valid real character max = split - 1
 
-		// GetCharacterSlotCheckDefaultName??
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FCCC, { (uint8_t)(split) }); // updated
+		// BuildCharacterSlotDisplayNameW
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A678, { (uint8_t)(-split) }); // lea eax, [ecx - workshop_start]
+		const uint32_t workshopNameBase = 953 - split;
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A68A, {
+			(uint8_t)(workshopNameBase & 0xFF),
+			(uint8_t)((workshopNameBase >> 8) & 0xFF),
+			(uint8_t)((workshopNameBase >> 16) & 0xFF),
+			(uint8_t)((workshopNameBase >> 24) & 0xFF)
+		}); // add edx, 953 - workshop_start
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A6BB, { (uint8_t)(split - 2) }); // valid real character max = split - 1
 
-		// GetCharacterSlotCheckDefaultName2??
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FD72, { (uint8_t)(split) }); // updated
+		// FormatCharacterSlotNameA / GetDefaultCharacterSlotNamePtrW
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC6C, { (uint8_t)(split - 1) }); // max default-name character id
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FD12, { (uint8_t)(split - 1) }); // max default-name character id, wide path
+		// TryAppendWorkshopCharacterNameA
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A730, { (uint8_t)(total) }); // cmp slot_index, total
 
-		// unkf_x
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8A790, {(uint8_t)(total)}); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EB74, { (uint8_t)(total) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EBB6, { (uint8_t)(total) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC56, { (uint8_t)(total) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC65, { (uint8_t)(total) }); // updated
-		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87C4C, { (uint8_t)(split) }); // updated
-		Util::Logger::Instance().Get()->info(
-			"[Save] Phase 7 expansion patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
-			newSize,
-			newCapacity,
-			totalBase,
-			total);
-#endif
+		// ClearInvalidReadyWorkshopSkinSelections
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EB14, { (uint8_t)(total) }); // cmp slot_index, total
+
+		// GetCharacterSlotDisplayFrame
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8EB56, { (uint8_t)(total) }); // cmp slot_index, total
+
+		// CallSWFFunction case 232 fallback first workshop slot
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x106097, { (uint8_t)(split), 0x00, 0x00, 0x00 }); // mov eax, workshop_start
+
+		// NormalizeCharacterIdToSkinSlotIndex
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FBF1, { (uint8_t)(total) }); // cmp normalized_index, total
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC05, { (uint8_t)(total) }); // cmp normalized_index, total
+
+		// LobbyTrySelectChar clone menu range
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105D76, { (uint8_t)(split) }); // cmp selected_char_id, workshop_start before opening clone menu
+
+		// HandleCloneWorkshopSlotConfirm
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x16080A, { (uint8_t)(-split) }); // lea esi, [eax - workshop_start]
+
+		// ClearReadyCustomCharacterSelections
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87BEC, { (uint8_t)(split) }); // scan real/addon slots up to workshop_start
+		const uint32_t shiftedWorkshopSkinEntryByteOffset = (1130 + split) * 4;
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87D0E, {
+			(uint8_t)(shiftedWorkshopSkinEntryByteOffset & 0xFF),
+			(uint8_t)((shiftedWorkshopSkinEntryByteOffset >> 8) & 0xFF),
+			(uint8_t)((shiftedWorkshopSkinEntryByteOffset >> 16) & 0xFF),
+			(uint8_t)((shiftedWorkshopSkinEntryByteOffset >> 24) & 0xFF)
+		}); // workshop skin table base = (1130 + workshop_start) * 4
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87D6C, { (uint8_t)(split) }); // workshop char slot base
 		return true;
 	}
 }
@@ -978,3 +1212,16 @@ HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A94, { // updated
 	0x00, 0x00
 	});
 #endif
+
+
+
+
+
+
+
+
+
+
+
+
+

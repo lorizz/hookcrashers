@@ -23,7 +23,7 @@ namespace HookCrashers {
 
         void LogBufferSection(const std::string& sectionName, const std::vector<uint8_t>& data, size_t offset, size_t length) {
             if (offset >= data.size()) {
-                L.Get()->trace("Sezione '{}': Offset di partenza fuori dai limiti.", sectionName);
+                L.Get()->trace("Section '{}' starts outside the captured buffer.", sectionName);
                 return;
             }
 
@@ -39,25 +39,25 @@ namespace HookCrashers {
                 }
             }
 
-            L.Get()->trace("Sezione '{}' ({} bytes a offset {}):\n                      {}",
+            L.Get()->trace("Section '{}' | bytes={} | offset={}:\n                      {}",
                 sectionName, effectiveLength, offset, ss.str());
         }
 
         void StartSaveDataCapture() {
-            L.Get()->info("Inizio cattura dati di salvataggio decriptati...");
+            L.Get()->info("Starting decrypted save data capture.");
             g_capturedSaveData.clear();
             g_isCapturing = true;
         }
 
         void StopSaveDataCapture() {
-            L.Get()->info("Cattura dati di salvataggio terminata. Totale byte catturati: {}", g_capturedSaveData.size());
+            L.Get()->info("Decrypted save data capture finished | bytes={}.", g_capturedSaveData.size());
             g_isCapturing = false;
         }
 
         void __fastcall DetouredBlowfishDecrypt(void* thisPtr, void* /* edx_dummy */, uint32_t* block_part1, uint32_t* block_part2) {
             if (g_capturedBlowfishContext == nullptr) {
                 g_capturedBlowfishContext = thisPtr;
-                L.Get()->info("Contesto Blowfish catturato all'indirizzo: 0x{:X}", (uintptr_t)thisPtr);
+                L.Get()->info("[Hook] Captured Blowfish context | VA=0x{:X}.", (uintptr_t)thisPtr);
             }
 
             g_originalFunction(thisPtr, block_part1, block_part2);
@@ -73,21 +73,21 @@ namespace HookCrashers {
 
         bool SetupBlowfishDecryptHook(uintptr_t moduleBase) {
             if (g_originalFunction != nullptr) {
-                L.Get()->warn("Hook di BlowfishDecrypt gi� installato.");
+                L.Get()->warn("[Hook] Hook already installed | name=BlowfishDecrypt.");
                 return true;
             }
 
             uintptr_t targetAddress = moduleBase + BLOWFISH_DECRYPT_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalBlowfishDecrypt_t>(targetAddress);
 
-            L.Get()->info("Tentativo di hook per BlowfishDecrypt a 0x{:X}", targetAddress);
+            L.Get()->info("[Hook] Installing hook | name=BlowfishDecrypt | RVA=0x{:X} | VA=0x{:X}.", BLOWFISH_DECRYPT_OFFSET, targetAddress);
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
 
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredBlowfishDecrypt);
             if (error != NO_ERROR) {
-                L.Get()->error("DetourAttach per BlowfishDecrypt fallito con errore: {}", error);
+                L.Get()->error("[Hook] DetourAttach failed | name=BlowfishDecrypt | error={}", error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
@@ -95,13 +95,13 @@ namespace HookCrashers {
 
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("DetourTransactionCommit per BlowfishDecrypt fallito con errore: {}", error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=BlowfishDecrypt | error={}", error);
                 g_originalFunction = nullptr;
                 return false;
             }
 
-            L.Get()->info("Hook per BlowfishDecrypt installato con successo.");
-            StartSaveDataCapture(); // Avvia la cattura automaticamente all'installazione dell'hook
+            L.Get()->info("[Hook] Hook installed | name=BlowfishDecrypt.");
+            StartSaveDataCapture(); // Start capture automatically when the hook is installed.
             return true;
         }
 
@@ -116,16 +116,16 @@ namespace HookCrashers {
             g_originalFunction = nullptr;
             g_capturedBlowfishContext = nullptr;
             g_isCapturing = false;
-            L.Get()->info("Hook per BlowfishDecrypt rimosso.");
+            L.Get()->info("[Hook] Hook removed | name=BlowfishDecrypt.");
         }
 
         void AnalyzeCapturedData() {
             if (g_capturedSaveData.empty()) {
-                L.Get()->warn("Nessun dato di salvataggio catturato da analizzare.");
+                L.Get()->warn("No captured save data is available for analysis.");
                 return;
             }
 
-            L.Get()->info("Analisi dei {} byte di salvataggio catturati:", g_capturedSaveData.size());
+            L.Get()->info("Analyzing captured save data | bytes={}.", g_capturedSaveData.size());
 
             constexpr size_t GLOBAL_UNLOCKS_SIZE = 64;
             constexpr size_t CHARACTER_DATA_SIZE = 48;
@@ -137,7 +137,7 @@ namespace HookCrashers {
             for (size_t i = 0; i < NUM_CHARACTERS_TO_LOG; ++i) {
                 size_t currentCharOffset = characterDataStartOffset + (i * CHARACTER_DATA_SIZE);
                 if (currentCharOffset >= g_capturedSaveData.size()) {
-                    L.Get()->trace("Fine dei dati dei personaggi dopo {} slot.", i);
+                    L.Get()->trace("Reached end of character data after {} slots.", i);
                     break;
                 }
                 std::string sectionName = "Character Slot " + std::to_string(i);
@@ -147,10 +147,10 @@ namespace HookCrashers {
             size_t restOfDataOffset = characterDataStartOffset + (NUM_CHARACTERS_TO_LOG * CHARACTER_DATA_SIZE);
             if (restOfDataOffset < g_capturedSaveData.size()) {
                 size_t restOfDataSize = g_capturedSaveData.size() - restOfDataOffset;
-                LogBufferSection("Dati Rimanenti", g_capturedSaveData, restOfDataOffset, restOfDataSize);
+                LogBufferSection("Remaining Data", g_capturedSaveData, restOfDataOffset, restOfDataSize);
             }
 
-            L.Get()->info("Analisi dei dati catturati completata.");
+            L.Get()->info("Captured save data analysis completed.");
         }
 
         const std::vector<uint8_t>& GetCapturedSaveData() {

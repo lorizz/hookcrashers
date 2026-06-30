@@ -21,11 +21,11 @@ namespace HookCrashers {
 
         bool SetupDecryptSaveFileHook(uintptr_t moduleBase) {
             if (g_originalDecryptFunction) {
-                L.Get()->warn("Hook per Decrypt function gia' installato.");
+                L.Get()->warn("[Hook] Hook already installed | name=DecryptSaveFile.");
                 return true;
             }
-            L.Get()->info("Setup del hook per Decrypt function...");
             uintptr_t targetAddress = moduleBase + DECRYPT_FUNCTION_OFFSET;
+            L.Get()->info("[Hook] Installing hook | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
             g_originalDecryptFunction = reinterpret_cast<DecryptFunc_t>(targetAddress);
 
             DetourTransactionBegin();
@@ -33,7 +33,7 @@ namespace HookCrashers {
 
             LONG error = DetourAttach(&(PVOID&)g_originalDecryptFunction, (void*)DetouredDecryptFunction);
             if (error != NO_ERROR) {
-                L.Get()->error("DetourAttach fallito per Decrypt function: {}", error);
+                L.Get()->error("[Hook] DetourAttach failed | name=DecryptSaveFile | error={}", error);
                 DetourTransactionAbort();
                 g_originalDecryptFunction = nullptr;
                 return false;
@@ -41,12 +41,12 @@ namespace HookCrashers {
 
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("DetourTransactionCommit fallito per Decrypt function: {}", error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=DecryptSaveFile | error={}", error);
                 g_originalDecryptFunction = nullptr;
                 return false;
             }
 
-            L.Get()->info("Hook per Decrypt function agganciato con successo a 0x{:X}", targetAddress);
+            L.Get()->info("[Hook] Hook installed | name=DecryptSaveFile | RVA=0x{:X} | VA=0x{:X}.", DECRYPT_FUNCTION_OFFSET, targetAddress);
             return true;
         }
     }

@@ -183,6 +183,7 @@
     <ClInclude Include="src\Save\GenerateDefaultCharacterDataHook.h" />
     <ClInclude Include="src\Save\PainterConfigHook.h" />
     <ClInclude Include="src\Save\RebuildCharacterSlotTableHook.h" />
+    <ClInclude Include="src\Save\ReceiveCharacterSyncHook.h" />
     <ClInclude Include="src\Save\SaveExpansion.h" />
     <ClInclude Include="src\Save\SavePatches.h" />
     <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h" />
@@ -347,6 +348,7 @@
     <ClCompile Include="src\Save\GenerateDefaultCharacterDataHook.cpp" />
     <ClCompile Include="src\Save\PainterConfigHook.cpp" />
     <ClCompile Include="src\Save\RebuildCharacterSlotTableHook.cpp" />
+    <ClCompile Include="src\Save\ReceiveCharacterSyncHook.cpp" />
     <ClCompile Include="src\Save\SaveExpansion.cpp" />
     <ClCompile Include="src\Save\SavePatches.cpp" />
     <ClCompile Include="src\Save\SyncCharacterListFromSaveHook.cpp" />

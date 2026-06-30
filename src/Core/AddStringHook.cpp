@@ -74,7 +74,7 @@ namespace HookCrashers {
         bool SetupAddStringHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + ADD_STRING_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalAddString_t>(targetAddress);
-            L.Get()->info("[Hook] Attaching AddString hook at offset 0x{:X} (address=0x{:X}).", ADD_STRING_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Installing hook | name=AddString | RVA=0x{:X} | VA=0x{:X}.", ADD_STRING_OFFSET, targetAddress);
 
             if (!g_originalFunction) {
                 L.Get()->error("[Hook] AddString hook failed because the target address is invalid.");
@@ -85,19 +85,19 @@ namespace HookCrashers {
             DetourUpdateThread(GetCurrentThread());
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredAddStringReturnID);
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] AddString DetourAttach failed at offset 0x{:X}: {}", ADD_STRING_OFFSET, error);
+                L.Get()->error("[Hook] DetourAttach failed | name=AddString | RVA=0x{:X} | error={}", ADD_STRING_OFFSET, error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] AddString DetourTransactionCommit failed at offset 0x{:X}: {}", ADD_STRING_OFFSET, error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=AddString | RVA=0x{:X} | error={}", ADD_STRING_OFFSET, error);
                 g_originalFunction = nullptr;
                 return false;
             }
 
-            L.Get()->info("[Hook] AddString hook attached successfully at offset 0x{:X} (address=0x{:X}).", ADD_STRING_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Hook installed | name=AddString | RVA=0x{:X} | VA=0x{:X}.", ADD_STRING_OFFSET, targetAddress);
             return true;
         }
 

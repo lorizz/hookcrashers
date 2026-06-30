@@ -30,24 +30,24 @@ namespace HookCrashers {
         bool SetupRegisterAllSWFFunctionsHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + REGISTER_ALL_SWF_FUNCTIONS_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalRegisterAll_t>(targetAddress);
-            L.Get()->info("[Hook] Attaching RegisterAllSWFFunctions hook at offset 0x{:X} (address=0x{:X}).", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Installing hook | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredRegisterAllSWFFunctions);
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] RegisterAllSWFFunctions DetourAttach failed at offset 0x{:X}: {}", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, error);
+                L.Get()->error("[Hook] DetourAttach failed | name=RegisterAllSWFFunctions | RVA=0x{:X} | error={}", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] RegisterAllSWFFunctions DetourTransactionCommit failed at offset 0x{:X}: {}", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=RegisterAllSWFFunctions | RVA=0x{:X} | error={}", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, error);
                 return false;
             }
 
-            L.Get()->info("[Hook] RegisterAllSWFFunctions hook attached successfully at offset 0x{:X} (address=0x{:X}).", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Hook installed | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
             return true;
         }
     }

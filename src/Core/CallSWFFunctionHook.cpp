@@ -58,7 +58,7 @@ namespace HookCrashers {
 
         bool SetupCallSWFFunctionHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + CALL_SWF_FUNCTION_OFFSET;
-            L.Get()->info("[Hook] Attaching CallSWFFunction hook at offset 0x{:X} (address=0x{:X}).", CALL_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Installing hook | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
 
             // Initialize the dispatcher with the original address before we hook it
             SWF::Dispatcher::Initialize(targetAddress);
@@ -73,7 +73,7 @@ namespace HookCrashers {
             // DetourAttach wants a PVOID&, so we cast our function pointer variable's address
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredCallSWFFunction);
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] CallSWFFunction DetourAttach failed at offset 0x{:X}: {}", CALL_SWF_FUNCTION_OFFSET, error);
+                L.Get()->error("[Hook] DetourAttach failed | name=CallSWFFunction | RVA=0x{:X} | error={}", CALL_SWF_FUNCTION_OFFSET, error);
                 DetourTransactionAbort();
                 // Reset everything on failure
                 g_originalFunction = nullptr;
@@ -82,11 +82,11 @@ namespace HookCrashers {
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] CallSWFFunction DetourTransactionCommit failed at offset 0x{:X}: {}", CALL_SWF_FUNCTION_OFFSET, error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=CallSWFFunction | RVA=0x{:X} | error={}", CALL_SWF_FUNCTION_OFFSET, error);
                 return false;
             }
 
-            L.Get()->info("[Hook] CallSWFFunction hook attached successfully at offset 0x{:X} (address=0x{:X}).", CALL_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Hook installed | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
             return true;
         }
 

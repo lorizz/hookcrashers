@@ -5,7 +5,7 @@
 #include <spdlog/pattern_formatter.h>
 #include <spdlog/sinks/null_sink.h>
 
-// Struct & Callback to find the secondary monitor
+// Helper used to place the debug console on a secondary monitor when available
 struct MonitorInfo {
 	bool foundSecondary = false;
 	RECT secondaryMonitorRect{};
@@ -72,10 +72,12 @@ namespace HookCrashers {
 					std::cerr.clear();
 					std::cin.clear();
 
-					// Posiziona la console sul secondo schermo se disponibile
+					// Move the console to the secondary monitor when one is available.
 					PositionConsoleOnSecondaryMonitor();
 
 					auto console_sink = std::make_shared<spdlog::sinks::stdout_color_sink_mt>();
+					console_sink->set_pattern("[%H:%M:%S.%e] %^[%l] %v%$");
+					console_sink->set_level(spdlog::level::info);
 					_logger->sinks().push_back(console_sink);
 					_consoleAllocated = true;
 					Get()->info("Console logger initialized.");
@@ -95,7 +97,7 @@ namespace HookCrashers {
 			if (mi.foundSecondary) {
 				HWND consoleWindow = GetConsoleWindow();
 				if (consoleWindow) {
-					// Posiziona la console nell'angolo in alto a sinistra del secondo monitor
+					// Place the console at the top-left corner of the secondary monitor.
 					SetWindowPos(consoleWindow, NULL,
 						mi.secondaryMonitorRect.left,
 						mi.secondaryMonitorRect.top,
@@ -131,6 +133,8 @@ namespace HookCrashers {
 				try {
 					std::string logPath = _logDirectory.empty() ? "HookCrashers.log" : (_logDirectory + "HookCrashers.log");
 					auto file_sink = std::make_shared<spdlog::sinks::basic_file_sink_mt>(logPath, true);
+					file_sink->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+					file_sink->set_level(spdlog::level::info);
 					sinks.push_back(file_sink);
 					AddBufferedEntry("info", "[Logger] File sink path: " + logPath);
 				}
@@ -140,20 +144,20 @@ namespace HookCrashers {
 				}
 
 				_logger = std::make_shared<spdlog::logger>("HookCrashers", sinks.begin(), sinks.end());
-				_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%^%l%$] %v");
-				_logger->set_level(spdlog::level::trace);
-				_logger->flush_on(spdlog::level::trace);
+				_logger->set_pattern("[%Y-%m-%d %H:%M:%S.%e] [%l] %v");
+				_logger->set_level(spdlog::level::info);
+				_logger->flush_on(spdlog::level::info);
 				_logger->info("Logger initialized.");
 				_logger->flush();
 			}
 			catch (const spdlog::spdlog_ex& ex) {
 				_logger = std::make_shared<spdlog::logger>("HookCrashers", std::make_shared<RingBufferSink>(this));
-				_logger->set_level(spdlog::level::trace);
+				_logger->set_level(spdlog::level::info);
 				AddBufferedEntry("error", std::string("[Logger] Logger initialized without file sink: ") + ex.what());
 			}
 			catch (...) {
 				_logger = std::make_shared<spdlog::logger>("HookCrashers", std::make_shared<RingBufferSink>(this));
-				_logger->set_level(spdlog::level::trace);
+				_logger->set_level(spdlog::level::info);
 				AddBufferedEntry("error", "[Logger] Logger initialized without file sink due to an unknown error.");
 			}
 		}

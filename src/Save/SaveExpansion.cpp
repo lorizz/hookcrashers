@@ -4,6 +4,7 @@
 #include "PainterConfigHook.h"
 #include "GenerateDefaultCharacterDataHook.h"
 #include "RebuildCharacterSlotTableHook.h"
+#include "ReceiveCharacterSyncHook.h"
 #include "SyncCharacterListFromSaveHook.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
@@ -63,6 +64,7 @@ bool InitializeSaveExpansion() {
     success = SetupGenerateDefaultCharacterDataHook() && success;
     success = SetupRebuildCharacterSlotTableHook() && success;
     success = SetupSyncCharacterListFromSaveHook() && success;
+    success = SetupReceiveCharacterSyncHook() && success;
 
     SWF::Custom::Register(static_cast<SWF::Data::SWFFunctionID>(50100), "GetCustomSaveData", GetCustomSaveDataHandler);
     const int addonCount = CharacterConfig::Instance().GetAddonCount();
