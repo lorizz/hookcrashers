@@ -31,7 +31,8 @@ namespace HookCrashers::Save {
 		// First real detour test: replace ReceiveCharacterSync with an equivalent
 		// implementation that uses heap packet buffers. Keep packet layout vanilla
 		// for this pass; expanded addon sync gets moved here after this is stable.
-		constexpr bool kUseReceiveCharacterSyncReplacement = true;
+		constexpr bool kUseReceiveCharacterSyncReplacement = false;
+		constexpr bool kInstallReceiveCharacterSyncHook = true;
 
 		constexpr size_t kVanillaPacketSize = 0x430;
 		constexpr size_t kVanillaFirstBlockOffset = 0x008;
@@ -369,6 +370,11 @@ namespace HookCrashers::Save {
 	}
 
 	bool SetupReceiveCharacterSyncHook() {
+		if (!kInstallReceiveCharacterSyncHook) {
+			Util::Logger::Instance().Get()->info("[NetworkPatch] ReceiveCharacterSync hook disabled; using original game network path.");
+			return true;
+		}
+
 		g_originalReceiveCharacterSync = reinterpret_cast<ReceiveCharacterSyncFn>(g_moduleBase + kReceiveCharacterSyncRva);
 		g_clearCharacterSyncPacket = reinterpret_cast<ClearCharacterSyncPacketFn>(g_moduleBase + kClearCharacterSyncPacketRva);
 		g_copyVanillaBlocks = reinterpret_cast<CopyVanillaBlocksFn>(g_moduleBase + kCopyVanillaBlocksRva);
