@@ -40,7 +40,7 @@ namespace HookCrashers {
         bool SetupRegisterSWFFunctionHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + REGISTER_SWF_FUNCTION_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalRegisterFunc_t>(targetAddress);
-            L.Get()->info("[Hook] Installing hook | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Installing hook | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
 
             if (!g_originalFunction) {
                 L.Get()->error("[Hook] RegisterSWFFunction hook failed because the target address is invalid.");
@@ -63,7 +63,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("[Hook] Hook installed | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Hook installed | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
             return true;
         }
 

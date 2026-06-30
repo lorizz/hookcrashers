@@ -96,7 +96,7 @@ namespace HookCrashers {
             info.hasIcon = hasIcon;
             info.handle = nullptr;
             s_loadedMods.push_back(info);
-            Util::Logger::Instance().Get()->info(
+            Util::Logger::Instance().Get()->debug(
                 "[ModLoader] Registered folder mod '{}' author='{}' version='{}' main.lua={} locs.json={} manifest={} icon={}.",
                 info.name,
                 info.author,
@@ -113,12 +113,12 @@ namespace HookCrashers {
 
             // Check if the Mods directory exists
             if (PathFileExistsW(modDir.c_str()) == FALSE) {
-                L.Get()->info("[ModLoader] Mods directory not found at '{}'. Creating it now.", NarrowFromWide(modDir));
+                L.Get()->debug("[ModLoader] Mods directory not found at '{}'. Creating it now.", NarrowFromWide(modDir));
                 if (CreateDirectoryW(modDir.c_str(), NULL) == FALSE) {
                     L.Get()->error("[ModLoader] Failed to create 'mods' directory. Error code: {}", GetLastError());
                     return;
                 }
-                L.Get()->info("[ModLoader] Mods directory created. No legacy binary mods to load.");
+                L.Get()->debug("[ModLoader] Mods directory created. No legacy binary mods to load.");
                 return;
             }
 
@@ -127,7 +127,7 @@ namespace HookCrashers {
                 return;
             }
 
-            L.Get()->info("[ModLoader] Scanning '{}' for legacy binary mods.", NarrowFromWide(modDir));
+            L.Get()->debug("[ModLoader] Scanning '{}' for legacy binary mods.", NarrowFromWide(modDir));
 
             wchar_t searchPath[MAX_PATH];
             PathCchCombine(searchPath, MAX_PATH, modDir.c_str(), L"*.asi");
@@ -138,13 +138,13 @@ namespace HookCrashers {
             if (hFind == INVALID_HANDLE_VALUE) {
                 // This is normal if the directory is empty.
                 if (GetLastError() == ERROR_FILE_NOT_FOUND) {
-                    L.Get()->info("[ModLoader] No .asi or .dll files found in 'mods' directory.");
+                    L.Get()->debug("[ModLoader] No .asi or .dll files found in 'mods' directory.");
                 }
                 else {
                     L.Get()->error("[ModLoader] FindFirstFile failed. Error code: {}", GetLastError());
                 }
-                L.Get()->info("------------------------------------------------------------");
-                L.Get()->info("[ModLoader] Finished scanning for mods.");
+                L.Get()->debug("------------------------------------------------------------");
+                L.Get()->debug("[ModLoader] Finished scanning for mods.");
                 return;
             }
 
@@ -159,7 +159,7 @@ namespace HookCrashers {
                     size_t charsConverted = 0;
                     wcstombs_s(&charsConverted, narrowFileName, MAX_PATH, findData.cFileName, _TRUNCATE);
 
-                    L.Get()->info("[ModLoader] Found legacy binary mod candidate '{}'.", narrowFileName);
+                    L.Get()->debug("[ModLoader] Found legacy binary mod candidate '{}'.", narrowFileName);
 
                     // Attempt to load the library using the full wide-char path
                     HMODULE hModule = LoadLibraryW(fullPath);
@@ -182,12 +182,12 @@ namespace HookCrashers {
                     }
 
                     // Log mod details
-                    L.Get()->info("[ModLoader] Name='{}'.", getModName());
-                    if (getModAuthor) L.Get()->info("[ModLoader] Author='{}'.", getModAuthor());
-                    if (getModVersion) L.Get()->info("[ModLoader] Version='{}'.", getModVersion());
+                    L.Get()->debug("[ModLoader] Name='{}'.", getModName());
+                    if (getModAuthor) L.Get()->debug("[ModLoader] Author='{}'.", getModAuthor());
+                    if (getModVersion) L.Get()->debug("[ModLoader] Version='{}'.", getModVersion());
 
                     // Initialize the mod
-                    L.Get()->info("[ModLoader] Initializing '{}'...", getModName());
+                    L.Get()->debug("[ModLoader] Initializing '{}'...", getModName());
                     bool success = false;
                     try {
                         success = initializeMod();
@@ -202,7 +202,7 @@ namespace HookCrashers {
                     }
 
                     if (success) {
-                        L.Get()->info("[ModLoader] Successfully initialized '{}'.", getModName());
+                        L.Get()->debug("[ModLoader] Successfully initialized '{}'.", getModName());
                         ModInfo info;
                         info.name = getModName();
                         info.author = getModAuthor ? getModAuthor() : "N/A";
@@ -226,7 +226,7 @@ namespace HookCrashers {
 
             FindClose(hFind);
 
-            L.Get()->info("[ModLoader] Finished scanning for legacy binary mods. loaded_mods={}.", s_loadedMods.size());
+            L.Get()->debug("[ModLoader] Finished scanning for legacy binary mods. loaded_mods={}.", s_loadedMods.size());
         }
     }
 }

@@ -177,7 +177,7 @@ namespace HookCrashers::Save {
 			const bool verboseLog = kEnableRebuildDiagnostics && s_verboseLogCount < 24;
 			if (verboseLog) {
 				++s_verboseLogCount;
-				Util::Logger::Instance().Get()->info(
+				Util::Logger::Instance().Get()->debug(
 					"[Save][RebuildDiag] before addon_count={} expanded_base={} first_addon_slot={} first_workshop_slot={} array_count={} array_begin=0x{:X} array_current=0x{:X} table_addons={} table_workshops={} array_addons={} array_workshops={}.",
 					addonCount,
 					expandedBaseCount,
@@ -204,7 +204,7 @@ namespace HookCrashers::Save {
 			}
 
 			if (verboseLog) {
-				Util::Logger::Instance().Get()->info(
+				Util::Logger::Instance().Get()->debug(
 					"[Save][RebuildDiag] after table_addons={} table_workshops={}.",
 					DescribeSlotTable(lobbyManager, firstAddonSlot, addonCount),
 					DescribeSlotTable(lobbyManager, firstWorkshopSlot, WORKSHOP_CHAR_COUNT));
@@ -213,7 +213,7 @@ namespace HookCrashers::Save {
 			static int s_logCount = 0;
 			if (kEnableRebuildDiagnostics && s_logCount < 8) {
 				++s_logCount;
-				Util::Logger::Instance().Get()->info(
+				Util::Logger::Instance().Get()->debug(
 					"[Save] RebuildCharacterSlotTable post-fix applied addon_count={} first_addon_slot={} first_workshop_slot={} array_begin=0x{:X} array_current=0x{:X}.",
 					addonCount,
 					firstAddonSlot,
@@ -248,7 +248,7 @@ namespace HookCrashers::Save {
 			return false;
 		}
 
-		Util::Logger::Instance().Get()->info("[Save] Hook installed | name=RebuildCharacterSlotTable | RVA=0x{:X}.", kRebuildCharacterSlotTableRva);
+		Util::Logger::Instance().Get()->debug("[Save] Hook installed | name=RebuildCharacterSlotTable | RVA=0x{:X}.", kRebuildCharacterSlotTableRva);
 		return true;
 	}
 }

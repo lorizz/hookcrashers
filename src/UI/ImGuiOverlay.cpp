@@ -824,7 +824,7 @@ bool InitializeImGui(IDirect3DDevice9* device) {
         SetWindowLongPtr(g_gameWindow, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(OverlayWndProc)));
 
     g_initialized = true;
-    Util::Logger::Instance().Get()->info("[Overlay] ImGui DX9 overlay initialized.");
+    Util::Logger::Instance().Get()->debug("[Overlay] ImGui DX9 overlay initialized.");
     return true;
 }
 
@@ -927,7 +927,7 @@ bool ResolveD3D9VTable(void** endScene, void** present, void** reset) {
 
 bool InitializeOverlay() {
     if (!Config::HookCrashersConfig::Instance().Get().enableOverlay) {
-        Util::Logger::Instance().Get()->info("[Overlay] Disabled by config.");
+        Util::Logger::Instance().Get()->debug("[Overlay] Disabled by config.");
         return true;
     }
 
@@ -953,7 +953,7 @@ bool InitializeOverlay() {
         return false;
     }
 
-    Util::Logger::Instance().Get()->info("[Overlay] D3D9 hooks attached.");
+    Util::Logger::Instance().Get()->debug("[Overlay] D3D9 hooks attached.");
     return true;
 }
 

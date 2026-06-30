@@ -39,7 +39,7 @@ namespace HookCrashers {
         float HookManager::s_version = 2.5f; // Good practice to specify 'f' for float literals
 
         void HelloWorldHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
-            Util::Logger::Instance().Get()->info("Hello, world! This is HookCrashers SWF Function Test.");
+            Util::Logger::Instance().Get()->debug("Hello, world! This is HookCrashers SWF Function Test.");
 		}
 
         // FIXED: Updated function signature to use the public types
@@ -110,7 +110,7 @@ namespace HookCrashers {
 
             s_moduleBase = moduleBase;
             Util::Logger& L = Util::Logger::Instance();
-            L.Get()->info("===== HookCrashers initialization started (module_base=0x{:X}) =====", moduleBase);
+            L.Get()->debug("===== HookCrashers initialization started (module_base=0x{:X}) =====", moduleBase);
 
             // The rest of this function remains the same, as it's orchestrating
             // the other systems that we have already fixed.
@@ -145,10 +145,10 @@ namespace HookCrashers {
                     L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
                 }
 
-                L.Get()->info("[SWFInject] Display-list depth hook disabled; portrait.swf shape import uses existing PlaceObject depth.");
+                L.Get()->debug("[SWFInject] Display-list depth hook disabled; portrait.swf shape import uses existing PlaceObject depth.");
             }
             else {
-                L.Get()->info("[SWFInject] Runtime SWF injection hooks disabled.");
+                L.Get()->debug("[SWFInject] Runtime SWF injection hooks disabled.");
             }
 
             if (!SetupUIInputHandlerHook(moduleBase)) {
@@ -219,10 +219,10 @@ namespace HookCrashers {
             SWF::Custom::Register(HC_SWFFunctionID::GetModInfo, "GetModInfo", GetModInfoHandler);
 
             if (success) {
-                L.Get()->info("===== HookCrashers initialization completed successfully =====");
+                L.Get()->debug("===== HookCrashers initialization completed successfully =====");
                 s_isInitialized = true;
 
-                L.Get()->info("===== Registering loaded mods =====");
+                L.Get()->debug("===== Registering loaded mods =====");
                 for (const auto& mod : Scripting::ScriptModLoader::Instance().GetLoadedMods()) {
                     ModLoader::RegisterScriptMod(
                         mod.name,
@@ -236,7 +236,7 @@ namespace HookCrashers {
                         mod.iconPath);
                 }
                 ModLoader::LoadLegacyBinaryMods();
-                L.Get()->info("===== Mod registration finished =====");
+                L.Get()->debug("===== Mod registration finished =====");
             }
             else {
                 L.Get()->error("===== HookCrashers initialization failed =====");

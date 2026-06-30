@@ -44,20 +44,20 @@ namespace HookCrashers {
         }
 
         void StartSaveDataCapture() {
-            L.Get()->info("Starting decrypted save data capture.");
+            L.Get()->debug("Starting decrypted save data capture.");
             g_capturedSaveData.clear();
             g_isCapturing = true;
         }
 
         void StopSaveDataCapture() {
-            L.Get()->info("Decrypted save data capture finished | bytes={}.", g_capturedSaveData.size());
+            L.Get()->debug("Decrypted save data capture finished | bytes={}.", g_capturedSaveData.size());
             g_isCapturing = false;
         }
 
         void __fastcall DetouredBlowfishDecrypt(void* thisPtr, void* /* edx_dummy */, uint32_t* block_part1, uint32_t* block_part2) {
             if (g_capturedBlowfishContext == nullptr) {
                 g_capturedBlowfishContext = thisPtr;
-                L.Get()->info("[Hook] Captured Blowfish context | VA=0x{:X}.", (uintptr_t)thisPtr);
+                L.Get()->debug("[Hook] Captured Blowfish context | VA=0x{:X}.", (uintptr_t)thisPtr);
             }
 
             g_originalFunction(thisPtr, block_part1, block_part2);
@@ -80,7 +80,7 @@ namespace HookCrashers {
             uintptr_t targetAddress = moduleBase + BLOWFISH_DECRYPT_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalBlowfishDecrypt_t>(targetAddress);
 
-            L.Get()->info("[Hook] Installing hook | name=BlowfishDecrypt | RVA=0x{:X} | VA=0x{:X}.", BLOWFISH_DECRYPT_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Installing hook | name=BlowfishDecrypt | RVA=0x{:X} | VA=0x{:X}.", BLOWFISH_DECRYPT_OFFSET, targetAddress);
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
@@ -100,7 +100,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("[Hook] Hook installed | name=BlowfishDecrypt.");
+            L.Get()->debug("[Hook] Hook installed | name=BlowfishDecrypt.");
             StartSaveDataCapture(); // Start capture automatically when the hook is installed.
             return true;
         }
@@ -116,7 +116,7 @@ namespace HookCrashers {
             g_originalFunction = nullptr;
             g_capturedBlowfishContext = nullptr;
             g_isCapturing = false;
-            L.Get()->info("[Hook] Hook removed | name=BlowfishDecrypt.");
+            L.Get()->debug("[Hook] Hook removed | name=BlowfishDecrypt.");
         }
 
         void AnalyzeCapturedData() {
@@ -125,7 +125,7 @@ namespace HookCrashers {
                 return;
             }
 
-            L.Get()->info("Analyzing captured save data | bytes={}.", g_capturedSaveData.size());
+            L.Get()->debug("Analyzing captured save data | bytes={}.", g_capturedSaveData.size());
 
             constexpr size_t GLOBAL_UNLOCKS_SIZE = 64;
             constexpr size_t CHARACTER_DATA_SIZE = 48;
@@ -150,7 +150,7 @@ namespace HookCrashers {
                 LogBufferSection("Remaining Data", g_capturedSaveData, restOfDataOffset, restOfDataSize);
             }
 
-            L.Get()->info("Captured save data analysis completed.");
+            L.Get()->debug("Captured save data analysis completed.");
         }
 
         const std::vector<uint8_t>& GetCapturedSaveData() {

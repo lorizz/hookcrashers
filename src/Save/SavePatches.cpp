@@ -104,7 +104,7 @@ namespace HookCrashers::Save {
 			int copyTailSrcByte,
 			int copyTailDstByte) {
 			if (!kEnableNetworkPacketExpansionPatches) {
-				Util::Logger::Instance().Get()->info("[NetworkPatch] Expanded packet byte patches are disabled. Fill TODO_RVA_* constants and set kEnableNetworkPacketExpansionPatches=true to test multiplayer addon sync.");
+				Util::Logger::Instance().Get()->debug("[NetworkPatch] Expanded packet byte patches are disabled. Fill TODO_RVA_* constants and set kEnableNetworkPacketExpansionPatches=true to test multiplayer addon sync.");
 				return true;
 			}
 
@@ -238,7 +238,7 @@ namespace HookCrashers::Save {
 	void RegisterSaveName(const std::string& name) {
 		g_saveName = SanitizeSaveName(name);
 		RefreshSaveFileNames();
-		Util::Logger::Instance().Get()->info("[Save] Registered mod save name '{}' -> '{}' / '{}'.", g_saveName, g_saveFileName, g_saveBackupFileName);
+		Util::Logger::Instance().Get()->debug("[Save] Registered mod save name '{}' -> '{}' / '{}'.", g_saveName, g_saveFileName, g_saveBackupFileName);
 	}
 
 	const std::string& GetSaveFileName() {
@@ -259,7 +259,7 @@ namespace HookCrashers::Save {
 			{ 0xE915F, 0xE9176 },
 			{ 0x1C46F0 },
 			g_saveBackupFileName.c_str());
-		Util::Logger::Instance().Get()->info(
+		Util::Logger::Instance().Get()->debug(
 			"[Save] Save filename patch applied main='{}' bak='{}' success={}.",
 			g_saveFileName,
 			g_saveBackupFileName,
@@ -273,9 +273,9 @@ namespace HookCrashers::Save {
 			return false;
 		}
 		int N = CharacterConfig::Instance().GetAddonCount();
-		Util::Logger::Instance().Get()->info("[Save] Applying save expansion patches. phase={} addon_count={}.", kSavePatchPhase, N);
+		Util::Logger::Instance().Get()->debug("[Save] Applying save expansion patches. phase={} addon_count={}.", kSavePatchPhase, N);
 		if (N <= 0) {
-			Util::Logger::Instance().Get()->info("[Save] No addon characters registered; save/lobby expansion patches are skipped and vanilla character/workshop behavior is preserved.");
+			Util::Logger::Instance().Get()->debug("[Save] No addon characters registered; save/lobby expansion patches are skipped and vanilla character/workshop behavior is preserved.");
 			return saveNamePatched;
 		}
 
@@ -338,7 +338,7 @@ namespace HookCrashers::Save {
 			secondPacketOffset,
 			finalPacketOffset);
 
-		Util::Logger::Instance().Get()->info(
+		Util::Logger::Instance().Get()->debug(
 			"[Save] Derived expansion values total_slots={} split_slots={} table_bytes={} save_size={} save_capacity={} addon_bytes={} total_base_chars={} keybind_limit={} char_table_size={} keybinds_offset={} network_p2_start={} workshop_start={} network_safe_limit={} workshop_index={} workshop_byte_offset={} packet_flag_offset={} sync_flag_offset={} memcpy_dwords={} workshop_selection_start={} first_packet_bytes={} first_packet_copy_dwords={} second_packet_offset={} workshop_ids_offset={} workshop_flags_offset={} second_packet_flags_offset={} second_packet_tail_offset={} final_packet_offset={}.",
 			total,
 			split,
@@ -518,7 +518,7 @@ namespace HookCrashers::Save {
 			(uint8_t)((0x821 + addonBytes) >> 24)
 			});
 		if (kSavePatchPhase <= 1) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 1 save-only expansion patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -544,7 +544,7 @@ namespace HookCrashers::Save {
 			(uint8_t)(newCharacterTableBufferSize >> 24)
 			});
 		if (kSavePatchPhase <= 2) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 2 constructor/table allocation patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -559,7 +559,7 @@ namespace HookCrashers::Save {
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x84A2C, { (uint8_t)total }); // updated
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x847D2, { (uint8_t)(-totalBase) }); // updated
 		if (kSavePatchPhase <= 3) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 3 rebuild patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -586,7 +586,7 @@ namespace HookCrashers::Save {
 			}
 		}
 		if (!kPhase4EnableIsCharacterUnlockedForPlayer) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 4B unlock patches disabled for validation. validate_enabled={} is_unlocked_enabled={} final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				kPhase4EnableValidateAndRevokeDLC,
 				kPhase4EnableIsCharacterUnlockedForPlayer,
@@ -609,7 +609,7 @@ namespace HookCrashers::Save {
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10565C + 2, { (uint8_t)(total) });              // Default 73 (0x49)
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x10562E + 2, { (uint8_t)(totalBase + 10 + 1) }); // Default 43 (0x2B)
 		if (kSavePatchPhase <= 4) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 4 unlock validation patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -625,7 +625,7 @@ namespace HookCrashers::Save {
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14CF2E + 2, { (uint8_t)(workshopSelectionStart) }); // updated // cmp eax, 0x20
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x14CF4B + 2, { (uint8_t)(workshopSelectionStart) }); // updated // sub eax, 0x20
 		if (kSavePatchPhase <= 5) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 5 selectable character patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -642,7 +642,7 @@ namespace HookCrashers::Save {
 		// AttachWorkshopSkin
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8D23C, { (uint8_t)(totalBase + 1) }); // updated
 		if (kSavePatchPhase <= 6) {
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[Save] Phase 6 attach skin patches applied. final_save_size={} final_save_capacity={} expanded_characters={} safe_characters={}.",
 				newSize,
 				newCapacity,
@@ -658,7 +658,7 @@ namespace HookCrashers::Save {
 		// known-good, while the expanded network guards still crash with addon
 		// characters. Keep networking on the vanilla path until it is moved to
 		// targeted detours.
-		Util::Logger::Instance().Get()->info("[NetworkPatch] Network byte patches are disabled; using vanilla multiplayer workshop sync path.");
+		Util::Logger::Instance().Get()->debug("[NetworkPatch] Network byte patches are disabled; using vanilla multiplayer workshop sync path.");
 
 		// BuildCharacterSyncPacket still needs to read the 40 workshop skin entries
 		// from the shifted skinEntryByIndex range. This does not change packet
@@ -686,6 +686,15 @@ namespace HookCrashers::Save {
 			(uint8_t)(workshopSkinEntryIndex >> 24)
 			});
 
+		// Structural network slot limits: keep vanilla packet layout, but move the
+		// base/workshop split after addon slots so addon selections are built and applied.
+		Util::Logger::Instance().Get()->info(
+			"[NetworkPatch] Applying structural sync slot limits split={} total={}.",
+			split,
+			total);
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A85, { static_cast<uint8_t>(split) }); // BuildCharacterSyncPacket: cmp edi, split
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x877B2, { static_cast<uint8_t>(split) }); // ApplyCharacterSyncPacket: cmp edx, split
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87A1B, { static_cast<uint8_t>(total) }); // ApplyCharacterSyncPacket: cmp edx, total
 		/*HookCrashers::Util::MemoryPatcher::PatchBytes(0x88D60 + 2, {
 			(uint8_t)(selected10ByteOffset & 0xFF),
 			(uint8_t)((selected10ByteOffset >> 8) & 0xFF),
@@ -1227,6 +1236,7 @@ HookCrashers::Util::MemoryPatcher::PatchBytes(0x88A94, { // updated
 	0x00, 0x00
 	});
 #endif
+
 
 
 

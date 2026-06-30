@@ -41,7 +41,7 @@ namespace HookCrashers {
 				HC_SWFReturn* swfReturn = Helpers::SWFReturnHelper::AsStructured(swfReturnRaw);
 
 				if (Custom::IsCustom(functionId)) {
-					// L.Get()->info("Dispatching call to Custom Function handler (ID: {})", functionId);
+					// L.Get()->debug("Dispatching call to Custom Function handler (ID: {})", functionId);
 					if (Custom::HandleCall(functionId, gameThisPtr, swfContext, paramCount, swfArgs, swfReturn, callbackPtr)) {
 						return true;
 					}

@@ -40,7 +40,7 @@ namespace HookCrashers {
 			}
 
 			void InitializeSystem(uintptr_t moduleBase) {
-				L.Get()->info("Initializing SWF function override system...");
+				L.Get()->debug("Initializing SWF function override system...");
 
 				/*Register(HC_SWFFunctionID::ReadStorage, [](void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount,
 					HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn, uint32_t callbackPtr) {
@@ -51,7 +51,7 @@ namespace HookCrashers {
 				/*Register(HC_SWFFunctionID::ReadStorage, [](void* thisPtr, int swfContext, uint32_t functionIdRaw, int paramCount,
 					// FIXED: Use the correct public types in the lambda signature
 					HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn, uint32_t callbackPtr) {
-						L.Get()->info("Override executing for ReadStorage (ID: {:#x})", static_cast<uint16_t>(HC_SWFFunctionID::ReadStorage));
+						L.Get()->debug("Override executing for ReadStorage (ID: {:#x})", static_cast<uint16_t>(HC_SWFFunctionID::ReadStorage));
 
 						// ... logic is fine ...
 
@@ -63,15 +63,15 @@ namespace HookCrashers {
 						}
 
 						if (offset == 544) {
-							L.Get()->info("ReadStorage override: Detected specific offset (544), Returning 0x80.");
+							L.Get()->debug("ReadStorage override: Detected specific offset (544), Returning 0x80.");
 							// FIXED: Call the static helper function
 							Helpers::SWFReturnHelper::SetIntegerSuccess(swfReturn, 0x80);
 							return;
 						}
 					});*/
-				//L.Get()->info("Overriding SetFlashController");
+				//L.Get()->debug("Overriding SetFlashController");
 				//Register(HC_SWFFunctionID::SetFlashController, Override_SetFlashController);
-				L.Get()->info("SWF function override system initialized.");
+				L.Get()->debug("SWF function override system initialized.");
 				L.Get()->flush();
 			}
 		}

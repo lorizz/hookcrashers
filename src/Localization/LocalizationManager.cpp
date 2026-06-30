@@ -63,7 +63,7 @@ namespace HookCrashers::Localization {
             language = "english";
         }
 
-        HookCrashers::Util::Logger::Instance().Get()->info("[Localization] Detected Steam language '{}'.", language);
+        HookCrashers::Util::Logger::Instance().Get()->debug("[Localization] Detected Steam language '{}'.", language);
 
         if (language == "english") m_languageIndex = 0;
         else if (language == "german") m_languageIndex = 1;
@@ -134,7 +134,7 @@ namespace HookCrashers::Localization {
                     if (loadedIds) {
                         loadedIds->push_back(entry.logicalId);
                     }
-                    HookCrashers::Util::Logger::Instance().Get()->info(
+                    HookCrashers::Util::Logger::Instance().Get()->debug(
                         "[Localization] Loaded '{}' from mod '{}' -> numeric_id={} source='{}'.",
                         entry.logicalId,
                         sourceName,

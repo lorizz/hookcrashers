@@ -58,7 +58,7 @@ namespace HookCrashers {
 
         bool SetupCallSWFFunctionHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + CALL_SWF_FUNCTION_OFFSET;
-            L.Get()->info("[Hook] Installing hook | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Installing hook | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
 
             // Initialize the dispatcher with the original address before we hook it
             SWF::Dispatcher::Initialize(targetAddress);
@@ -86,7 +86,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("[Hook] Hook installed | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Hook installed | name=CallSWFFunction | RVA=0x{:X} | VA=0x{:X}.", CALL_SWF_FUNCTION_OFFSET, targetAddress);
             return true;
         }
 

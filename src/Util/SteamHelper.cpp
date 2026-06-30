@@ -33,7 +33,7 @@ namespace HookCrashers {
         std::pair<bool, uint32_t> GetActiveSteamUser() {
             HKEY hKey;
             if (RegOpenKeyExA(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\ActiveProcess", 0, KEY_READ, &hKey) != ERROR_SUCCESS) {
-                // Non è un errore grave, l'utente potrebbe non aver lanciato il gioco da Steam
+                // Non ? un errore grave, l'utente potrebbe non aver lanciato il gioco da Steam
                 Logger::Instance().Get()->warn("Chiave 'ActiveProcess' non trovata. Impossibile determinare l'utente Steam attivo.");
                 return { false, 0 };
             }
@@ -49,7 +49,7 @@ namespace HookCrashers {
             RegCloseKey(hKey);
 
             if (activeUserId == 0) {
-                Logger::Instance().Get()->warn("'ActiveUser' è 0, indica nessun utente attivo.");
+                Logger::Instance().Get()->warn("'ActiveUser' ? 0, indica nessun utente attivo.");
                 return { false, 0 };
             }
 
@@ -127,17 +127,17 @@ namespace HookCrashers {
 
             auto appLanguage = ReadRegistryString(HKEY_CURRENT_USER, "Software\\Valve\\Steam\\Apps\\204360", "Language");
             if (appLanguage.first) {
-                L.Get()->info("[SteamHelper] Castle Crashers app language from registry: '{}'.", appLanguage.second);
+                L.Get()->debug("[SteamHelper] Castle Crashers app language from registry: '{}'.", appLanguage.second);
                 return appLanguage;
             }
-            L.Get()->info("[SteamHelper] Castle Crashers app registry language not found.");
+            L.Get()->debug("[SteamHelper] Castle Crashers app registry language not found.");
 
             auto steamLanguage = ReadRegistryString(HKEY_CURRENT_USER, "Software\\Valve\\Steam", "Language");
             if (steamLanguage.first) {
-                L.Get()->info("[SteamHelper] Steam language from registry: '{}'.", steamLanguage.second);
+                L.Get()->debug("[SteamHelper] Steam language from registry: '{}'.", steamLanguage.second);
                 return steamLanguage;
             }
-            L.Get()->info("[SteamHelper] Steam registry language not found.");
+            L.Get()->debug("[SteamHelper] Steam registry language not found.");
 
             auto steamPath = GetSteamInstallPath();
             if (!steamPath.first) {
@@ -148,15 +148,15 @@ namespace HookCrashers {
             const std::string appManifestPath = steamPath.second + "\\steamapps\\appmanifest_204360.acf";
             auto manifestLanguage = ReadLanguageFromQuotedKeyValueFile(appManifestPath);
             if (manifestLanguage.first) {
-                L.Get()->info("[SteamHelper] Castle Crashers app language from '{}': '{}'.", appManifestPath, manifestLanguage.second);
+                L.Get()->debug("[SteamHelper] Castle Crashers app language from '{}': '{}'.", appManifestPath, manifestLanguage.second);
                 return manifestLanguage;
             }
-            L.Get()->info("[SteamHelper] No language entry found in '{}'.", appManifestPath);
+            L.Get()->debug("[SteamHelper] No language entry found in '{}'.", appManifestPath);
 
             const std::string configPath = steamPath.second + "\\config\\config.vdf";
             auto configLanguage = ReadLanguageFromQuotedKeyValueFile(configPath);
             if (configLanguage.first) {
-                L.Get()->info("[SteamHelper] Steam language from '{}': '{}'.", configPath, configLanguage.second);
+                L.Get()->debug("[SteamHelper] Steam language from '{}': '{}'.", configPath, configLanguage.second);
                 return configLanguage;
             }
             L.Get()->warn("[SteamHelper] Steam language not found in registry or config files.");
@@ -178,7 +178,7 @@ namespace HookCrashers {
 
             std::string userdataDir = steamPathResult.second + "\\userdata";
             if (!PathExists(userdataDir)) {
-                L.Get()->error("La cartella 'userdata' di Steam non è stata trovata in: {}", userdataDir);
+                L.Get()->error("La cartella 'userdata' di Steam non ? stata trovata in: {}", userdataDir);
                 return { false, "" };
             }
 
@@ -186,15 +186,15 @@ namespace HookCrashers {
             auto activeUserResult = GetActiveSteamUser();
             if (activeUserResult.first) {
                 uint32_t activeUserId = activeUserResult.second;
-                L.Get()->info("Trovato utente Steam attivo con ID: {}", activeUserId);
+                L.Get()->debug("Trovato utente Steam attivo con ID: {}", activeUserId);
                 std::string savePath = userdataDir + "\\" + std::to_string(activeUserId) + "\\204360\\remote\\" + HookCrashers::Save::GetSaveFileName();
 
                 if (PathExists(savePath)) {
-                    L.Get()->info("Trovato file di salvataggio per l'utente attivo: {}", savePath);
+                    L.Get()->debug("Trovato file di salvataggio per l'utente attivo: {}", savePath);
                     return { true, savePath };
                 }
                 else {
-                    L.Get()->warn("Il salvataggio per l'utente attivo non è stato trovato in: {}", savePath);
+                    L.Get()->warn("Il salvataggio per l'utente attivo non ? stato trovato in: {}", savePath);
                     L.Get()->warn("Eseguo la ricerca su tutti gli utenti come fallback...");
                 }
             }
@@ -216,7 +216,7 @@ namespace HookCrashers {
                 {
                     std::string savePath = userdataDir + "\\" + findData.cFileName + "\\204360\\remote\\" + HookCrashers::Save::GetSaveFileName();
                     if (PathExists(savePath)) {
-                        L.Get()->info("Trovato file di salvataggio (fallback): {}", savePath);
+                        L.Get()->debug("Trovato file di salvataggio (fallback): {}", savePath);
                         FindClose(hFind);
                         return { true, savePath };
                     }

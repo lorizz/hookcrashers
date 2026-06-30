@@ -207,7 +207,7 @@ int Lua_RegisterSaveName(lua_State* L) {
 }
 int Lua_LogInfo(lua_State* L) {
     const char* message = luaL_checkstring(L, 1);
-    HookCrashers::Util::Logger::Instance().Get()->info("[Lua] {}", message);
+    HookCrashers::Util::Logger::Instance().Get()->debug("[Lua] {}", message);
     return 0;
 }
 
@@ -280,13 +280,13 @@ bool ScriptModLoader::DiscoverAndLoad() {
     m_loadedMods.clear();
     Save::CharacterConfig::Instance().ClearRegisteredCharacters();
     const std::string modsRoot = GetHookCrashersModsDirectoryA();
-    Util::Logger::Instance().Get()->info("[ScriptModLoader] Scanning folder mods in '{}'.", modsRoot);
+    Util::Logger::Instance().Get()->debug("[ScriptModLoader] Scanning folder mods in '{}'.", modsRoot);
 
     WIN32_FIND_DATAA data{};
     HANDLE findHandle = FindFirstFileA((modsRoot + "\\*").c_str(), &data);
     if (findHandle == INVALID_HANDLE_VALUE) {
         CreateDirectoryA(modsRoot.c_str(), NULL);
-        Util::Logger::Instance().Get()->info("[ScriptModLoader] Created mods directory at '{}'.", modsRoot);
+        Util::Logger::Instance().Get()->debug("[ScriptModLoader] Created mods directory at '{}'.", modsRoot);
         return true;
     }
 
@@ -297,7 +297,7 @@ bool ScriptModLoader::DiscoverAndLoad() {
     } while (FindNextFileA(findHandle, &data));
 
     FindClose(findHandle);
-    Util::Logger::Instance().Get()->info("[ScriptModLoader] Finished folder mod scan. loaded_mods={}.", m_loadedMods.size());
+    Util::Logger::Instance().Get()->debug("[ScriptModLoader] Finished folder mod scan. loaded_mods={}.", m_loadedMods.size());
     return true;
 }
 
@@ -324,7 +324,7 @@ bool ScriptModLoader::LoadModDirectory(const std::string& modRoot, const std::st
         ParseManifestJson(info.manifestPath, info);
     }
 
-    Util::Logger::Instance().Get()->info(
+    Util::Logger::Instance().Get()->debug(
         "[ScriptModLoader] Mod folder '{}' detected. manifest={} main.lua={} locs.json={} icon.png={}.",
         folderName,
         info.hasManifest,
@@ -365,7 +365,7 @@ bool ScriptModLoader::ParseManifestJson(const std::string& path, ScriptModInfo& 
         modInfo.name = root.value("name", modInfo.name);
         modInfo.author = root.value("author", modInfo.author);
         modInfo.version = root.value("version", modInfo.version);
-        Util::Logger::Instance().Get()->info(
+        Util::Logger::Instance().Get()->debug(
             "[ScriptModLoader] Parsed manifest '{}' -> name='{}' author='{}' version='{}'.",
             path,
             modInfo.name,
@@ -392,7 +392,7 @@ bool ScriptModLoader::ParseMainLua(const std::string& path, ScriptModInfo& modIn
     luaL_requiref(L, "HookCrashers", Lua_OpenHookCrashers, 1);
     lua_pop(L, 1);
 
-    Util::Logger::Instance().Get()->info("[ScriptModLoader] Executing main.lua for mod '{}' from '{}'.", modInfo.name, path);
+    Util::Logger::Instance().Get()->debug("[ScriptModLoader] Executing main.lua for mod '{}' from '{}'.", modInfo.name, path);
     const std::string previousModDirectory = g_currentLuaModDirectory;
     g_currentLuaModDirectory = modInfo.directory;
     if (luaL_dofile(L, path.c_str()) != LUA_OK) {
@@ -411,11 +411,11 @@ bool ScriptModLoader::ParseMainLua(const std::string& path, ScriptModInfo& modIn
     }
 
     if (modInfo.registeredCharacterIds.empty()) {
-        Util::Logger::Instance().Get()->info("[ScriptModLoader] Mod '{}' did not register any addon characters.", modInfo.name);
+        Util::Logger::Instance().Get()->debug("[ScriptModLoader] Mod '{}' did not register any addon characters.", modInfo.name);
     }
     else {
         for (const auto& id : modInfo.registeredCharacterIds) {
-            Util::Logger::Instance().Get()->info("[ScriptModLoader] Mod '{}' registered character '{}'.", modInfo.name, id);
+            Util::Logger::Instance().Get()->debug("[ScriptModLoader] Mod '{}' registered character '{}'.", modInfo.name, id);
         }
     }
 
@@ -452,7 +452,7 @@ bool ScriptModLoader::ParseLocsJson(const std::string& path, ScriptModInfo& modI
         }
         else {
             for (const auto& id : modInfo.registeredLocalizationIds) {
-                Util::Logger::Instance().Get()->info("[ScriptModLoader] Mod '{}' declares localization '{}'.", modInfo.name, id);
+                Util::Logger::Instance().Get()->debug("[ScriptModLoader] Mod '{}' declares localization '{}'.", modInfo.name, id);
             }
         }
     }

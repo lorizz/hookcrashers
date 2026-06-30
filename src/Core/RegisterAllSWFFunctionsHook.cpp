@@ -30,7 +30,7 @@ namespace HookCrashers {
         bool SetupRegisterAllSWFFunctionsHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + REGISTER_ALL_SWF_FUNCTIONS_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalRegisterAll_t>(targetAddress);
-            L.Get()->info("[Hook] Installing hook | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Installing hook | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
 
             DetourTransactionBegin();
             DetourUpdateThread(GetCurrentThread());
@@ -47,7 +47,7 @@ namespace HookCrashers {
                 return false;
             }
 
-            L.Get()->info("[Hook] Hook installed | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
+            L.Get()->debug("[Hook] Hook installed | name=RegisterAllSWFFunctions | RVA=0x{:X} | VA=0x{:X}.", REGISTER_ALL_SWF_FUNCTIONS_OFFSET, targetAddress);
             return true;
         }
     }

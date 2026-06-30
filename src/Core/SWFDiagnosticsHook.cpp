@@ -33,8 +33,6 @@ namespace HookCrashers::Core {
 		SWFSceneParseHeaderFn g_originalSWFSceneParseHeader = nullptr;
 		SWFNodeCtorLoadCOK6Fn g_originalSWFNodeCtorLoadCOK6 = nullptr;
 		thread_local std::string g_currentSWFPath;
-		constexpr const char* kGreen = "\033[32m";
-		constexpr const char* kReset = "\033[0m";
 
 		std::string HexDump(const uint8_t* data, int maxBytes) {
 			if (!data || maxBytes <= 0) {
@@ -385,7 +383,7 @@ namespace HookCrashers::Core {
 							constantPool.push_back(value);
 							if (ContainsInterestingToken(value)) {
 								++stats.interestingStringCount;
-								Util::Logger::Instance().Get()->info(
+								Util::Logger::Instance().Get()->debug(
 									"[SWFDiag][AS2] {} depth={} action=0x{:X} ConstantPool[{}]='{}'.",
 									owner,
 									depth,
@@ -406,7 +404,7 @@ namespace HookCrashers::Core {
 							std::string value = ReadNullTerminatedString(pushCursor, payloadEnd);
 							if (ContainsInterestingToken(value)) {
 								++stats.interestingStringCount;
-								Util::Logger::Instance().Get()->info(
+								Util::Logger::Instance().Get()->debug(
 									"[SWFDiag][AS2] {} depth={} action=0x{:X} PushString='{}'.",
 									owner,
 									depth,
@@ -421,7 +419,7 @@ namespace HookCrashers::Core {
 							const uint8_t index = *pushCursor++;
 							if (index < constantPool.size() && ContainsInterestingToken(constantPool[index])) {
 								++stats.interestingStringCount;
-								Util::Logger::Instance().Get()->info(
+								Util::Logger::Instance().Get()->debug(
 									"[SWFDiag][AS2] {} depth={} action=0x{:X} PushConst8[{}]='{}'.",
 									owner,
 									depth,
@@ -438,7 +436,7 @@ namespace HookCrashers::Core {
 							pushCursor += 2;
 							if (index < constantPool.size() && ContainsInterestingToken(constantPool[index])) {
 								++stats.interestingStringCount;
-								Util::Logger::Instance().Get()->info(
+								Util::Logger::Instance().Get()->debug(
 									"[SWFDiag][AS2] {} depth={} action=0x{:X} PushConst16[{}]='{}'.",
 									owner,
 									depth,
@@ -500,7 +498,7 @@ namespace HookCrashers::Core {
 					AS2ScanStats stats;
 					ScanAS2Actions(tag.payload, tag.length, owner, depth, stats);
 					if (stats.interestingStringCount > 0) {
-						Util::Logger::Instance().Get()->info(
+						Util::Logger::Instance().Get()->debug(
 							"[SWFDiag][AS2] {} depth={} DoAction len={} actions={} pools={} pushes={} calls={} methods={} interesting={}.",
 							owner,
 							depth,
@@ -519,7 +517,7 @@ namespace HookCrashers::Core {
 						AS2ScanStats stats;
 						ScanAS2Actions(tag.payload + 2, tag.length - 2, owner, depth, stats);
 						if (stats.interestingStringCount > 0) {
-							Util::Logger::Instance().Get()->info(
+							Util::Logger::Instance().Get()->debug(
 								"[SWFDiag][AS2] {} depth={} DoInitAction sprite={} len={} actions={} interesting={}.",
 								owner,
 								depth,
@@ -537,7 +535,7 @@ namespace HookCrashers::Core {
 					int nestedActions = 0;
 					ScanSWFTags(tag.payload + 4, tag.payload + tag.length, owner, depth + 1, nestedTags, nestedActions);
 					if (nestedActions > 0) {
-						Util::Logger::Instance().Get()->info(
+						Util::Logger::Instance().Get()->debug(
 							"[SWFDiag][Tags] {} depth={} DefineSprite id={} frames={} nested_tags={} nested_action_blocks={}.",
 							owner,
 							depth,
@@ -562,7 +560,7 @@ namespace HookCrashers::Core {
 			int tagCount = 0;
 			int actionBlockCount = 0;
 			ScanSWFTags(view.tags, end, path.empty() ? "<unknown>" : path.c_str(), 0, tagCount, actionBlockCount);
-			Util::Logger::Instance().Get()->info(
+			Util::Logger::Instance().Get()->debug(
 				"[SWFDiag][Tags] scanned path='{}' tags={} action_blocks={} length={}.",
 				path,
 				tagCount,
@@ -664,8 +662,7 @@ namespace HookCrashers::Core {
 					path);
 				return;
 			}
-			Util::Logger::Instance().Get()->info(
-				"[SWFInject] wrote patched lobby dump '{}' bytes={} written={} source_path='{}'.",
+			Util::Logger::Instance().Get()->debug(
 				outputPath,
 				view.fileLength,
 				written,
@@ -680,18 +677,14 @@ namespace HookCrashers::Core {
 	char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int pathObject, char flags) {
 		const std::string previousPath = g_currentSWFPath;
 		g_currentSWFPath = BestStringGuess(reinterpret_cast<int*>(pathObject));
-		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] LoadCOK6 begin path='{}' this=0x{:X} flags=0x{:X}.{}", kGreen, g_currentSWFPath, reinterpret_cast<uintptr_t>(thisPtr), static_cast<unsigned>(static_cast<unsigned char>(flags)), kReset);
 		char* result = g_originalSWFNodeCtorLoadCOK6(thisPtr, a2, pathObject, flags);
-		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] LoadCOK6 end path='{}' result=0x{:X}.{}", kGreen, g_currentSWFPath, reinterpret_cast<uintptr_t>(result), kReset);
 		g_currentSWFPath = previousPath;
 		return result;
 	}
 
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 		auto* swfScene = reinterpret_cast<HookCrashers::SWF::SWFScene*>(scene);
-		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] ParseHeader before original path='{}' scene=0x{:X} swf=0x{:X}.{}", kGreen, g_currentSWFPath, scene, swfScene ? reinterpret_cast<uintptr_t>(swfScene->swfBuffer) : 0, kReset);
 		const bool injected = HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
-		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] ParseHeader injection result={} path='{}' scene=0x{:X} swf=0x{:X}.{}", kGreen, injected, g_currentSWFPath, scene, swfScene ? reinterpret_cast<uintptr_t>(swfScene->swfBuffer) : 0, kReset);
 		if (swfScene) {
 			DumpSWFBufferToFile(swfScene->swfBuffer, g_currentSWFPath);
 		}
