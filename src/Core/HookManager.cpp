@@ -115,7 +115,7 @@ namespace HookCrashers {
             // The rest of this function remains the same, as it's orchestrating
             // the other systems that we have already fixed.
             bool success = true;
-            constexpr bool kEnableRuntimeSWFInjectionHooks = false;
+            constexpr bool kEnableRuntimeSWFInjectionHooks = true;
 
             //L.Get()->debug("Step 1: Loading Native Functions... (TODO)");
             if (!Native::LoadNatives(moduleBase)) {
@@ -145,9 +145,7 @@ namespace HookCrashers {
                     L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
                 }
 
-                if (!SetupDisplayListDepthHook(moduleBase)) {
-                    L.Get()->warn("Failed to setup display-list depth hook. SVG portrait injected depth ordering may be wrong.");
-                }
+                L.Get()->info("[SWFInject] Display-list depth hook disabled; portrait.swf shape import uses existing PlaceObject depth.");
             }
             else {
                 L.Get()->info("[SWFInject] Runtime SWF injection hooks disabled.");

@@ -33,6 +33,8 @@ namespace HookCrashers::Core {
 		SWFSceneParseHeaderFn g_originalSWFSceneParseHeader = nullptr;
 		SWFNodeCtorLoadCOK6Fn g_originalSWFNodeCtorLoadCOK6 = nullptr;
 		thread_local std::string g_currentSWFPath;
+		constexpr const char* kGreen = "\033[32m";
+		constexpr const char* kReset = "\033[0m";
 
 		std::string HexDump(const uint8_t* data, int maxBytes) {
 			if (!data || maxBytes <= 0) {
@@ -678,15 +680,18 @@ namespace HookCrashers::Core {
 	char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int pathObject, char flags) {
 		const std::string previousPath = g_currentSWFPath;
 		g_currentSWFPath = BestStringGuess(reinterpret_cast<int*>(pathObject));
+		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] LoadCOK6 begin path='{}' this=0x{:X} flags=0x{:X}.{}", kGreen, g_currentSWFPath, reinterpret_cast<uintptr_t>(thisPtr), static_cast<unsigned>(static_cast<unsigned char>(flags)), kReset);
 		char* result = g_originalSWFNodeCtorLoadCOK6(thisPtr, a2, pathObject, flags);
+		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] LoadCOK6 end path='{}' result=0x{:X}.{}", kGreen, g_currentSWFPath, reinterpret_cast<uintptr_t>(result), kReset);
 		g_currentSWFPath = previousPath;
 		return result;
 	}
 
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 		auto* swfScene = reinterpret_cast<HookCrashers::SWF::SWFScene*>(scene);
-		// SVG shape injection is disabled for now; keep diagnostics/dumps active.
-		// HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
+		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] ParseHeader before original path='{}' scene=0x{:X} swf=0x{:X}.{}", kGreen, g_currentSWFPath, scene, swfScene ? reinterpret_cast<uintptr_t>(swfScene->swfBuffer) : 0, kReset);
+		const bool injected = HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
+		Util::Logger::Instance().Get()->info("{}[SWFInject][GREEN] ParseHeader injection result={} path='{}' scene=0x{:X} swf=0x{:X}.{}", kGreen, injected, g_currentSWFPath, scene, swfScene ? reinterpret_cast<uintptr_t>(swfScene->swfBuffer) : 0, kReset);
 		if (swfScene) {
 			DumpSWFBufferToFile(swfScene->swfBuffer, g_currentSWFPath);
 		}

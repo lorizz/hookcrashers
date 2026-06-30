@@ -1795,6 +1795,24 @@ namespace HookCrashers::SWF::Runtime {
 			}
 			return maxId;
 		}
+		uint16_t MaxDefineShapeId(const uint8_t* tags, const uint8_t* end) {
+			uint16_t maxId = 0;
+			const uint8_t* cursor = tags;
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) {
+					break;
+				}
+				if (tag.code == 0) {
+					break;
+				}
+				if ((tag.code == 2 || tag.code == 22 || tag.code == 32 || tag.code == 83) && tag.length >= 2) {
+					maxId = std::max(maxId, ReadU16(tag.payload));
+				}
+				cursor = tag.next;
+			}
+			return maxId;
+		}
 
 		size_t RectByteLength(const uint8_t* p, size_t length) {
 			if (!p || length == 0) {
@@ -2318,13 +2336,12 @@ namespace HookCrashers::SWF::Runtime {
 				const std::vector<uint8_t> bounds = injections.shapeTemplate152BoundsBytes.empty()
 					? EncodeRect(0, static_cast<int32_t>(portrait.svg.width) * 20, 0, static_cast<int32_t>(portrait.svg.height) * 20)
 					: injections.shapeTemplate152BoundsBytes;
-				AppendTag(out, 77, metadata);
 				if (portrait.isImportedSwf) {
 					AppendTagLong(out, portrait.importedShapeTagCode, portrait.importedShapePayload);
 					LogShapeDiagnostics("imported_swf", portrait.importedShapePayload, portrait.importedShapeTagCode);
-					AppendTagLong(out, 77, metadata);
 					continue;
 				}
+				AppendTag(out, 77, metadata);
 				if (portrait.isSvg) {
 					const std::vector<uint8_t> shape = EncodeSvgShape(portrait, injections.shapeTemplate152Bounds, bounds);
 					LogShapeDiagnostics("injected_svg", shape, 2);
@@ -2364,7 +2381,8 @@ namespace HookCrashers::SWF::Runtime {
 				Util::Logger::Instance().Get()->warn("[SWFInject] skip lobby portrait injection: shape template 152 not found.");
 				return set;
 			}
-			uint16_t nextId = static_cast<uint16_t>(MaxCharacterId(view.tags, view.base + view.fileLength) + 1);
+			uint16_t nextId = static_cast<uint16_t>(MaxDefineShapeId(view.tags, view.base + view.fileLength) + 1);
+            Util::Logger::Instance().Get()->info("[SWFInject][GREEN] next imported portrait shape id={} max_character_id={}.", nextId, MaxCharacterId(view.tags, view.base + view.fileLength));
 			const auto& addons = Save::CharacterConfig::Instance().GetAddons();
 			for (const auto& addon : addons) {
 				if (addon.portraitClassicPath.empty() && addon.portraitFreshPath.empty()) {
@@ -2538,7 +2556,30 @@ namespace HookCrashers::SWF::Runtime {
 				kLobbyPortraitSpriteId);
 		}
 
+		const uint8_t* appendDefinitionsAfter = nullptr;
+		{
+			const uint8_t* scan = view.tags;
+			const uint8_t* scanEnd = view.base + view.fileLength;
+			while (scan < scanEnd) {
+				Tag scanTag;
+				if (!ReadTag(scan, scanEnd, scanTag)) {
+					break;
+				}
+				if ((scanTag.code == 2 || scanTag.code == 22 || scanTag.code == 32 || scanTag.code == 83) && scanTag.length >= 2) {
+					appendDefinitionsAfter = scanTag.next;
+				}
+				if (scanTag.code == 0) {
+					break;
+				}
+				scan = scanTag.next;
+			}
+		}
+		Util::Logger::Instance().Get()->info(
+			"[SWFInject][GREEN] imported portrait definitions will be appended after last root DefineShape at offset=0x{:X}.",
+			appendDefinitionsAfter ? static_cast<unsigned>(appendDefinitionsAfter - view.base) : 0);
+
 		bool patchedSprite = false;
+		bool appendedDefinitions = false;
 		const uint8_t* cursor = view.tags;
 		const uint8_t* end = view.base + view.fileLength;
 		while (cursor < end) {
@@ -2549,8 +2590,10 @@ namespace HookCrashers::SWF::Runtime {
 				return false;
 			}
 			if (tag.code == 0) {
-				if (patchedSprite) {
+				if (!appendedDefinitions) {
 					AppendDefinitions(patched, injections);
+					appendedDefinitions = true;
+					Util::Logger::Instance().Get()->warn("[SWFInject] appended imported portrait definitions before End because no root DefineShape insertion point was found.");
 				}
 				AppendTag(patched, 0, std::vector<uint8_t>{});
 				break;
@@ -2584,6 +2627,13 @@ namespace HookCrashers::SWF::Runtime {
 			}
 			else {
 				patched.insert(patched.end(), tag.begin, tag.next);
+			}
+			if (!appendedDefinitions && tag.next == appendDefinitionsAfter) {
+				AppendDefinitions(patched, injections);
+				appendedDefinitions = true;
+				Util::Logger::Instance().Get()->info(
+					"[SWFInject][GREEN] appended imported portrait definitions after root DefineShape offset=0x{:X}.",
+					static_cast<unsigned>(tag.next - view.base));
 			}
 			cursor = tag.next;
 		}

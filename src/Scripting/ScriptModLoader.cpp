@@ -178,12 +178,14 @@ int Lua_RegisterCharacter(lua_State* L) {
     def.freshOnly = freshOnly;
     if (!g_currentLuaModDirectory.empty()) {
         const std::string characterDir = g_currentLuaModDirectory + "characters\\" + def.id + "\\";
+        const std::string classicPortraitSwf = characterDir + "portrait.swf";
         const std::string classicPortraitSvg = characterDir + "portrait.svg";
         const std::string classicPortraitPng = characterDir + "portrait.png";
+        const std::string freshPortraitSwf = characterDir + "portrait_fresh.swf";
         const std::string freshPortraitSvg = characterDir + "portrait_fresh.svg";
         const std::string freshPortraitPng = characterDir + "portrait_fresh.png";
-        const std::string classicPortrait = FileExistsA(classicPortraitSvg) ? classicPortraitSvg : classicPortraitPng;
-        const std::string freshPortrait = FileExistsA(freshPortraitSvg) ? freshPortraitSvg : freshPortraitPng;
+        const std::string classicPortrait = FileExistsA(classicPortraitSwf) ? classicPortraitSwf : (FileExistsA(classicPortraitSvg) ? classicPortraitSvg : classicPortraitPng);
+        const std::string freshPortrait = FileExistsA(freshPortraitSwf) ? freshPortraitSwf : (FileExistsA(freshPortraitSvg) ? freshPortraitSvg : freshPortraitPng);
         if (FileExistsA(classicPortrait)) {
             def.portraitClassicPath = classicPortrait;
         }
