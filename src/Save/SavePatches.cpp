@@ -55,7 +55,7 @@ namespace HookCrashers::Save {
 			return success;
 		}
 
-		constexpr bool kEnableNetworkPacketExpansionPatches = true;
+		constexpr bool kEnableNetworkPacketExpansionPatches = false;
 
 		std::vector<uint8_t> U32(uint32_t value) {
 			return {
@@ -751,6 +751,9 @@ namespace HookCrashers::Save {
 		// CallSWFFunction case 232 fallback first workshop slot
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x106097, { (uint8_t)(split), 0x00, 0x00, 0x00 }); // mov eax, workshop_start
 
+		// CallSWFFunction case 230 lobby availability: addon ids stay real chars, workshop starts at split.
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x105EAA, { (uint8_t)(split) }); // cmp selected_char_id, workshop_start
+
 		// NormalizeCharacterIdToSkinSlotIndex
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FBF1, { (uint8_t)(total) }); // cmp normalized_index, total
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x8FC05, { (uint8_t)(total) }); // cmp normalized_index, total
@@ -771,6 +774,18 @@ namespace HookCrashers::Save {
 			(uint8_t)((shiftedWorkshopSkinEntryByteOffset >> 24) & 0xFF)
 		}); // workshop skin table base = (1130 + workshop_start) * 4
 		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87D6C, { (uint8_t)(split) }); // workshop char slot base
+
+		// ValidateReadySkinsForPlayers
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87E26, {
+			(uint8_t)(workshopByteOffset & 0xFF),
+			(uint8_t)((workshopByteOffset >> 8) & 0xFF),
+			(uint8_t)((workshopByteOffset >> 16) & 0xFF),
+			(uint8_t)((workshopByteOffset >> 24) & 0xFF)
+		}); // first workshop slot table offset
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87E2B, { (uint8_t)(split), 0x00, 0x00, 0x00 }); // mov ebx, workshop_start
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87F58, { (uint8_t)(split) }); // cmp fresh_slot, workshop_start
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x87FD7, { (uint8_t)(split) }); // cmp workshop_slot, workshop_start
+		HookCrashers::Util::MemoryPatcher::PatchBytes(0x88020, { (uint8_t)(total) }); // cmp workshop_slot, total_slots
 		return true;
 	}
 }

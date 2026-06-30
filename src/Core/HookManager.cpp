@@ -115,6 +115,7 @@ namespace HookCrashers {
             // The rest of this function remains the same, as it's orchestrating
             // the other systems that we have already fixed.
             bool success = true;
+            constexpr bool kEnableRuntimeSWFInjectionHooks = false;
 
             //L.Get()->debug("Step 1: Loading Native Functions... (TODO)");
             if (!Native::LoadNatives(moduleBase)) {
@@ -139,13 +140,17 @@ namespace HookCrashers {
                 L.Get()->error("Failed to setup CallSWFFunction hook!");
                 success = false;
             }
+            if (kEnableRuntimeSWFInjectionHooks) {
+                if (!SetupSWFDiagnosticsHook(moduleBase)) {
+                    L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
+                }
 
-            if (!SetupSWFDiagnosticsHook(moduleBase)) {
-                L.Get()->warn("Failed to setup SWF diagnostics hook. Continuing without SWF diagnostics.");
+                if (!SetupDisplayListDepthHook(moduleBase)) {
+                    L.Get()->warn("Failed to setup display-list depth hook. SVG portrait injected depth ordering may be wrong.");
+                }
             }
-
-            if (!SetupDisplayListDepthHook(moduleBase)) {
-                L.Get()->warn("Failed to setup display-list depth hook. SVG portrait injected depth ordering may be wrong.");
+            else {
+                L.Get()->info("[SWFInject] Runtime SWF injection hooks disabled.");
             }
 
             if (!SetupUIInputHandlerHook(moduleBase)) {
