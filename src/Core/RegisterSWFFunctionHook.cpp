@@ -40,7 +40,7 @@ namespace HookCrashers {
         bool SetupRegisterSWFFunctionHook(uintptr_t moduleBase) {
             uintptr_t targetAddress = moduleBase + REGISTER_SWF_FUNCTION_OFFSET;
             g_originalFunction = reinterpret_cast<OriginalRegisterFunc_t>(targetAddress);
-            L.Get()->info("[Hook] Attaching RegisterSWFFunction hook at offset 0x{:X} (address=0x{:X}).", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Installing hook | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
 
             if (!g_originalFunction) {
                 L.Get()->error("[Hook] RegisterSWFFunction hook failed because the target address is invalid.");
@@ -51,19 +51,19 @@ namespace HookCrashers {
             DetourUpdateThread(GetCurrentThread());
             LONG error = DetourAttach(&(PVOID&)g_originalFunction, DetouredRegisterSWFFunction);
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] RegisterSWFFunction DetourAttach failed at offset 0x{:X}: {}", REGISTER_SWF_FUNCTION_OFFSET, error);
+                L.Get()->error("[Hook] DetourAttach failed | name=RegisterSWFFunction | RVA=0x{:X} | error={}", REGISTER_SWF_FUNCTION_OFFSET, error);
                 DetourTransactionAbort();
                 g_originalFunction = nullptr;
                 return false;
             }
             error = DetourTransactionCommit();
             if (error != NO_ERROR) {
-                L.Get()->error("[Hook] RegisterSWFFunction DetourTransactionCommit failed at offset 0x{:X}: {}", REGISTER_SWF_FUNCTION_OFFSET, error);
+                L.Get()->error("[Hook] DetourTransactionCommit failed | name=RegisterSWFFunction | RVA=0x{:X} | error={}", REGISTER_SWF_FUNCTION_OFFSET, error);
                 g_originalFunction = nullptr;
                 return false;
             }
 
-            L.Get()->info("[Hook] RegisterSWFFunction hook attached successfully at offset 0x{:X} (address=0x{:X}).", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
+            L.Get()->info("[Hook] Hook installed | name=RegisterSWFFunction | RVA=0x{:X} | VA=0x{:X}.", REGISTER_SWF_FUNCTION_OFFSET, targetAddress);
             return true;
         }
 

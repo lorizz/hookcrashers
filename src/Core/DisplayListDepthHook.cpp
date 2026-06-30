@@ -43,7 +43,7 @@ bool SetupDisplayListDepthHook(uintptr_t moduleBase) {
     uintptr_t targetAddress = moduleBase + kInsertDisplayObjectRva;
     g_originalInsertDisplayObject = reinterpret_cast<InsertDisplayObjectFn>(targetAddress);
     Util::Logger::Instance().Get()->info(
-        "[SWFInject] Attaching display-list depth hook at rva=0x{:X} address=0x{:X}.",
+        "[SWFInject] Installing hook | name=DisplayListDepth | RVA=0x{:X} | VA=0x{:X}.",
         kInsertDisplayObjectRva,
         targetAddress);
 
@@ -64,7 +64,7 @@ bool SetupDisplayListDepthHook(uintptr_t moduleBase) {
         return false;
     }
 
-    Util::Logger::Instance().Get()->info("[SWFInject] Display-list depth hook attached successfully.");
+    Util::Logger::Instance().Get()->info("[SWFInject] Hook installed | name=DisplayListDepth.");
     return true;
 }
 }

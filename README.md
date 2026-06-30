@@ -197,12 +197,46 @@ The required manual work is:
    includes the addon character.
 7. Repack the edited SWF into the correct `.pak`.
 
+### Required `main.swf` SaveObject Patch
+
+To make the expanded save layout work dynamically, replace the original
+`f_InitSaveSystem()` ActionScript function in `main.swf` with this version:
+
+```actionscript
+function f_InitSaveSystem()
+{
+   save_data_info = new Object();
+   save_data_info.char_offset = GetCustomSaveData("char_offset");
+   save_data_info.char_size = GetCustomSaveData("char_size");
+   save_data_info.num_items = GetCustomSaveData("num_items");
+   save_data_info.num_animals = GetCustomSaveData("num_animals");
+   save_data_info.num_levels = GetCustomSaveData("num_levels");
+   save_data_info.num_relics = GetCustomSaveData("num_relics");
+   save_data_info.num_items_expansion = GetCustomSaveData("num_items_expansion");
+   save_data_info.num_characters_legacy = GetCustomSaveData("num_characters_legacy");
+   save_data_info.num_characters_noaddons = GetCustomSaveData("num_characters_noaddons");
+   save_data_info.num_characters_safe = GetCustomSaveData("num_characters_safe");
+   save_data_info.num_character_addons = GetCustomSaveData("num_characters_addons");
+   save_data_info.num_characters = GetCustomSaveData("num_characters");
+   relic_offset = 40;
+   weapon_offset = 50;
+}
+```
+
+This makes the SWF read the active save layout from HookCrashers instead of
+hardcoding character, item, animal, level, and relic counts. Without this patch,
+the runtime save expansion can be correct while the SWF still reads or writes the
+old vanilla ranges.
+
 Current known lobby/select layout notes from the Steam build:
 
 - the lobby portrait container is `DefineSprite 179`
 - existing portrait frames around `133` and `135` are useful templates
 - frame `133` places an existing portrait shape at depth `1`
 - frame `135` places another existing portrait shape at depth `1`
+- addon character portraits should be inserted after Painter Jr. and before the
+  workshop clone slots, so the SWF order matches the expanded character ids used
+  by HookCrashers
 - a cloned portrait frame should keep the original matrix/position/scale
 - the `PlaceObject2` for the injected portrait must use:
   - depth `1`

@@ -14,6 +14,7 @@ namespace HookCrashers::Save {
 		constexpr uintptr_t kRebuildCharacterSlotTableRva = 0x846D0; // updated
 		constexpr int kCharacterArrayEntrySize = 0x1090;
 		constexpr int kSkinEntryByIndexOffsetDwords = 1130;
+		constexpr bool kEnableRebuildDiagnostics = false;
 
 		using RebuildCharacterSlotTableFn = char(__thiscall*)(uint32_t* lobbyManager, bool includeClientWorkshop);
 		RebuildCharacterSlotTableFn g_originalRebuildCharacterSlotTable = nullptr;
@@ -173,7 +174,7 @@ namespace HookCrashers::Save {
 			}
 
 			static int s_verboseLogCount = 0;
-			const bool verboseLog = s_verboseLogCount < 24;
+			const bool verboseLog = kEnableRebuildDiagnostics && s_verboseLogCount < 24;
 			if (verboseLog) {
 				++s_verboseLogCount;
 				Util::Logger::Instance().Get()->info(
@@ -210,7 +211,7 @@ namespace HookCrashers::Save {
 			}
 
 			static int s_logCount = 0;
-			if (s_logCount < 8) {
+			if (kEnableRebuildDiagnostics && s_logCount < 8) {
 				++s_logCount;
 				Util::Logger::Instance().Get()->info(
 					"[Save] RebuildCharacterSlotTable post-fix applied addon_count={} first_addon_slot={} first_workshop_slot={} array_begin=0x{:X} array_current=0x{:X}.",
@@ -247,7 +248,7 @@ namespace HookCrashers::Save {
 			return false;
 		}
 
-		Util::Logger::Instance().Get()->info("[Save] RebuildCharacterSlotTable hook attached at rva=0x{:X}.", kRebuildCharacterSlotTableRva);
+		Util::Logger::Instance().Get()->info("[Save] Hook installed | name=RebuildCharacterSlotTable | RVA=0x{:X}.", kRebuildCharacterSlotTableRva);
 		return true;
 	}
 }
