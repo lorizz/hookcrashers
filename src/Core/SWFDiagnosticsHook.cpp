@@ -571,12 +571,16 @@ namespace HookCrashers::Core {
 		enum class SWFDumpTarget {
 			None,
 			Menu,
+			Main,
 			Lobby,
 		};
 
 		SWFDumpTarget DetectDumpTarget(const std::string& path) {
 			if (path.find("menu") != std::string::npos || path.find("Menu") != std::string::npos) {
 				return SWFDumpTarget::Menu;
+			}
+			if (path.find("main") != std::string::npos || path.find("Main") != std::string::npos) {
+				return SWFDumpTarget::Main;
 			}
 			if (path.find("lobby") != std::string::npos || path.find("Lobby") != std::string::npos) {
 				return SWFDumpTarget::Lobby;
@@ -588,6 +592,8 @@ namespace HookCrashers::Core {
 			switch (target) {
 			case SWFDumpTarget::Menu:
 				return "menu";
+			case SWFDumpTarget::Main:
+				return "main";
 			case SWFDumpTarget::Lobby:
 				return "lobby";
 			default:
@@ -599,8 +605,10 @@ namespace HookCrashers::Core {
 			switch (target) {
 			case SWFDumpTarget::Menu:
 				return "menu.swf";
+			case SWFDumpTarget::Main:
+				return "main_patched.swf";
 			case SWFDumpTarget::Lobby:
-				return "lobby.swf";
+				return "lobby_patched.swf";
 			default:
 				return "unknown.swf";
 			}
@@ -612,15 +620,17 @@ namespace HookCrashers::Core {
 				return;
 			}
 			const SWFDumpTarget target = DetectDumpTarget(path);
-			if (target != SWFDumpTarget::Lobby) {
+			if (target != SWFDumpTarget::Main && target != SWFDumpTarget::Lobby) {
 				return;
 			}
 
+			static bool dumpedMain = false;
 			static bool dumpedLobby = false;
-			if (dumpedLobby) {
+			if ((target == SWFDumpTarget::Main && dumpedMain) || (target == SWFDumpTarget::Lobby && dumpedLobby)) {
 				return;
 			}
-			dumpedLobby = true;
+			if (target == SWFDumpTarget::Main) dumpedMain = true;
+			if (target == SWFDumpTarget::Lobby) dumpedLobby = true;
 
 			char modulePath[MAX_PATH] = {};
 			GetModuleFileNameA(reinterpret_cast<HMODULE>(&__ImageBase), modulePath, MAX_PATH);
@@ -643,11 +653,11 @@ namespace HookCrashers::Core {
 			}
 
 			char outputPath[MAX_PATH] = {};
-			sprintf_s(outputPath, "%s\\lobby_patched.swf", dumpDir);
+			sprintf_s(outputPath, "%s\\%s", dumpDir, DumpTargetFileName(target));
 
 			FILE* file = nullptr;
 			if (fopen_s(&file, outputPath, "wb") != 0 || !file) {
-				Util::Logger::Instance().Get()->error("[SWFInject] failed to open patched lobby dump '{}' errno={}.", outputPath, errno);
+				Util::Logger::Instance().Get()->error("[SWFInject] failed to open patched SWF dump '{}' errno={}.", outputPath, errno);
 				return;
 			}
 
@@ -655,18 +665,14 @@ namespace HookCrashers::Core {
 			fclose(file);
 			if (written != view.fileLength) {
 				Util::Logger::Instance().Get()->error(
-					"[SWFInject] short write patched lobby dump '{}' bytes={} written={} source_path='{}'.",
+					"[SWFInject] short write patched SWF dump '{}' bytes={} written={} source_path='{}'.",
 					outputPath,
 					view.fileLength,
 					written,
 					path);
 				return;
 			}
-			Util::Logger::Instance().Get()->debug(
-				outputPath,
-				view.fileLength,
-				written,
-				path);
+			Util::Logger::Instance().Get()->info("[SWFInject] wrote patched {} dump '{}' bytes={} written={} source_path='{}'.", DumpTargetName(target), outputPath, view.fileLength, written, path);
 		}
 	}
 
@@ -684,6 +690,7 @@ namespace HookCrashers::Core {
 
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 		auto* swfScene = reinterpret_cast<HookCrashers::SWF::SWFScene*>(scene);
+		HookCrashers::SWF::Runtime::TryPatchMainSaveSystem(swfScene, g_currentSWFPath);
 		const bool injected = HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
 		if (swfScene) {
 			DumpSWFBufferToFile(swfScene->swfBuffer, g_currentSWFPath);
@@ -729,3 +736,6 @@ namespace HookCrashers::Core {
 		return true;
 	}
 }
+
+
+

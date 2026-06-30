@@ -2482,6 +2482,275 @@ namespace HookCrashers::SWF::Runtime {
 		*sortDepth = depthValue;
 		return true;
 	}
+		bool PathContainsMain(const std::string& path) {
+			std::string lower = path;
+			std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+			return lower.find("main") != std::string::npos;
+		}
+
+		void AppendAction(std::vector<uint8_t>& out, uint8_t code) {
+			out.push_back(code);
+		}
+
+		void AppendActionWithPayload(std::vector<uint8_t>& out, uint8_t code, const std::vector<uint8_t>& payload) {
+			out.push_back(code);
+			WriteU16(out, static_cast<uint16_t>(payload.size()));
+			out.insert(out.end(), payload.begin(), payload.end());
+		}
+
+		void AppendPushString(std::vector<uint8_t>& out, const char* value) {
+			std::vector<uint8_t> payload;
+			payload.push_back(0x00);
+			payload.insert(payload.end(), value, value + std::strlen(value));
+			payload.push_back(0x00);
+			AppendActionWithPayload(out, static_cast<uint8_t>(AS2ActionCode::Push), payload);
+		}
+
+		void AppendPushStringInt(std::vector<uint8_t>& out, const char* value, int32_t number) {
+			std::vector<uint8_t> payload;
+			payload.push_back(0x00);
+			payload.insert(payload.end(), value, value + std::strlen(value));
+			payload.push_back(0x00);
+			payload.push_back(0x07);
+			WriteU32(payload, static_cast<uint32_t>(number));
+			AppendActionWithPayload(out, static_cast<uint8_t>(AS2ActionCode::Push), payload);
+		}
+
+		void AppendPushStringDoubleString(std::vector<uint8_t>& out, const char* first, double number, const char* second) {
+			std::vector<uint8_t> payload;
+			payload.push_back(0x00);
+			payload.insert(payload.end(), first, first + std::strlen(first));
+			payload.push_back(0x00);
+			payload.push_back(0x06);
+			static_assert(sizeof(double) == 8);
+			uint8_t raw[sizeof(double)] = {};
+			std::memcpy(raw, &number, sizeof(double));
+			payload.insert(payload.end(), raw, raw + sizeof(double));
+			payload.push_back(0x00);
+			payload.insert(payload.end(), second, second + std::strlen(second));
+			payload.push_back(0x00);
+			AppendActionWithPayload(out, static_cast<uint8_t>(AS2ActionCode::Push), payload);
+		}
+
+		void AppendSetMemberInt(std::vector<uint8_t>& body, const char* memberName, int32_t value) {
+			AppendPushString(body, "save_data_info");
+			AppendAction(body, static_cast<uint8_t>(AS2ActionCode::GetVariable));
+			AppendPushStringInt(body, memberName, value);
+			AppendAction(body, static_cast<uint8_t>(AS2ActionCode::SetMember));
+		}
+
+		void AppendSetVariableInt(std::vector<uint8_t>& body, const char* variableName, int32_t value) {
+			AppendPushStringInt(body, variableName, value);
+			AppendAction(body, static_cast<uint8_t>(AS2ActionCode::SetVariable));
+		}
+
+		std::vector<uint8_t> BuildInitSaveSystemBody() {
+			const int addonCount = Save::CharacterConfig::Instance().GetAddonCount();
+			std::vector<uint8_t> body;
+
+			AppendPushStringDoubleString(body, "save_data_info", 0.0, "Object");
+			AppendAction(body, static_cast<uint8_t>(AS2ActionCode::NewObject));
+			AppendAction(body, static_cast<uint8_t>(AS2ActionCode::SetVariable));
+
+			AppendSetMemberInt(body, "char_offset", Save::GLOBAL_UNLOCK_SIZE);
+			AppendSetMemberInt(body, "char_size", Save::CHAR_DATA_SIZE);
+			AppendSetMemberInt(body, "num_items", 128);
+			AppendSetMemberInt(body, "num_animals", 32);
+			AppendSetMemberInt(body, "num_levels", 64);
+			AppendSetMemberInt(body, "num_relics", 8);
+			AppendSetMemberInt(body, "num_items_expansion", 64);
+			AppendSetMemberInt(body, "num_characters_legacy", Save::BASE_CLASSIC_COUNT);
+			AppendSetMemberInt(body, "num_characters_noaddons", Save::BASE_CHAR_COUNT + addonCount);
+			AppendSetMemberInt(body, "num_characters_safe", Save::TOTAL_ORIGINAL_CHARS + addonCount);
+			AppendSetMemberInt(body, "num_character_addons", Save::WORKSHOP_CHAR_COUNT);
+			AppendSetMemberInt(body, "num_characters", Save::TOTAL_ORIGINAL_SLOTS + addonCount - 1);
+			AppendSetVariableInt(body, "relic_offset", 40);
+			AppendSetVariableInt(body, "weapon_offset", 50);
+			return body;
+		}
+
+		std::vector<uint8_t> BuildInitSaveSystemDefineFunctionAction() {
+			const std::vector<uint8_t> body = BuildInitSaveSystemBody();
+			std::vector<uint8_t> header;
+			constexpr const char* kFunctionName = "f_InitSaveSystem";
+			header.insert(header.end(), kFunctionName, kFunctionName + std::strlen(kFunctionName));
+			header.push_back(0x00);
+			WriteU16(header, 0);
+			WriteU16(header, static_cast<uint16_t>(body.size()));
+
+			std::vector<uint8_t> action;
+			AppendActionWithPayload(action, static_cast<uint8_t>(AS2ActionCode::DefineFunction), header);
+			action.insert(action.end(), body.begin(), body.end());
+			return action;
+		}
+
+		bool TryReadDefineFunctionHeader(const uint8_t* payload, uint16_t length, const char* wantedName, uint16_t& codeSize, size_t& headerSize) {
+			codeSize = 0;
+			headerSize = 0;
+			if (!payload || !wantedName) {
+				return false;
+			}
+			const uint8_t* end = payload + length;
+			const uint8_t* nameEnd = static_cast<const uint8_t*>(std::memchr(payload, 0, length));
+			if (!nameEnd || nameEnd + 5 > end) {
+				return false;
+			}
+			const size_t wantedLen = std::strlen(wantedName);
+			if (static_cast<size_t>(nameEnd - payload) != wantedLen || std::memcmp(payload, wantedName, wantedLen) != 0) {
+				return false;
+			}
+
+			const uint8_t* cursor = nameEnd + 1;
+			const uint16_t numParams = ReadU16(cursor);
+			cursor += 2;
+			for (uint16_t i = 0; i < numParams; ++i) {
+				const uint8_t* paramEnd = static_cast<const uint8_t*>(std::memchr(cursor, 0, static_cast<size_t>(end - cursor)));
+				if (!paramEnd) {
+					return false;
+				}
+				cursor = paramEnd + 1;
+			}
+			if (cursor + 2 > end) {
+				return false;
+			}
+			codeSize = ReadU16(cursor);
+			cursor += 2;
+			headerSize = static_cast<size_t>(cursor - payload);
+			return true;
+		}
+
+		bool PatchInitSaveSystemActions(const uint8_t* actions, uint32_t length, std::vector<uint8_t>& out, int& patchedCount) {
+			const uint8_t* cursor = actions;
+			const uint8_t* end = actions + length;
+			while (cursor < end) {
+				const uint8_t actionCode = *cursor++;
+				if (actionCode == static_cast<uint8_t>(AS2ActionCode::End)) {
+					out.push_back(actionCode);
+					out.insert(out.end(), cursor, end);
+					return patchedCount > 0;
+				}
+
+				if (actionCode < 0x80) {
+					out.push_back(actionCode);
+					continue;
+				}
+
+				if (cursor + 2 > end) {
+					return patchedCount > 0;
+				}
+				const uint16_t actionLength = ReadU16(cursor);
+				const uint8_t* actionLengthPtr = cursor;
+				cursor += 2;
+				if (cursor + actionLength > end) {
+					return patchedCount > 0;
+				}
+
+				uint16_t defineCodeSize = 0;
+				size_t defineHeaderSize = 0;
+				if (actionCode == static_cast<uint8_t>(AS2ActionCode::DefineFunction)
+					&& TryReadDefineFunctionHeader(cursor, actionLength, "f_InitSaveSystem", defineCodeSize, defineHeaderSize)) {
+					const std::vector<uint8_t> replacement = BuildInitSaveSystemDefineFunctionAction();
+					out.insert(out.end(), replacement.begin(), replacement.end());
+					++patchedCount;
+
+					const bool bodyStoredAfterAction = defineHeaderSize == actionLength && cursor + actionLength + defineCodeSize <= end;
+					cursor += actionLength + (bodyStoredAfterAction ? defineCodeSize : 0);
+					continue;
+				}
+				else {
+					out.push_back(actionCode);
+					out.push_back(actionLengthPtr[0]);
+					out.push_back(actionLengthPtr[1]);
+					out.insert(out.end(), cursor, cursor + actionLength);
+				}
+				cursor += actionLength;
+			}
+			return patchedCount > 0;
+		}
+	bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
+		if (!scene || !scene->swfBuffer) {
+			return false;
+		}
+		if (!PathContainsMain(swfPath)) {
+			return false;
+		}
+
+		SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+		if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
+			Util::Logger::Instance().Get()->warn(
+				"[SWFInject] skip main save-system patch: invalid SWF view valid={} compressed={} tags={} file_length={} header_size={} path='{}'.",
+				view.valid,
+				view.compressed,
+				static_cast<const void*>(view.tags),
+				view.fileLength,
+				view.headerSize,
+				swfPath);
+			return false;
+		}
+
+		std::vector<uint8_t> patched;
+		patched.reserve(view.fileLength + 512);
+		patched.insert(patched.end(), view.base, view.tags);
+
+		int patchedActions = 0;
+		const uint8_t* cursor = view.tags;
+		const uint8_t* end = view.base + view.fileLength;
+		while (cursor < end) {
+			Tag tag;
+			if (!ReadTag(cursor, end, tag)) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip main save-system patch: failed to read root tag at offset {}.", static_cast<size_t>(cursor - view.base));
+				return false;
+			}
+
+			if (tag.code == 0) {
+				AppendTag(patched, 0, std::vector<uint8_t>{});
+				break;
+			}
+
+			if (tag.code == static_cast<uint16_t>(SWFTagCode::DoAction)) {
+				std::vector<uint8_t> actionPayload;
+				PatchInitSaveSystemActions(tag.payload, tag.length, actionPayload, patchedActions);
+				if (!actionPayload.empty()) {
+					AppendTag(patched, tag.code, actionPayload);
+				}
+				else {
+					patched.insert(patched.end(), tag.begin, tag.next);
+				}
+			}
+			else if (tag.code == static_cast<uint16_t>(SWFTagCode::DoInitAction) && tag.length >= 2) {
+				std::vector<uint8_t> actionPayload;
+				actionPayload.push_back(tag.payload[0]);
+				actionPayload.push_back(tag.payload[1]);
+				PatchInitSaveSystemActions(tag.payload + 2, tag.length - 2, actionPayload, patchedActions);
+				AppendTag(patched, tag.code, actionPayload);
+			}
+			else {
+				patched.insert(patched.end(), tag.begin, tag.next);
+			}
+			cursor = tag.next;
+		}
+
+		if (patchedActions <= 0) {
+			Util::Logger::Instance().Get()->warn("[SWFInject] main save-system patch skipped: f_InitSaveSystem not found path='{}'.", swfPath);
+			return false;
+		}
+
+		const uint32_t newLength = static_cast<uint32_t>(patched.size());
+		patched[4] = static_cast<uint8_t>(newLength & 0xFF);
+		patched[5] = static_cast<uint8_t>((newLength >> 8) & 0xFF);
+		patched[6] = static_cast<uint8_t>((newLength >> 16) & 0xFF);
+		patched[7] = static_cast<uint8_t>((newLength >> 24) & 0xFF);
+
+		auto owned = std::make_unique<std::vector<uint8_t>>(std::move(patched));
+		scene->swfBuffer = owned->data();
+		g_ownedPatchedBuffers.push_back(std::move(owned));
+		Util::Logger::Instance().Get()->info("[SWFInject] patched main f_InitSaveSystem actions={} old_size={} new_size={} addon_count={}.",
+			patchedActions,
+			view.fileLength,
+			newLength,
+			Save::CharacterConfig::Instance().GetAddonCount());
+		return true;
+	}
 	bool TryInjectLobbyPortraits(SWFScene* scene, const std::string& swfPath) {
 		if (!scene || !scene->swfBuffer) {
 			return false;
@@ -2666,4 +2935,7 @@ namespace HookCrashers::SWF::Runtime {
 		return true;
 	}
 }
+
+
+
 
