@@ -184,8 +184,16 @@ int Lua_RegisterCharacter(lua_State* L) {
         const std::string freshPortraitSwf = characterDir + "portrait_fresh.swf";
         const std::string freshPortraitSvg = characterDir + "portrait_fresh.svg";
         const std::string freshPortraitPng = characterDir + "portrait_fresh.png";
+        const std::string iconPortraitSwf = characterDir + "portrait_icon.swf";
+        const std::string iconPortraitSvg = characterDir + "portrait_icon.svg";
+        const std::string iconPortraitPng = characterDir + "portrait_icon.png";
+        const std::string mapPortraitSwf = characterDir + "portrait_map.swf";
+        const std::string mapPortraitSvg = characterDir + "portrait_map.svg";
+        const std::string mapPortraitPng = characterDir + "portrait_map.png";
         const std::string classicPortrait = FileExistsA(classicPortraitSwf) ? classicPortraitSwf : (FileExistsA(classicPortraitSvg) ? classicPortraitSvg : classicPortraitPng);
         const std::string freshPortrait = FileExistsA(freshPortraitSwf) ? freshPortraitSwf : (FileExistsA(freshPortraitSvg) ? freshPortraitSvg : freshPortraitPng);
+        const std::string iconPortrait = FileExistsA(iconPortraitSwf) ? iconPortraitSwf : (FileExistsA(iconPortraitSvg) ? iconPortraitSvg : iconPortraitPng);
+        const std::string mapPortrait = FileExistsA(mapPortraitSwf) ? mapPortraitSwf : (FileExistsA(mapPortraitSvg) ? mapPortraitSvg : mapPortraitPng);
         if (FileExistsA(classicPortrait)) {
             def.portraitClassicPath = classicPortrait;
         }
@@ -194,6 +202,12 @@ int Lua_RegisterCharacter(lua_State* L) {
         }
         else {
             def.portraitFreshPath = def.portraitClassicPath;
+        }
+        if (FileExistsA(iconPortrait)) {
+            def.portraitIconPath = iconPortrait;
+        }
+        if (FileExistsA(mapPortrait)) {
+            def.portraitMapPath = mapPortrait;
         }
     }
     HookCrashers::Save::CharacterConfig::Instance().RegisterCharacter(def);

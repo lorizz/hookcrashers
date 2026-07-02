@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -91,7 +91,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)..\External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -114,7 +114,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)..\External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
     <PostBuildEvent>
@@ -185,6 +185,7 @@
     <ClInclude Include="src\Save\RebuildCharacterSlotTableHook.h" />
     <ClInclude Include="src\Save\ReceiveCharacterSyncHook.h" />
     <ClInclude Include="src\Save\NetworkCleanupDiagnosticsHook.h" />
+    <ClInclude Include="src\Save\StatsMenuDiagnosticsHook.h" />
     <ClInclude Include="src\Save\SaveExpansion.h" />
     <ClInclude Include="src\Save\SavePatches.h" />
     <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h" />
@@ -207,6 +208,7 @@
     <ClInclude Include="src\SWF\SWFStructures.h" />
     <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
     <ClInclude Include="src\UI\ImGuiOverlay.h" />
+    <ClInclude Include="src\Util\CrashLogger.h" />
     <ClInclude Include="src\Util\Logger.h" />
     <ClInclude Include="src\targetver.h" />
     <ClInclude Include="src\Util\MemoryPatcher.h" />
@@ -351,6 +353,7 @@
     <ClCompile Include="src\Save\RebuildCharacterSlotTableHook.cpp" />
     <ClCompile Include="src\Save\ReceiveCharacterSyncHook.cpp" />
     <ClCompile Include="src\Save\NetworkCleanupDiagnosticsHook.cpp" />
+    <ClCompile Include="src\Save\StatsMenuDiagnosticsHook.cpp" />
     <ClCompile Include="src\Save\SaveExpansion.cpp" />
     <ClCompile Include="src\Save\SavePatches.cpp" />
     <ClCompile Include="src\Save\SyncCharacterListFromSaveHook.cpp" />
@@ -363,6 +366,7 @@
     <ClCompile Include="src\SWF\Runtime\SWFRuntimeInjector.cpp" />
     <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
     <ClCompile Include="src\UI\ImGuiOverlay.cpp" />
+    <ClCompile Include="src\Util\CrashLogger.cpp" />
     <ClCompile Include="src\Util\Logger.cpp" />
     <ClCompile Include="src\Util\MemoryPatcher.cpp" />
     <ClCompile Include="src\Util\SteamHelper.cpp" />

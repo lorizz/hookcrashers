@@ -1,5 +1,6 @@
 #include "stdafx.h"
 #include "Util/Logger.h"
+#include "Util/CrashLogger.h"
 #include "Core/HookManager.h"
 #include "Config/HookCrashersConfig.h"
 #include "UI/ImGuiOverlay.h"
@@ -27,6 +28,7 @@ DWORD WINAPI InitThread(LPVOID lpParam) {
     const std::string configPath = moduleDir + "HookCrashers.ini";
 
     HookCrashers::Util::Logger::SetDefaultLogDirectory(moduleDir);
+    HookCrashers::Util::CrashLogger::Install(moduleDir);
     HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] HookCrashers InitThread started.");
     HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] Config path: {}", configPath);
     HookCrashers::Config::HookCrashersConfig::Instance().Load(configPath);
@@ -68,7 +70,7 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
         uintptr_t versionCheckValue = entryPointAddr + (0x400000 - base);
 
         //if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310) // Prior to 3.0
-        if (versionCheckValue == 0x85E310) // 3.2
+        if (versionCheckValue == 0x0085E310) // 3.2
         {
             HANDLE hThread = CreateThread(NULL, 0, InitThread, reinterpret_cast<LPVOID>(hModule), 0, NULL);
             if (hThread) {
@@ -84,13 +86,15 @@ BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
             sprintf_s(msg, sizeof(msg),
                 "This .exe version is not supported by Hook Crashers.\n"
                 "Please use a compatible Steam version or debug.\n"
+                "Compatible version: 0x0085E310\n"
                 "BaseAddress: 0x%p", (void*)versionCheckValue);
 
-            MessageBoxA(NULL, msg, "Hook Crashers", MB_ICONERROR);
+            MessageBoxA(NULL, msg, "Hook Crashers 4.2.0", MB_ICONERROR);
             return FALSE;
         }
     }
     else if (reason == DLL_PROCESS_DETACH) {
+        HookCrashers::Util::CrashLogger::Uninstall();
         HookCrashers::UI::ShutdownOverlay();
         HookCrashers::Util::Logger::Instance().Get()->debug("===== HookCrashers DLL Detaching =====");
         HookCrashers::Util::Logger::Instance().Shutdown();

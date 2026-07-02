@@ -604,7 +604,7 @@ namespace HookCrashers::Core {
 		const char* DumpTargetFileName(SWFDumpTarget target) {
 			switch (target) {
 			case SWFDumpTarget::Menu:
-				return "menu.swf";
+				return "menu_patched.swf";
 			case SWFDumpTarget::Main:
 				return "main_patched.swf";
 			case SWFDumpTarget::Lobby:
@@ -620,17 +620,19 @@ namespace HookCrashers::Core {
 				return;
 			}
 			const SWFDumpTarget target = DetectDumpTarget(path);
-			if (target != SWFDumpTarget::Main && target != SWFDumpTarget::Lobby) {
+			if (target != SWFDumpTarget::Main && target != SWFDumpTarget::Lobby && target != SWFDumpTarget::Menu) {
 				return;
 			}
 
 			static bool dumpedMain = false;
 			static bool dumpedLobby = false;
-			if ((target == SWFDumpTarget::Main && dumpedMain) || (target == SWFDumpTarget::Lobby && dumpedLobby)) {
+			static bool dumpedMenu = false;
+			if ((target == SWFDumpTarget::Main && dumpedMain) || (target == SWFDumpTarget::Lobby && dumpedLobby) || (target == SWFDumpTarget::Menu && dumpedMenu)) {
 				return;
 			}
 			if (target == SWFDumpTarget::Main) dumpedMain = true;
 			if (target == SWFDumpTarget::Lobby) dumpedLobby = true;
+			if (target == SWFDumpTarget::Menu) dumpedMenu = true;
 
 			char modulePath[MAX_PATH] = {};
 			GetModuleFileNameA(reinterpret_cast<HMODULE>(&__ImageBase), modulePath, MAX_PATH);
@@ -691,7 +693,10 @@ namespace HookCrashers::Core {
 	int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 		auto* swfScene = reinterpret_cast<HookCrashers::SWF::SWFScene*>(scene);
 		HookCrashers::SWF::Runtime::TryPatchMainSaveSystem(swfScene, g_currentSWFPath);
-		const bool injected = HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
+		HookCrashers::SWF::Runtime::TryInjectMainPortraitIcons(swfScene, g_currentSWFPath);
+		HookCrashers::SWF::Runtime::TryInjectMapPortraits(swfScene, g_currentSWFPath);
+		const bool injectedLobby = HookCrashers::SWF::Runtime::TryInjectLobbyPortraits(swfScene, g_currentSWFPath);
+        const bool injectedMenu = HookCrashers::SWF::Runtime::TryInjectMenuPortraits(swfScene, g_currentSWFPath);
 		if (swfScene) {
 			DumpSWFBufferToFile(swfScene->swfBuffer, g_currentSWFPath);
 		}

@@ -14,6 +14,8 @@ struct AddonCharacterDef {
     bool freshOnly = false;
     std::string portraitClassicPath;
     std::string portraitFreshPath;
+    std::string portraitIconPath;
+    std::string portraitMapPath;
 };
 
 struct Settings {

@@ -6,7 +6,10 @@
 
 namespace HookCrashers::SWF::Runtime {
 	bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath);
+	bool TryInjectMainPortraitIcons(SWFScene* scene, const std::string& swfPath);
+	bool TryInjectMapPortraits(SWFScene* scene, const std::string& swfPath);
 	bool TryInjectLobbyPortraits(SWFScene* scene, const std::string& swfPath);
+	bool TryInjectMenuPortraits(SWFScene* scene, const std::string& swfPath);
 	bool IsInjectedPortraitShape(uint16_t shapeId, uint16_t* depthOut = nullptr);
 	bool TryPatchDisplayObjectSortDepth(void* displayObject, int depthValue);
 }

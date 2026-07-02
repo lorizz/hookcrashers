@@ -6,6 +6,7 @@
 #include "RebuildCharacterSlotTableHook.h"
 #include "ReceiveCharacterSyncHook.h"
 #include "NetworkCleanupDiagnosticsHook.h"
+#include "StatsMenuDiagnosticsHook.h"
 #include "SyncCharacterListFromSaveHook.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
@@ -35,7 +36,13 @@ static void GetCustomSaveDataHandler(int paramCount, HC_SWFArgument** swfArgs, H
     else if (property == "num_levels") returnValue = 64;
     else if (property == "num_relics") returnValue = 8;
     else if (property == "num_items_expansion") returnValue = 64;
-    else if (property == "num_characters_legacy") returnValue = 31;
+    else if (property == "num_characters_legacy") {
+        int classicAddonCount = 0;
+        for (const auto& addon : CharacterConfig::Instance().GetAddons()) {
+            if (!addon.freshOnly) ++classicAddonCount;
+        }
+        returnValue = 31 + classicAddonCount;
+    }
     else if (property == "num_characters_noaddons") returnValue = 32 + addonCount;
     else if (property == "num_characters_safe") returnValue = 42 + addonCount;
     else if (property == "num_characters_addons") returnValue = 10;
@@ -67,6 +74,7 @@ bool InitializeSaveExpansion() {
     success = SetupSyncCharacterListFromSaveHook() && success;
     success = SetupReceiveCharacterSyncHook() && success;
     success = SetupNetworkCleanupDiagnosticsHook() && success;
+    success = SetupStatsMenuDiagnosticsHook() && success;
 
     SWF::Custom::Register(static_cast<SWF::Data::SWFFunctionID>(50100), "GetCustomSaveData", GetCustomSaveDataHandler);
     const int addonCount = CharacterConfig::Instance().GetAddonCount();
