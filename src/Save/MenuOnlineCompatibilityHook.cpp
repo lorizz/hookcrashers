@@ -1,4 +1,4 @@
-#include "MenuOnlineCompatibilityHook.h"
+﻿#include "MenuOnlineCompatibilityHook.h"
 
 #include "OnlineCompatibilityMode.h"
 #include "../Util/Logger.h"
@@ -43,12 +43,13 @@ namespace {
     constexpr uintptr_t kButtonMenuItemVtableRva = 0x1D0AE0;
     constexpr size_t kMenuHandlerSize = 0x20C;
     constexpr size_t kOriginalMenuHandlerCount = 46;
-    constexpr size_t kExpandedMenuHandlerCount = 47;
+    constexpr size_t kExpandedMenuHandlerCount = 48;
     constexpr uint16_t kPlayWithFriendsBuilderMenuId = 37;
     constexpr uint16_t kPlayWithFriendsMenuId = 37;
     constexpr uint16_t kModeMenuId = 36;
     constexpr uint16_t kOnlineLobbyMenuId = 39;
     constexpr uint16_t kOnlineCompatibilityMenuId = 46;
+    constexpr uint16_t kPlayerLobbiesMenuId = 47;
     constexpr size_t kCurrentHandlerOffset = 56;
     constexpr size_t kHandlerTableOffset = 64;
     constexpr size_t kMenuItemCountOffset = 0x04;
@@ -124,9 +125,12 @@ namespace {
     bool g_suppressNextPlayWithFriendsLobbyOpen = false;
     bool g_suppressNextModeMenuBack = false;
     bool g_onlineModeMenuArmed = false;
+    bool g_playerLobbiesHandlerBuilt = false;
 
     void LogLine(const std::string& message);
     std::string Hex(uintptr_t value);
+    int __cdecl PlayerLobbiesUpdate(int self);
+    bool EnsurePlayerLobbiesHandler(uint32_t* self);
     void ResetOnlineCompatibilityKeyboardState() {
         g_onlineCompatibilityKeyboardArmed = false;
         g_previousOnlineUp = false;
@@ -348,7 +352,23 @@ namespace {
     }
 
     int __cdecl PlayModdedClicked(int self) {
-        return OpenPlayWithFriendsWithMode(reinterpret_cast<uint32_t*>(self), OnlineCompatibilityMode::Modded);
+        auto* menu = reinterpret_cast<uint32_t*>(self);
+        if (!menu || !g_originalSetMenuState) {
+            return 0;
+        }
+        SetOnlineCompatibilityMode(OnlineCompatibilityMode::Modded);
+        EnsurePlayerLobbiesHandler(menu);
+        uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(static_cast<uintptr_t>(self) + kHandlerTableOffset);
+        if (!handlerTable) {
+            return self;
+        }
+        ResetOnlineCompatibilityKeyboardState();
+        const int playerLobbiesState = static_cast<int>(handlerTable + kPlayerLobbiesMenuId * kMenuHandlerSize);
+        std::ostringstream stream;
+        stream << "[OnlineCompatibility] Select modded -> SetMenuState playerlobbies id=" << kPlayerLobbiesMenuId
+               << " state=" << Hex(static_cast<uintptr_t>(playerLobbiesState)) << ".";
+        LogLine(stream.str());
+        return g_originalSetMenuState(menu, static_cast<int16_t>(kPlayerLobbiesMenuId), playerLobbiesState);
     }
     int __cdecl OnlineCompatibilityUpdate(int self) {
         if (!self) {
@@ -416,6 +436,23 @@ namespace {
         return self;
     }
 
+    int __cdecl PlayerLobbiesUpdate(int self) {
+        if (!self) {
+            return 0;
+        }
+
+        const bool escapeDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
+        if (escapeDown && !g_previousOnlineEscape) {
+            uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(static_cast<uintptr_t>(self) + kHandlerTableOffset);
+            if (handlerTable && g_originalSetMenuState) {
+                ResetOnlineCompatibilityKeyboardState();
+                int compatibilityState = static_cast<int>(handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize);
+                return g_originalSetMenuState(reinterpret_cast<uint32_t*>(self), static_cast<int16_t>(kOnlineCompatibilityMenuId), compatibilityState);
+            }
+        }
+        g_previousOnlineEscape = escapeDown;
+        return self;
+    }
     void LogLine(const std::string& message) {
         auto* logger = HookCrashers::Util::Logger::Instance().Get();
         if (logger) {
@@ -691,6 +728,60 @@ namespace {
         }
         return g_onlineCompatibilityHandlerBuilt;
     }
+    bool BuildPlayerLobbiesHandlerFromScratch(uint32_t* self, uint8_t* playerLobbiesHandler, uint8_t* templateHandler) {
+        if (!self || !playerLobbiesHandler || !templateHandler) {
+            return false;
+        }
+
+        const uintptr_t menuVtable = *reinterpret_cast<uintptr_t*>(templateHandler);
+        std::memset(playerLobbiesHandler, 0, kMenuHandlerSize);
+        *reinterpret_cast<uintptr_t*>(playerLobbiesHandler) = menuVtable;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kMenuItemCountOffset) = 0;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kGraphicCountOffset) = 0;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kButtonCountOffset) = 0;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kHotspotCountOffset) = 0;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kMenuSelectionOffset) = 0;
+
+        const uintptr_t displayConfig = ReadU32(g_moduleBase + kGlobalDisplayConfigRva);
+        const uint32_t width = displayConfig ? ReadU32(displayConfig + 12) : 0;
+        const uint32_t height = displayConfig ? ReadU32(displayConfig + 16) : 0;
+        const float centerX = static_cast<float>(width) * 0.5f;
+        const float centerY = static_cast<float>(height) * 0.5f;
+
+        const int lobbyObject = CreateGraphicMenuItem(self, reinterpret_cast<int>(playerLobbiesHandler), "playerlobbies", kPlayWithFriendsAssetId, centerX, centerY, true);
+        *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuOwnerOffset) = reinterpret_cast<uintptr_t>(self);
+        *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuUpdateCallbackOffset) = reinterpret_cast<uintptr_t>(&PlayerLobbiesUpdate);
+        *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuInitCallbackOffset) = 0;
+        *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kMenuConfiguredTargetOffset) = kOnlineCompatibilityMenuId;
+
+        std::ostringstream stream;
+        stream << "[OnlineCompatibility] Built playerlobbies menu id=" << kPlayerLobbiesMenuId
+               << " handler=" << Hex(reinterpret_cast<uintptr_t>(playerLobbiesHandler))
+               << " object=" << Hex(static_cast<uintptr_t>(lobbyObject))
+               << " graphics=" << *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kGraphicCountOffset)
+               << ".";
+        LogLine(stream.str());
+        return lobbyObject != 0;
+    }
+
+    bool EnsurePlayerLobbiesHandler(uint32_t* self) {
+        if (!self) {
+            return false;
+        }
+        uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(self) + kHandlerTableOffset);
+        if (!handlerTable) {
+            return false;
+        }
+        if (g_playerLobbiesHandlerBuilt) {
+            return true;
+        }
+
+        auto* handlers = reinterpret_cast<uint8_t*>(handlerTable);
+        auto* templateHandler = handlers + kPlayWithFriendsBuilderMenuId * kMenuHandlerSize;
+        auto* playerLobbiesHandler = handlers + kPlayerLobbiesMenuId * kMenuHandlerSize;
+        g_playerLobbiesHandlerBuilt = BuildPlayerLobbiesHandlerFromScratch(self, playerLobbiesHandler, templateHandler);
+        return g_playerLobbiesHandlerBuilt;
+    }
     bool PatchMenuBuilderHandlerCount() {
         constexpr uint32_t oldAllocationSize = static_cast<uint32_t>(sizeof(uint32_t) + kOriginalMenuHandlerCount * kMenuHandlerSize);
         constexpr uint32_t newAllocationSize = static_cast<uint32_t>(sizeof(uint32_t) + kExpandedMenuHandlerCount * kMenuHandlerSize);
@@ -771,6 +862,7 @@ namespace {
         g_expandedHandlers = nullptr;
         g_originalHandlers = 0;
         g_onlineCompatibilityHandlerBuilt = false;
+        g_playerLobbiesHandlerBuilt = false;
         g_onlineCompatibilityGraphicObject = 0;
         ResetOnlineCompatibilityKeyboardState();
 
@@ -778,12 +870,13 @@ namespace {
         uintptr_t handlerTable = self ? *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(self) + kHandlerTableOffset) : 0;
         if (handlerTable) {
             EnsureOnlineCompatibilityHandler(self, static_cast<int>(handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize));
+            EnsurePlayerLobbiesHandler(self);
         }
 
         std::ostringstream stream;
         stream << "[OnlineCompatibility] MenuBuilder leave self=" << Hex(reinterpret_cast<uintptr_t>(self))
                << " table=" << Hex(handlerTable)
-               << " registered_id=" << kOnlineCompatibilityMenuId
+               << " registered_id=" << kOnlineCompatibilityMenuId << "/" << kPlayerLobbiesMenuId
                << " ready=" << (g_onlineCompatibilityHandlerBuilt ? "true" : "false") << ".";
         LogLine(stream.str());
         return result;
@@ -795,7 +888,7 @@ namespace {
         const uintptr_t returnAddress = reinterpret_cast<uintptr_t>(_ReturnAddress());
         const uintptr_t callsite = returnAddress >= 5 ? returnAddress - 5 : returnAddress;
 
-        if (menuId == 23 || menuId == 33 || menuId == 34 || menuId == 36 || menuId == 37 || menuId == 42 || menuId == kOnlineLobbyMenuId || menuId == kOnlineCompatibilityMenuId) {
+        if (menuId == 23 || menuId == 33 || menuId == 34 || menuId == 36 || menuId == 37 || menuId == 42 || menuId == kOnlineLobbyMenuId || menuId == kOnlineCompatibilityMenuId || menuId == kPlayerLobbiesMenuId) {
             const uint16_t activeMenuId = self ? *reinterpret_cast<uint16_t*>(ownerBytes + 60) : 0;
             const uint16_t pendingMenuId = self ? *reinterpret_cast<uint16_t*>(ownerBytes + 608) : 0;
             const uint16_t transitionFromId = self ? *reinterpret_cast<uint16_t*>(ownerBytes + 90) : 0;
@@ -971,6 +1064,15 @@ bool SetupMenuOnlineCompatibilityHook() {
 }
 
 } // namespace HookCrashers::Save
+
+
+
+
+
+
+
+
+
 
 
 

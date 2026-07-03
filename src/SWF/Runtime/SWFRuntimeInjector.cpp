@@ -1,4 +1,5 @@
-#include "SWFRuntimeInjector.h"
+﻿#include "SWFRuntimeInjector.h"
+#include "MatchmakingSwfData.h"
 
 #include "../../Save/CharacterConfig.h"
 #include "../../Util/Logger.h"
@@ -158,7 +159,13 @@ namespace HookCrashers::SWF::Runtime {
 			bool valid = false;
 		};
 
-		std::vector<std::unique_ptr<std::vector<uint8_t>>> g_ownedPatchedBuffers;
+
+		struct MenuSwfImportInjection {
+			std::vector<RawTagDefinition> definitions;
+			uint16_t exportedSpriteId = 0;
+			uint16_t nextCharacterId = 0;
+			bool valid = false;
+		};		std::vector<std::unique_ptr<std::vector<uint8_t>>> g_ownedPatchedBuffers;
 		std::vector<std::pair<uint16_t, uint16_t>> g_injectedPortraitDepths;
 
 		void RegisterInjectedPortraitDepth(uint16_t shapeId, uint16_t depth) {
@@ -3786,6 +3793,128 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 				nextId);
 			return injection;
 		}
+		uint16_t FindRemappedCharacterId(const std::vector<std::pair<uint16_t, uint16_t>>& remap, uint16_t oldId) {
+			for (const auto& pair : remap) {
+				if (pair.first == oldId) {
+					return pair.second;
+				}
+			}
+			return oldId;
+		}
+
+		void PatchKnownCharacterWords(std::vector<uint8_t>& payload, size_t beginOffset, const std::vector<std::pair<uint16_t, uint16_t>>& remap) {
+			if (beginOffset + 1 >= payload.size()) {
+				return;
+			}
+			for (size_t offset = beginOffset; offset + 1 < payload.size(); ++offset) {
+				const uint16_t value = ReadU16(payload.data() + offset);
+				const uint16_t mapped = FindRemappedCharacterId(remap, value);
+				if (mapped != value) {
+					PatchU16(payload, offset, mapped);
+				}
+			}
+		}
+
+		bool ShouldCopyImportedSwfTag(uint16_t code) {
+			if (IsCharacterIdTag(code) || code == 13) {
+				return true;
+			}
+			return false;
+		}
+
+		MenuSwfImportInjection BuildMatchmakingSwfInjection(const SWFBufferView& menuView, const uint8_t* menuPhysicalEnd, uint16_t minimumNextId) {
+			MenuSwfImportInjection injection;
+			SWFBufferView imported = MakeSWFBufferView(const_cast<uint8_t*>(kMatchmakingSwfData));
+			if (!imported.valid || imported.compressed || imported.fileLength != kMatchmakingSwfSize || !imported.tags) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] skip matchmaking import: invalid embedded SWF valid={} compressed={} length={} expected={}",
+					imported.valid,
+					imported.compressed,
+					imported.fileLength,
+					kMatchmakingSwfSize);
+				return injection;
+			}
+
+			uint16_t nextId = FindNextAvailableCharacterId(menuView, menuPhysicalEnd, true);
+			if (nextId < minimumNextId) {
+				nextId = minimumNextId;
+			}
+
+			std::array<bool, 65536> importedCharacterIds{};
+			const uint8_t* cursor = imported.tags;
+			const uint8_t* end = imported.base + imported.fileLength;
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) {
+					break;
+				}
+				if (IsCharacterIdTag(tag.code) && tag.length >= 2) {
+					importedCharacterIds[ReadU16(tag.payload)] = true;
+				}
+				cursor = tag.next;
+				if (tag.code == 0) {
+					break;
+				}
+			}
+
+			std::vector<std::pair<uint16_t, uint16_t>> remap;
+			for (uint32_t oldId = 1; oldId < importedCharacterIds.size(); ++oldId) {
+				if (!importedCharacterIds[oldId]) {
+					continue;
+				}
+				if (nextId == 0 || nextId >= 65535) {
+					Util::Logger::Instance().Get()->warn("[SWFInject] skip matchmaking import: no ids left next_id={}", nextId);
+					return injection;
+				}
+				remap.emplace_back(static_cast<uint16_t>(oldId), nextId++);
+			}
+
+			cursor = imported.tags;
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) {
+					break;
+				}
+				if (ShouldCopyImportedSwfTag(tag.code) && tag.length >= 2) {
+					std::vector<uint8_t> payload(tag.payload, tag.payload + tag.length);
+					const uint16_t oldId = ReadU16(payload.data());
+					const uint16_t newId = FindRemappedCharacterId(remap, oldId);
+					PatchU16(payload, 0, newId);
+
+					if (tag.code == 39) {
+						for (const auto& pair : remap) {
+							PatchPlaceObjectCharacterReferences(payload, 4, payload.size(), pair.first, pair.second);
+						}
+					}
+					else if (tag.code == 37 || tag.code == 13) {
+						PatchKnownCharacterWords(payload, 2, remap);
+					}
+
+					injection.definitions.push_back({ tag.code, std::move(payload) });
+				}
+				cursor = tag.next;
+				if (tag.code == 0) {
+					break;
+				}
+			}
+
+			const uint16_t rootSpriteId = FindRemappedCharacterId(remap, 26);
+			if (rootSpriteId == 26) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip matchmaking import: root sprite 26 was not remapped.");
+				return injection;
+			}
+			injection.definitions.push_back({ 56, BuildExportAssetsPayload(rootSpriteId, "playerlobbies") });
+			injection.exportedSpriteId = rootSpriteId;
+			injection.nextCharacterId = nextId;
+			injection.valid = true;
+			Util::Logger::Instance().Get()->info(
+				"[SWFInject] prepared matchmaking import root_old=26 root_new={} definitions={} remap_count={} next_id={}",
+				rootSpriteId,
+				injection.definitions.size(),
+				remap.size(),
+				nextId);
+			return injection;
+		}
 		void AppendRawDefinitions(std::vector<uint8_t>& out, const std::vector<RawTagDefinition>& definitions) {
 			for (const RawTagDefinition& definition : definitions) {
 				AppendTag(out, definition.code, definition.payload);
@@ -4672,8 +4801,10 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		WriteDiagnosticDump("menu_original.swf", static_cast<const uint8_t*>(view.base), physicalCopyLength);
 
 		MenuOnlineCompatibilityInjection onlineCompatibility = BuildMenuOnlineCompatibilityInjection(view, physicalEnd);
-		InjectionSet injections = BuildInjectionSet(scene->swfBuffer, view, true, physicalEnd, 326, false, false, onlineCompatibility.nextCharacterId);
-		if (injections.classicPlacements.empty() && injections.freshPlacements.empty()) {
+		MenuSwfImportInjection matchmaking = BuildMatchmakingSwfInjection(view, physicalEnd, onlineCompatibility.nextCharacterId);
+		const uint16_t minimumPortraitId = matchmaking.valid ? matchmaking.nextCharacterId : onlineCompatibility.nextCharacterId;
+		InjectionSet injections = BuildInjectionSet(scene->swfBuffer, view, true, physicalEnd, 326, false, false, minimumPortraitId);
+		if (injections.classicPlacements.empty() && injections.freshPlacements.empty() && !onlineCompatibility.valid && !matchmaking.valid) {
 			Util::Logger::Instance().Get()->warn(
 				"[SWFInject] skip menu patch: no portrait frames prepared addons={} definitions={} classic_frames={} fresh_frames={}",
 				Save::CharacterConfig::Instance().GetAddons().size(),
@@ -4712,7 +4843,7 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		}
 
 		std::vector<uint8_t> patched;
-		patched.reserve(physicalCopyLength + spritePayload.size() + onlineCompatibility.definitions.size() * 4096 + injections.definitions.size() * 512 * 1024);
+		patched.reserve(physicalCopyLength + spritePayload.size() + onlineCompatibility.definitions.size() * 4096 + matchmaking.definitions.size() * 4096 + injections.definitions.size() * 512 * 1024);
 		patched.insert(patched.end(), physicalBase, rootEndTag);
 
 		std::vector<uint8_t> patchedSpriteTag;
@@ -4734,6 +4865,10 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		const size_t onlineCompatibilityDefinitionsOffset = patched.size();
 		if (onlineCompatibility.valid) {
 			AppendRawDefinitions(patched, onlineCompatibility.definitions);
+		}
+		const size_t matchmakingDefinitionsOffset = patched.size();
+		if (matchmaking.valid) {
+			AppendRawDefinitions(patched, matchmaking.definitions);
 		}
 		const size_t definitionsOffset = patched.size();
 		AppendDefinitions(patched, injections);
@@ -4759,23 +4894,34 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		scene->swfBuffer = owned->data();
 		g_ownedPatchedBuffers.push_back(std::move(owned));
 		Util::Logger::Instance().Get()->info(
-			"[SWFInject] patched menu portrait sprite={} in_place=true onlinecompatibility={} online_sprite={} online_defs={} portrait_definitions={} classic_frames={} fresh_frames={} declared={} physical={} new_size={} online_offset={} definitions_offset={}",
+			"[SWFInject] patched menu portrait sprite={} in_place=true onlinecompatibility={} online_sprite={} online_defs={} matchmaking={} matchmaking_sprite={} matchmaking_defs={} portrait_definitions={} classic_frames={} fresh_frames={} declared={} physical={} new_size={} online_offset={} matchmaking_offset={} definitions_offset={}",
 			kMenuPortraitSpriteId,
 			onlineCompatibility.valid,
 			onlineCompatibility.exportedSpriteId,
 			onlineCompatibility.definitions.size(),
-			injections.definitions.size(),
+			matchmaking.valid,
+				matchmaking.exportedSpriteId,
+				matchmaking.definitions.size(),
+				injections.definitions.size(),
 			injections.classicPlacements.size(),
 			injections.freshPlacements.size(),
 			view.fileLength,
 			physicalCopyLength,
 			newLength,
 			onlineCompatibilityDefinitionsOffset,
+			matchmakingDefinitionsOffset,
 			definitionsOffset);
 		return true;
 	}
 
 }
+
+
+
+
+
+
+
 
 
 
