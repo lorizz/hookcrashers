@@ -1,4 +1,4 @@
-#include "SaveExpansion.h"
+﻿#include "SaveExpansion.h"
 #include "CharacterConfig.h"
 #include "SavePatches.h"
 #include "PainterConfigHook.h"
@@ -8,6 +8,7 @@
 #include "NetworkCleanupDiagnosticsHook.h"
 #include "StatsMenuDiagnosticsHook.h"
 #include "SyncCharacterListFromSaveHook.h"
+#include "MenuOnlineCompatibilityHook.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Helpers/SWFArgumentReader.h"
 #include "../SWF/Helpers/SWFReturnHelper.h"
@@ -75,6 +76,7 @@ bool InitializeSaveExpansion() {
     success = SetupReceiveCharacterSyncHook() && success;
     success = SetupNetworkCleanupDiagnosticsHook() && success;
     success = SetupStatsMenuDiagnosticsHook() && success;
+    success = SetupMenuOnlineCompatibilityHook() && success;
 
     SWF::Custom::Register(static_cast<SWF::Data::SWFFunctionID>(50100), "GetCustomSaveData", GetCustomSaveDataHandler);
     const int addonCount = CharacterConfig::Instance().GetAddonCount();
@@ -93,5 +95,7 @@ bool InitializeSaveExpansion() {
 
 } // namespace Save
 } // namespace HookCrashers
+
+
 
 

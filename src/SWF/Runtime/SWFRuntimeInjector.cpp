@@ -146,6 +146,18 @@ namespace HookCrashers::SWF::Runtime {
 			std::vector<uint8_t> shapeTemplate152BoundsBytes;
 		};
 
+		struct RawTagDefinition {
+			uint16_t code = 0;
+			std::vector<uint8_t> payload;
+		};
+
+		struct MenuOnlineCompatibilityInjection {
+			std::vector<RawTagDefinition> definitions;
+			uint16_t exportedSpriteId = 0;
+			uint16_t nextCharacterId = 0;
+			bool valid = false;
+		};
+
 		std::vector<std::unique_ptr<std::vector<uint8_t>>> g_ownedPatchedBuffers;
 		std::vector<std::pair<uint16_t, uint16_t>> g_injectedPortraitDepths;
 
@@ -3482,6 +3494,303 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 			}
 			return patchedCount;
 		}
+		bool FindCharacterTagByIdRaw(const uint8_t* cursor, const uint8_t* end, uint16_t code, uint16_t characterId, Tag& tag) {
+			if (!cursor || !end || cursor >= end) {
+				return false;
+			}
+
+			for (const uint8_t* scan = cursor; scan + 6 <= end; ++scan) {
+				const uint16_t packed = ReadU16(scan);
+				if ((packed >> 6) != code) {
+					continue;
+				}
+
+				const uint8_t* payload = scan + 2;
+				uint32_t length = packed & 0x3F;
+				if (length == 0x3F) {
+					if (scan + 6 > end) {
+						continue;
+					}
+					length = ReadU32(scan + 2);
+					payload = scan + 6;
+				}
+
+				if (length < 2 || payload + length > end) {
+					continue;
+				}
+				if (ReadU16(payload) != characterId) {
+					continue;
+				}
+
+				tag.code = code;
+				tag.length = length;
+				tag.begin = scan;
+				tag.payload = payload;
+				tag.next = payload + length;
+				return true;
+			}
+			return false;
+		}
+
+		bool DecodeCxformByteLength(const uint8_t* data, size_t length, size_t& byteLength) {
+			if (!data || length == 0) {
+				return false;
+			}
+			size_t bitOffset = 0;
+			if (bitOffset + 6 > length * 8u) {
+				return false;
+			}
+			const bool hasAddTerms = ReadPackedBits(data, bitOffset, 1) != 0;
+			bitOffset += 1;
+			const bool hasMultTerms = ReadPackedBits(data, bitOffset, 1) != 0;
+			bitOffset += 1;
+			const uint32_t nbits = ReadPackedBits(data, bitOffset, 4);
+			bitOffset += 4;
+			const uint32_t termCount = (hasMultTerms ? 4u : 0u) + (hasAddTerms ? 4u : 0u);
+			bitOffset += termCount * nbits;
+			byteLength = (bitOffset + 7u) / 8u;
+			return byteLength <= length;
+		}
+
+		bool PatchPlaceObject2NamePayload(std::vector<uint8_t>& payload, uint16_t characterId, const char* newName) {
+			if (payload.size() < 3 || !newName) {
+				return false;
+			}
+			const uint8_t flags = payload[0];
+			if ((flags & 0x02) == 0) {
+				return false;
+			}
+			size_t cursor = 3;
+			if (cursor + 2 > payload.size() || ReadU16(payload.data() + cursor) != characterId) {
+				return false;
+			}
+			cursor += 2;
+			if ((flags & 0x04) != 0) {
+				size_t matrixBytes = 0;
+				if (!DecodeMatrixByteLength(payload.data() + cursor, payload.size() - cursor, matrixBytes)) {
+					return false;
+				}
+				cursor += matrixBytes;
+			}
+			if ((flags & 0x08) != 0) {
+				size_t cxformBytes = 0;
+				if (!DecodeCxformByteLength(payload.data() + cursor, payload.size() - cursor, cxformBytes)) {
+					return false;
+				}
+				cursor += cxformBytes;
+			}
+			if ((flags & 0x10) != 0) {
+				if (cursor + 2 > payload.size()) {
+					return false;
+				}
+				cursor += 2;
+			}
+			if ((flags & 0x20) == 0 || cursor >= payload.size()) {
+				return false;
+			}
+			size_t end = cursor;
+			while (end < payload.size() && payload[end] != 0) {
+				++end;
+			}
+			if (end >= payload.size()) {
+				return false;
+			}
+			const size_t newLen = std::strlen(newName);
+			std::vector<uint8_t> rebuilt;
+			rebuilt.reserve(payload.size() - (end - cursor) + newLen);
+			rebuilt.insert(rebuilt.end(), payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>(cursor));
+			rebuilt.insert(rebuilt.end(), reinterpret_cast<const uint8_t*>(newName), reinterpret_cast<const uint8_t*>(newName) + newLen);
+			rebuilt.push_back(0);
+			rebuilt.insert(rebuilt.end(), payload.begin() + static_cast<std::ptrdiff_t>(end + 1), payload.end());
+			payload.swap(rebuilt);
+			return true;
+		}
+
+		size_t PatchPlaceObject2NamesForCharacter(std::vector<uint8_t>& swf, size_t beginOffset, size_t endOffset, uint16_t characterId, const char* newName) {
+			if (beginOffset >= endOffset || endOffset > swf.size()) {
+				return 0;
+			}
+			size_t patchedCount = 0;
+			size_t offset = beginOffset;
+			while (offset < endOffset && offset < swf.size()) {
+				Tag tag;
+				const uint8_t* base = swf.data();
+				if (!ReadTag(base + offset, base + endOffset, tag)) {
+					break;
+				}
+				const size_t tagBytes = static_cast<size_t>(tag.next - tag.begin);
+				if (tag.code == 26) {
+					std::vector<uint8_t> payload(tag.payload, tag.next);
+					if (PatchPlaceObject2NamePayload(payload, characterId, newName)) {
+						std::vector<uint8_t> encoded;
+						AppendTag(encoded, 26, payload);
+						swf.erase(swf.begin() + static_cast<std::ptrdiff_t>(offset), swf.begin() + static_cast<std::ptrdiff_t>(offset + tagBytes));
+						swf.insert(swf.begin() + static_cast<std::ptrdiff_t>(offset), encoded.begin(), encoded.end());
+						const ptrdiff_t delta = static_cast<ptrdiff_t>(encoded.size()) - static_cast<ptrdiff_t>(tagBytes);
+						endOffset = static_cast<size_t>(static_cast<ptrdiff_t>(endOffset) + delta);
+						offset += encoded.size();
+						++patchedCount;
+						continue;
+					}
+				}
+				offset += tagBytes;
+				if (tag.code == 0) {
+					break;
+				}
+			}
+			return patchedCount;
+		}
+		bool ReplaceAsciiCString(std::vector<uint8_t>& payload, const char* oldText, const char* newText) {
+			if (!oldText || !newText || !*oldText) {
+				return false;
+			}
+			const size_t oldLen = std::strlen(oldText);
+			const size_t newLen = std::strlen(newText);
+			for (size_t i = 0; i + oldLen < payload.size(); ++i) {
+				if (std::memcmp(payload.data() + i, oldText, oldLen) != 0) {
+					continue;
+				}
+				if (payload[i + oldLen] != 0) {
+					continue;
+				}
+				std::vector<uint8_t> rebuilt;
+				rebuilt.reserve(payload.size() - oldLen + newLen);
+				rebuilt.insert(rebuilt.end(), payload.begin(), payload.begin() + static_cast<std::ptrdiff_t>(i));
+				rebuilt.insert(rebuilt.end(), reinterpret_cast<const uint8_t*>(newText), reinterpret_cast<const uint8_t*>(newText) + newLen);
+				rebuilt.push_back(0);
+				rebuilt.insert(rebuilt.end(), payload.begin() + static_cast<std::ptrdiff_t>(i + oldLen + 1), payload.end());
+				payload.swap(rebuilt);
+				return true;
+			}
+			return false;
+		}
+
+		std::vector<uint8_t> CloneCharacterPayload(const Tag& tag, uint16_t newCharacterId) {
+			std::vector<uint8_t> payload(tag.payload, tag.payload + tag.length);
+			PatchU16(payload, 0, newCharacterId);
+			return payload;
+		}
+
+		std::vector<uint8_t> BuildExportAssetsPayload(uint16_t characterId, const char* name) {
+			std::vector<uint8_t> payload;
+			WriteU16(payload, 1);
+			WriteU16(payload, characterId);
+			payload.insert(payload.end(), name, name + std::strlen(name));
+			payload.push_back(0);
+			return payload;
+		}
+
+		uint16_t FindNextAvailableCharacterId(const SWFBufferView& view, const uint8_t* physicalEnd, bool rawCharacterIdScan) {
+			std::array<bool, 65536> usedCharacterIds{};
+			const uint8_t* idScanEnd = physicalEnd ? physicalEnd : view.base + view.fileLength;
+			MarkKnownCharacterIds(view.tags, idScanEnd, usedCharacterIds);
+			if (rawCharacterIdScan) {
+				MarkKnownCharacterIdsPhysicalSequence(view.tags, idScanEnd, usedCharacterIds);
+			}
+			uint16_t maxCharacterId = 0;
+			for (uint32_t id = 1; id < usedCharacterIds.size(); ++id) {
+				if (usedCharacterIds[id]) {
+					maxCharacterId = static_cast<uint16_t>(id);
+				}
+			}
+			return static_cast<uint16_t>(maxCharacterId + 1);
+		}
+
+		MenuOnlineCompatibilityInjection BuildMenuOnlineCompatibilityInjection(const SWFBufferView& view, const uint8_t* physicalEnd) {
+			MenuOnlineCompatibilityInjection injection;
+			uint16_t nextId = FindNextAvailableCharacterId(view, physicalEnd, true);
+			if (nextId > 65531) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip onlinecompatibility clone: no character ids available next_id={}", nextId);
+				return injection;
+			}
+
+			Tag playWithFriendsTag;
+			Tag buttonsMenuTag;
+			Tag textAnyoneTag;
+			Tag textFriendsTag;
+			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 39, 857, playWithFriendsTag)) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip onlinecompatibility clone: DefineSprite 857 playwithfriends not found.");
+				return injection;
+			}
+			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 39, 853, buttonsMenuTag)) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip onlinecompatibility clone: DefineSprite 853 menu buttons not found.");
+				return injection;
+			}
+			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 37, 851, textAnyoneTag)
+				|| !FindCharacterTagByIdRaw(view.tags, physicalEnd, 37, 852, textFriendsTag)) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] skip onlinecompatibility clone: text edit tags missing text_anyone={} text_friends={}",
+					textAnyoneTag.payload != nullptr,
+					textFriendsTag.payload != nullptr);
+				return injection;
+			}
+
+			const uint16_t vanillaTextId = nextId++;
+			const uint16_t moddedTextId = nextId++;
+			const uint16_t buttonsMenuCloneId = nextId++;
+			const uint16_t playWithFriendsCloneId = nextId++;
+
+			std::vector<uint8_t> vanillaTextPayload = CloneCharacterPayload(textAnyoneTag, vanillaTextId);
+			std::vector<uint8_t> moddedTextPayload = CloneCharacterPayload(textFriendsTag, moddedTextId);
+			const bool vanillaTextReplaced = ReplaceAsciiCString(vanillaTextPayload, "Play with anyone!", "Play vanilla!");
+			bool moddedTextReplaced = ReplaceAsciiCString(moddedTextPayload, "play with friends!", "Play modded!");
+			if (!moddedTextReplaced) {
+				moddedTextReplaced = ReplaceAsciiCString(moddedTextPayload, "Play with friends!", "Play modded!");
+			}
+			if (!vanillaTextReplaced || !moddedTextReplaced) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] onlinecompatibility clone: cloned text fields but initial text CString was not found vanilla_replaced={} modded_replaced={}",
+					vanillaTextReplaced,
+					moddedTextReplaced);
+			}
+
+			std::vector<uint8_t> buttonsMenuPayload = CloneCharacterPayload(buttonsMenuTag, buttonsMenuCloneId);
+			const size_t textAnyonePatchCount = PatchPlaceObjectCharacterReferences(buttonsMenuPayload, 4, buttonsMenuPayload.size(), 851, vanillaTextId);
+			const size_t textFriendsPatchCount = PatchPlaceObjectCharacterReferences(buttonsMenuPayload, 4, buttonsMenuPayload.size(), 852, moddedTextId);
+			const size_t textVanillaNamePatchCount = PatchPlaceObject2NamesForCharacter(buttonsMenuPayload, 4, buttonsMenuPayload.size(), vanillaTextId, "textPlayVanilla");
+			const size_t textFriendsNamePatchCount = PatchPlaceObject2NamesForCharacter(buttonsMenuPayload, 4, buttonsMenuPayload.size(), moddedTextId, "textPlayModded");
+			if (!textAnyonePatchCount || !textFriendsPatchCount) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] onlinecompatibility clone: text remap counts low in cloned 853 text_anyone={} text_friends={}",
+					textAnyonePatchCount,
+					textFriendsPatchCount);
+			}
+
+			std::vector<uint8_t> playWithFriendsPayload = CloneCharacterPayload(playWithFriendsTag, playWithFriendsCloneId);
+			const size_t menuPatchCount = PatchPlaceObjectCharacterReferences(playWithFriendsPayload, 4, playWithFriendsPayload.size(), 853, buttonsMenuCloneId);
+			if (!menuPatchCount) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] onlinecompatibility clone: no PlaceObject reference 853 found in cloned 857 payload.");
+			}
+
+			injection.definitions.push_back({ 37, std::move(vanillaTextPayload) });
+			injection.definitions.push_back({ 37, std::move(moddedTextPayload) });
+			injection.definitions.push_back({ 39, std::move(buttonsMenuPayload) });
+			injection.definitions.push_back({ 39, std::move(playWithFriendsPayload) });
+			injection.definitions.push_back({ 56, BuildExportAssetsPayload(playWithFriendsCloneId, "onlinecompatibility") });
+			injection.exportedSpriteId = playWithFriendsCloneId;
+			injection.nextCharacterId = nextId;
+			injection.valid = true;
+			Util::Logger::Instance().Get()->info(
+				"[SWFInject] prepared onlinecompatibility clone source=857 clone={} source_menu=853 clone_menu={} text_vanilla={} text_modded={} menu_patch_count={} text_patch_counts={}/{} text_names={}/{} text_replaced={}/{} next_id={}",
+				playWithFriendsCloneId,
+				buttonsMenuCloneId,
+				vanillaTextId,
+				moddedTextId,
+				menuPatchCount,
+				textAnyonePatchCount,
+				textFriendsPatchCount,
+				textVanillaNamePatchCount,
+				textFriendsNamePatchCount,
+				vanillaTextReplaced,
+				moddedTextReplaced,
+				nextId);
+			return injection;
+		}
+		void AppendRawDefinitions(std::vector<uint8_t>& out, const std::vector<RawTagDefinition>& definitions) {
+			for (const RawTagDefinition& definition : definitions) {
+				AppendTag(out, definition.code, definition.payload);
+			}
+		}
 		bool InsertDefinitionsAfterLastCharacterTag(std::vector<uint8_t>& swf, size_t headerSize, const InjectionSet& injections) {
 			if (swf.size() < headerSize || injections.definitions.empty()) {
 				return false;
@@ -3520,7 +3829,7 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 			return insertionOffset < swf.size();
 		}
 
-		InjectionSet BuildInjectionSet(uint8_t* swfBuffer, const SWFBufferView& view, bool rawCharacterIdScan = false, const uint8_t* characterIdScanEnd = nullptr, uint16_t boundsTemplateShapeId = 153, bool useIconPortraits = false, bool useMapPortraits = false) {
+		InjectionSet BuildInjectionSet(uint8_t* swfBuffer, const SWFBufferView& view, bool rawCharacterIdScan = false, const uint8_t* characterIdScanEnd = nullptr, uint16_t boundsTemplateShapeId = 153, bool useIconPortraits = false, bool useMapPortraits = false, uint16_t minimumNextId = 0) {
 			InjectionSet set;
 			set.shapeTemplate151 = FindShapePayload(view, 151, &set.shapeTemplate151TagCode);
 			uint16_t effectiveBoundsTemplateShapeId = boundsTemplateShapeId ? boundsTemplateShapeId : 153;
@@ -3568,13 +3877,14 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 				}
 			}
 
-			uint16_t nextId = static_cast<uint16_t>(maxCharacterId + 1);
+			uint16_t nextId = static_cast<uint16_t>(std::max<uint32_t>(static_cast<uint32_t>(maxCharacterId) + 1u, minimumNextId));
 			Util::Logger::Instance().Get()->debug(
-				"[SWFInject] next imported portrait shape id={} max_character_id={} raw_scan={} scan_bytes={}",
+				"[SWFInject] next imported portrait shape id={} max_character_id={} raw_scan={} scan_bytes={} minimum_next_id={}",
 				nextId,
 				maxCharacterId,
 				rawCharacterIdScan,
-				static_cast<size_t>(idScanEnd - view.base));
+				static_cast<size_t>(idScanEnd - view.base),
+				minimumNextId);
 
 			const auto& addons = Save::CharacterConfig::Instance().GetAddons();
 			for (const auto& addon : addons) {
@@ -4361,7 +4671,8 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		const uint8_t* physicalEnd = view.base + physicalCopyLength;
 		WriteDiagnosticDump("menu_original.swf", static_cast<const uint8_t*>(view.base), physicalCopyLength);
 
-		InjectionSet injections = BuildInjectionSet(scene->swfBuffer, view, true, physicalEnd, 326);
+		MenuOnlineCompatibilityInjection onlineCompatibility = BuildMenuOnlineCompatibilityInjection(view, physicalEnd);
+		InjectionSet injections = BuildInjectionSet(scene->swfBuffer, view, true, physicalEnd, 326, false, false, onlineCompatibility.nextCharacterId);
 		if (injections.classicPlacements.empty() && injections.freshPlacements.empty()) {
 			Util::Logger::Instance().Get()->warn(
 				"[SWFInject] skip menu patch: no portrait frames prepared addons={} definitions={} classic_frames={} fresh_frames={}",
@@ -4401,7 +4712,7 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		}
 
 		std::vector<uint8_t> patched;
-		patched.reserve(physicalCopyLength + spritePayload.size() + injections.definitions.size() * 512 * 1024);
+		patched.reserve(physicalCopyLength + spritePayload.size() + onlineCompatibility.definitions.size() * 4096 + injections.definitions.size() * 512 * 1024);
 		patched.insert(patched.end(), physicalBase, rootEndTag);
 
 		std::vector<uint8_t> patchedSpriteTag;
@@ -4420,6 +4731,10 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		patched.erase(patched.begin() + static_cast<std::ptrdiff_t>(spriteOffset), patched.begin() + static_cast<std::ptrdiff_t>(spriteOffset + oldSpriteBytes));
 		patched.insert(patched.begin() + static_cast<std::ptrdiff_t>(spriteOffset), patchedSpriteTag.begin(), patchedSpriteTag.end());
 
+		const size_t onlineCompatibilityDefinitionsOffset = patched.size();
+		if (onlineCompatibility.valid) {
+			AppendRawDefinitions(patched, onlineCompatibility.definitions);
+		}
 		const size_t definitionsOffset = patched.size();
 		AppendDefinitions(patched, injections);
 		patched.insert(patched.end(), rootEndTag, physicalEnd);
@@ -4444,19 +4759,25 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 		scene->swfBuffer = owned->data();
 		g_ownedPatchedBuffers.push_back(std::move(owned));
 		Util::Logger::Instance().Get()->info(
-			"[SWFInject] patched menu portrait sprite={} in_place=true definitions={} classic_frames={} fresh_frames={} declared={} physical={} new_size={} definitions_offset={}",
+			"[SWFInject] patched menu portrait sprite={} in_place=true onlinecompatibility={} online_sprite={} online_defs={} portrait_definitions={} classic_frames={} fresh_frames={} declared={} physical={} new_size={} online_offset={} definitions_offset={}",
 			kMenuPortraitSpriteId,
+			onlineCompatibility.valid,
+			onlineCompatibility.exportedSpriteId,
+			onlineCompatibility.definitions.size(),
 			injections.definitions.size(),
 			injections.classicPlacements.size(),
 			injections.freshPlacements.size(),
 			view.fileLength,
 			physicalCopyLength,
 			newLength,
+			onlineCompatibilityDefinitionsOffset,
 			definitionsOffset);
 		return true;
 	}
 
 }
+
+
 
 
 

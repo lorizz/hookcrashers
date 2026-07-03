@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -189,6 +189,8 @@
     <ClInclude Include="src\Save\SaveExpansion.h" />
     <ClInclude Include="src\Save\SavePatches.h" />
     <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h" />
+    <ClInclude Include="src\Save\MenuOnlineCompatibilityHook.h" />
+    <ClInclude Include="src\Save\OnlineCompatibilityMode.h" />
     <ClInclude Include="src\Scripting\ScriptModLoader.h" />
     <ClInclude Include="src\Core\BaseHook.h" />
     <ClInclude Include="src\Core\CallSWFFunctionHook.h" />
@@ -357,6 +359,8 @@
     <ClCompile Include="src\Save\SaveExpansion.cpp" />
     <ClCompile Include="src\Save\SavePatches.cpp" />
     <ClCompile Include="src\Save\SyncCharacterListFromSaveHook.cpp" />
+    <ClCompile Include="src\Save\MenuOnlineCompatibilityHook.cpp" />
+    <ClCompile Include="src\Save\OnlineCompatibilityMode.cpp" />
     <ClCompile Include="src\Scripting\ScriptModLoader.cpp" />
     <ClCompile Include="src\stdafx.cpp" />
     <ClCompile Include="src\SWF\Custom\CustomFunctions.cpp" />
@@ -382,5 +386,7 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
+
+
 
 

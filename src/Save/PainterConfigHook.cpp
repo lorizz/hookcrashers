@@ -36,7 +36,7 @@ namespace HookCrashers::Save {
     // ECX = pXmlDoc (this), EDX = dummy (per fastcall), Stack = pFileData
     static char __fastcall HookedPainterConfig(void* pXmlDoc, void* edx_dummy, int pFileData)
     {
-        HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] >>> ENTER - pXmlDoc: " + to_hex(pXmlDoc) + " pFileData: " + to_hex((void*)pFileData));
+        HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] >>> ENTER - pXmlDoc: {} pFileData: {}", to_hex(pXmlDoc), to_hex((void*)pFileData));
         uintptr_t base = (uintptr_t)GetModuleHandle(NULL);
         uint8_t* doc = (uint8_t*)pXmlDoc;
 
@@ -54,11 +54,11 @@ namespace HookCrashers::Save {
         {
             int N = CharacterConfig::Instance().GetAddonCount();
             size_t bufSize = 0x168 + (N > 10 ? (N - 10) * 32 : 0) + 64;
-            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Allocating localBuf on stack, size: " + std::to_string(bufSize) + " N=" + std::to_string(N));
+            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Allocating localBuf on stack, size: {} N={}", bufSize, N);
 
             uint8_t* localBuf = (uint8_t*)_alloca(bufSize);
             memset(localBuf, 0, bufSize);
-            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] localBuf at: " + to_hex(localBuf));
+            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] localBuf at: {}", to_hex(localBuf));
 
             HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Calling XML_Init...");
             XML_Init(localBuf, 0);
@@ -66,11 +66,11 @@ namespace HookCrashers::Save {
 
             HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Calling XML_Load...");
             int loadResult = XML_Load(localBuf, pFileData);
-            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] XML_Load Result: " + std::to_string(loadResult));
+            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] XML_Load Result: {}", loadResult);
 
             HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] Calling XML_Parse (pXmlDoc as this, localBuf as arg)...");
             char parseResult = XML_Parse(pXmlDoc, localBuf);
-            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] XML_Parse Result: " + std::to_string((int)parseResult));
+            HookCrashers::Util::Logger::Instance().Get()->debug("[PainterHook] XML_Parse Result: {}", static_cast<int>(parseResult));
 
             if (loadResult == 0 && parseResult)
             {
@@ -115,3 +115,4 @@ namespace HookCrashers::Save {
         return true;
     }
 }
+
