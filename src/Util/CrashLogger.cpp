@@ -179,7 +179,7 @@ namespace HookCrashers::Util {
 
             std::string path = g_logDirectory.empty() ? "HookCrashersCrash.log" : (g_logDirectory + "HookCrashersCrash.log");
             FILE* file = nullptr;
-            fopen_s(&file, path.c_str(), "ab");
+            fopen_s(&file, path.c_str(), "wb");
             if (!file) {
                 return;
             }
@@ -189,7 +189,7 @@ namespace HookCrashers::Util {
             const std::string moduleName = ModuleNameFromAddress(reinterpret_cast<DWORD64>(rec->ExceptionAddress), &moduleBase);
             const DWORD64 rva = moduleBase ? reinterpret_cast<DWORD64>(rec->ExceptionAddress) - moduleBase : 0;
 
-            std::fprintf(file, "\n================ HookCrashers Crash Report ================\n");
+            std::fprintf(file, "================ HookCrashers Crash Report ================\n");
             WriteTimestamp(file);
             std::fprintf(file, "Source: %s\n", source ? source : "unknown");
             std::fprintf(file, "ThreadId: %lu\n", GetCurrentThreadId());

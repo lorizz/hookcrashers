@@ -1,4 +1,4 @@
-﻿#include "SaveExpansion.h"
+#include "SaveExpansion.h"
 #include "CharacterConfig.h"
 #include "SavePatches.h"
 #include "PainterConfigHook.h"
@@ -95,6 +95,8 @@ bool InitializeSaveExpansion() {
 
 } // namespace Save
 } // namespace HookCrashers
+
+
 
 
 
