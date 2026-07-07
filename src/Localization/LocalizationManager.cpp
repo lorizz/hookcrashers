@@ -82,6 +82,30 @@ namespace HookCrashers::Localization {
         return true;
     }
 
+    bool LocalizationManager::RegisterBuiltInString(const std::string& logicalId, const std::vector<std::string>& languages) {
+        if (!m_isInitialized || logicalId.empty()) {
+            return false;
+        }
+        if (m_idMap.find(logicalId) != m_idMap.end()) {
+            return false;
+        }
+
+        CustomLocalizationEntry entry;
+        entry.logicalId = logicalId;
+        entry.numericId = m_baseCustomId + static_cast<int>(m_customStrings.size());
+        for (size_t i = 0; i < 11; ++i) {
+            const std::string value = i < languages.size() && !languages[i].empty() ? languages[i] : (!languages.empty() ? languages[0] : logicalId);
+            entry.languages.push_back(ToWString(value));
+        }
+        m_customStrings.push_back(entry);
+        m_idMap[entry.logicalId] = entry.numericId;
+        HookCrashers::Util::Logger::Instance().Get()->debug(
+            "[Localization] Loaded built-in '{}' -> numeric_id={}.",
+            entry.logicalId,
+            entry.numericId);
+        return true;
+    }
+
     size_t LocalizationManager::LoadJsonFile(const std::string& jsonPath, const std::string& sourceName, std::vector<std::string>* loadedIds) {
         if (!m_isInitialized) {
             HookCrashers::Util::Logger::Instance().Get()->error(

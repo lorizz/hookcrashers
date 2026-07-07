@@ -12,6 +12,7 @@ namespace HookCrashers::SWF::Runtime {
 	bool TryInjectMenuPortraits(SWFScene* scene, const std::string& swfPath);
 	bool IsInjectedPortraitShape(uint16_t shapeId, uint16_t* depthOut = nullptr);
 	bool TryPatchDisplayObjectSortDepth(void* displayObject, int depthValue);
+	uint16_t GetInjectedMatchmakingMenuSpriteId();
 }
 
 

@@ -36,6 +36,22 @@ bool InitializeLocalizationSystem() {
     }
 
     size_t totalLoaded = 0;
+    if (manager.RegisterBuiltInString("hookcrashers.matchmaking.no_lobbies", {
+        "NO MODDED LOBBIES FOUND",
+        "KEINE MODDED-LOBBYS GEFUNDEN",
+        "AUCUN SALON MODDE TROUVE",
+        "NO SE ENCONTRARON SALAS MODIFICADAS",
+        "NESSUNA LOBBY MODDATA TROVATA",
+        u8"\u672A\u627E\u5230\u6A21\u7EC4\u5927\u5385",
+        u8"\uBAA8\uB4DC \uB85C\uBE44\uB97C \uCC3E\uC744 \uC218 \uC5C6\uC74C",
+        u8"\u672A\u627E\u5230\u6A21\u7D44\u5927\u5EF3",
+        "NENHUMA SALA MODIFICADA ENCONTRADA",
+        u8"MOD\u30ED\u30D3\u30FC\u304C\u898B\u3064\u304B\u308A\u307E\u305B\u3093",
+        u8"\u041C\u041E\u0414\u0414\u0418\u041D\u0413-\u041B\u041E\u0411\u0411\u0418 \u041D\u0415 \u041D\u0410\u0419\u0414\u0415\u041D\u042B",
+    })) {
+        ++totalLoaded;
+    }
+
     for (const auto& mod : Scripting::ScriptModLoader::Instance().GetLoadedMods()) {
         if (!mod.localizationPath.empty()) {
             totalLoaded += manager.LoadJsonFile(mod.localizationPath, mod.name);

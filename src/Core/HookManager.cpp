@@ -1,4 +1,4 @@
-#include "HookManager.h"
+﻿#include "HookManager.h"
 #include "../Util/Logger.h"
 #include "../SWF/Custom/CustomFunctions.h"
 #include "../SWF/Override/Overrides.h"
@@ -16,11 +16,16 @@
 #include "ModLoader.h"
 #include <sstream>
 #include <iomanip>
+#include <string>
+#include <vector>
+#include <winhttp.h>
+#include <json.hpp>
 #include "GetPlayerObjectHook.h"
 #include "DecryptSaveFileHook.h"
 #include "BlowfishDecryptHook.h"
 #include "../../include/HookCrashers/Public/NativeFunctions.h"
 #include "../Save/SaveExpansion.h"
+#include "../Save/MenuOnlineCompatibilityHook.h"
 #include "../Localization/LocalizationSystem.h"
 #include "../Scripting/ScriptModLoader.h"
 #include "../UI/ImGuiOverlay.h"
@@ -29,6 +34,8 @@
 using HC_SWFArgument = HookCrashers::SWF::Data::SWFArgument;
 using HC_SWFReturn = HookCrashers::SWF::Data::SWFReturn;
 using HC_SWFFunctionID = HookCrashers::SWF::Data::SWFFunctionID;
+
+#pragma comment(lib, "winhttp.lib")
 
 namespace HookCrashers {
     namespace Core {
@@ -58,6 +65,190 @@ namespace HookCrashers {
             size_t modCount = ModLoader::GetModCount();
             SWF::Helpers::SWFReturnHelper::SetIntegerSuccess(swfReturn, static_cast<int32_t>(modCount));
         }
+        struct MatchmakingLobbyRow {
+            std::string hostName;
+            int players = 0;
+            int maxPlayers = 4;
+            int pingFrame = 5;
+            bool visible = false;
+        };
+
+        std::vector<MatchmakingLobbyRow> g_matchmakingLobbyRows;
+
+        int LobbyIndexFromArgs(int paramCount, HC_SWFArgument** swfArgs) {
+            if (paramCount <= 0 || !swfArgs) {
+                return 0;
+            }
+            return SWF::Helpers::SWFArgumentReader::GetInteger(swfArgs[0], 0);
+        }
+
+        const MatchmakingLobbyRow* GetCachedLobbyRow(int index) {
+            if (index < 0 || index >= static_cast<int>(g_matchmakingLobbyRows.size())) {
+                return nullptr;
+            }
+            return &g_matchmakingLobbyRows[static_cast<size_t>(index)];
+        }
+
+        int PingFrameFromLobby(const nlohmann::json& lobby) {
+            if (!lobby.contains("pingMs") || lobby["pingMs"].is_null()) {
+                return 1;
+            }
+
+            const int pingMs = lobby.value("pingMs", -1);
+            if (pingMs < 0) {
+                return 1;
+            }
+            if (pingMs >= 180) {
+                return 2;
+            }
+            if (pingMs >= 100) {
+                return 3;
+            }
+            if (pingMs >= 50) {
+                return 4;
+            }
+            return 5;
+        }
+
+        void CacheMatchmakingLobbies(const std::string& json) {
+            g_matchmakingLobbyRows.clear();
+            if (json.empty()) {
+                return;
+            }
+            try {
+                nlohmann::json root = nlohmann::json::parse(json);
+                const auto& lobbies = root.value("lobbies", nlohmann::json::array());
+                for (const auto& lobby : lobbies) {
+                    if (g_matchmakingLobbyRows.size() >= 4) {
+                        break;
+                    }
+                    MatchmakingLobbyRow row;
+                    row.hostName = lobby.value("hostName", "Host");
+                    row.players = lobby.value("players", 0);
+                    row.maxPlayers = lobby.value("maxPlayers", 4);
+                    row.pingFrame = PingFrameFromLobby(lobby);
+                    row.visible = true;
+                    g_matchmakingLobbyRows.push_back(row);
+                }
+            }
+            catch (const std::exception& e) {
+                L.Get()->warn("[Matchmaking] Failed to parse lobby JSON: {}", e.what());
+            }
+        }
+
+        std::string FetchMatchmakingJson() {
+            constexpr wchar_t kHost[] = L"hookcrashers-matchmaking.thelorizz.workers.dev";
+            constexpr wchar_t kPath[] = L"/test-lobbies";
+
+            std::string body;
+            HINTERNET session = WinHttpOpen(L"HookCrashers/1.0", WINHTTP_ACCESS_TYPE_DEFAULT_PROXY, WINHTTP_NO_PROXY_NAME, WINHTTP_NO_PROXY_BYPASS, 0);
+            if (!session) {
+                return body;
+            }
+            WinHttpSetTimeouts(session, 3000, 3000, 5000, 5000);
+
+            HINTERNET connect = WinHttpConnect(session, kHost, INTERNET_DEFAULT_HTTPS_PORT, 0);
+            if (!connect) {
+                WinHttpCloseHandle(session);
+                return body;
+            }
+
+            HINTERNET request = WinHttpOpenRequest(connect, L"GET", kPath, nullptr, WINHTTP_NO_REFERER, WINHTTP_DEFAULT_ACCEPT_TYPES, WINHTTP_FLAG_SECURE);
+            if (!request) {
+                WinHttpCloseHandle(connect);
+                WinHttpCloseHandle(session);
+                return body;
+            }
+
+            if (WinHttpSendRequest(request, WINHTTP_NO_ADDITIONAL_HEADERS, 0, WINHTTP_NO_REQUEST_DATA, 0, 0, 0) && WinHttpReceiveResponse(request, nullptr)) {
+                DWORD available = 0;
+                while (WinHttpQueryDataAvailable(request, &available) && available > 0) {
+                    std::vector<char> buffer(static_cast<size_t>(available));
+                    DWORD read = 0;
+                    if (!WinHttpReadData(request, buffer.data(), available, &read) || read == 0) {
+                        break;
+                    }
+                    body.append(buffer.data(), buffer.data() + read);
+                    if (body.size() > 256 * 1024) {
+                        break;
+                    }
+                }
+            }
+
+            WinHttpCloseHandle(request);
+            WinHttpCloseHandle(connect);
+            WinHttpCloseHandle(session);
+            return body;
+        }
+
+        void FetchLobbiesHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            std::string json = FetchMatchmakingJson();
+            if (json.empty()) {
+                json = "{\"lobbies\":[],\"error\":\"fetch_failed\"}";
+                L.Get()->warn("[Matchmaking] FetchLobbies failed; returning empty payload.");
+            }
+            else {
+                L.Get()->info("[Matchmaking] FetchLobbies returned {} bytes.", json.size());
+            }
+            CacheMatchmakingLobbies(json);
+            const uint16_t stringId = AddCustomString(json.c_str());
+            SWF::Helpers::SWFReturnHelper::SetStringSuccess(swfReturn, stringId);
+        }
+
+        void GetLobbyNameHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            const int index = LobbyIndexFromArgs(paramCount, swfArgs);
+            const MatchmakingLobbyRow* row = GetCachedLobbyRow(index);
+            const char* value = row && row->visible ? row->hostName.c_str() : "";
+            L.Get()->info("[Matchmaking] GetLobbyName index={} value='{}' visible={} cached={}", index, value, row ? row->visible : false, g_matchmakingLobbyRows.size());
+            const uint16_t stringId = AddCustomString(value);
+            SWF::Helpers::SWFReturnHelper::SetStringSuccess(swfReturn, stringId);
+        }
+
+        void GetLobbyPlayersHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            const int index = LobbyIndexFromArgs(paramCount, swfArgs);
+            const MatchmakingLobbyRow* row = GetCachedLobbyRow(index);
+            std::string text;
+            if (row && row->visible) {
+                text = std::to_string(row->players) + "/" + std::to_string(row->maxPlayers);
+            }
+            L.Get()->info("[Matchmaking] GetLobbyPlayers index={} value='{}' visible={} cached={}", index, text, row ? row->visible : false, g_matchmakingLobbyRows.size());
+            const uint16_t stringId = AddCustomString(text.c_str());
+            SWF::Helpers::SWFReturnHelper::SetStringSuccess(swfReturn, stringId);
+        }
+
+        void GetLobbyPingFrameHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            const int index = LobbyIndexFromArgs(paramCount, swfArgs);
+            const MatchmakingLobbyRow* row = GetCachedLobbyRow(index);
+            const int frame = row && row->visible ? row->pingFrame : 1;
+            L.Get()->info("[Matchmaking] GetLobbyPingFrame index={} frame={} visible={} cached={}", index, frame, row ? row->visible : false, g_matchmakingLobbyRows.size());
+            SWF::Helpers::SWFReturnHelper::SetIntegerSuccess(swfReturn, frame);
+        }
+
+        void GetLobbyVisibleHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            const int index = LobbyIndexFromArgs(paramCount, swfArgs);
+            const MatchmakingLobbyRow* row = GetCachedLobbyRow(index);
+            const bool visible = row && row->visible;
+            L.Get()->info("[Matchmaking] GetLobbyVisible index={} visible={} cached={}", index, visible, g_matchmakingLobbyRows.size());
+            SWF::Helpers::SWFReturnHelper::SetBooleanSuccess(swfReturn, visible);
+        }
+
+        void GetLobbyCountHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            int count = 0;
+            for (const auto& row : g_matchmakingLobbyRows) {
+                if (row.visible) {
+                    ++count;
+                }
+            }
+            L.Get()->info("[Matchmaking] GetLobbyCount count={} cached={}", count, g_matchmakingLobbyRows.size());
+            SWF::Helpers::SWFReturnHelper::SetIntegerSuccess(swfReturn, count);
+        }
+
+
+        void GetLobbySelectedFrameHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
+            const int frame = g_matchmakingLobbyRows.empty() ? 1 : Save::GetPlayerLobbySelectedFrame();
+            SWF::Helpers::SWFReturnHelper::SetIntegerSuccess(swfReturn, frame);
+        }
+
 
         void GetModInfoHandler(int paramCount, HC_SWFArgument** swfArgs, HC_SWFReturn* swfReturn) {
             if (paramCount < 2) {
@@ -217,6 +408,13 @@ namespace HookCrashers {
             SWF::Custom::Register(HC_SWFFunctionID::GetHookCrashersVersion, "GetHookCrashersVersion", GetHookCrashersVersionHandler);
             SWF::Custom::Register(HC_SWFFunctionID::GetModCount, "GetModCount", GetModCountHandler);
             SWF::Custom::Register(HC_SWFFunctionID::GetModInfo, "GetModInfo", GetModInfoHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::FetchLobbies, "FetchLobbies", FetchLobbiesHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbyName, "GetLobbyName", GetLobbyNameHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbyPlayers, "GetLobbyPlayers", GetLobbyPlayersHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbyPingFrame, "GetLobbyPingFrame", GetLobbyPingFrameHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbyVisible, "GetLobbyVisible", GetLobbyVisibleHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbyCount, "GetLobbyCount", GetLobbyCountHandler);
+            SWF::Custom::Register(HC_SWFFunctionID::GetLobbySelectedFrame, "GetLobbySelectedFrame", GetLobbySelectedFrameHandler);
 
             if (success) {
                 L.Get()->debug("===== HookCrashers initialization completed successfully =====");

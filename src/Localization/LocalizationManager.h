@@ -31,6 +31,7 @@ namespace HookCrashers::Localization {
 
         bool initialize(int baseCustomId);
         size_t LoadJsonFile(const std::string& jsonPath, const std::string& sourceName, std::vector<std::string>* loadedIds = nullptr);
+        bool RegisterBuiltInString(const std::string& logicalId, const std::vector<std::string>& languages);
         void Reset();
 
         int getNumericId(const std::string& logicalId);

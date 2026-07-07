@@ -185,6 +185,9 @@
     <ClInclude Include="src\Save\RebuildCharacterSlotTableHook.h" />
     <ClInclude Include="src\Save\ReceiveCharacterSyncHook.h" />
     <ClInclude Include="src\Save\NetworkCleanupDiagnosticsHook.h" />
+    <ClInclude Include="src\Save\BookMessageDiagnosticsHook.h" />
+    <ClInclude Include="src\Save\NetworkEventDiagnosticsHook.h" />
+    <ClInclude Include="src\Save\LobbyJoinDiagnosticsHook.h" />
     <ClInclude Include="src\Save\StatsMenuDiagnosticsHook.h" />
     <ClInclude Include="src\Save\SaveExpansion.h" />
     <ClInclude Include="src\Save\SavePatches.h" />
@@ -205,6 +208,7 @@
     <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h" />
     <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h" />
     <ClInclude Include="src\SWF\Override\Overrides.h" />
+    <ClInclude Include="src\SWF\Runtime\MatchmakingSwfData.h" />
     <ClInclude Include="src\SWF\Runtime\SWFRuntimeInjector.h" />
     <ClInclude Include="src\SWF\SWFBytecode.h" />
     <ClInclude Include="src\SWF\SWFStructures.h" />
@@ -355,6 +359,9 @@
     <ClCompile Include="src\Save\RebuildCharacterSlotTableHook.cpp" />
     <ClCompile Include="src\Save\ReceiveCharacterSyncHook.cpp" />
     <ClCompile Include="src\Save\NetworkCleanupDiagnosticsHook.cpp" />
+    <ClCompile Include="src\Save\BookMessageDiagnosticsHook.cpp" />
+    <ClCompile Include="src\Save\NetworkEventDiagnosticsHook.cpp" />
+    <ClCompile Include="src\Save\LobbyJoinDiagnosticsHook.cpp" />
     <ClCompile Include="src\Save\StatsMenuDiagnosticsHook.cpp" />
     <ClCompile Include="src\Save\SaveExpansion.cpp" />
     <ClCompile Include="src\Save\SavePatches.cpp" />
@@ -386,7 +393,4 @@
   <ImportGroup Label="ExtensionTargets">
   </ImportGroup>
 </Project>
-
-
-
 

@@ -6,6 +6,9 @@
 #include "RebuildCharacterSlotTableHook.h"
 #include "ReceiveCharacterSyncHook.h"
 #include "NetworkCleanupDiagnosticsHook.h"
+#include "BookMessageDiagnosticsHook.h"
+#include "NetworkEventDiagnosticsHook.h"
+#include "LobbyJoinDiagnosticsHook.h"
 #include "StatsMenuDiagnosticsHook.h"
 #include "SyncCharacterListFromSaveHook.h"
 #include "MenuOnlineCompatibilityHook.h"
@@ -75,6 +78,9 @@ bool InitializeSaveExpansion() {
     success = SetupSyncCharacterListFromSaveHook() && success;
     success = SetupReceiveCharacterSyncHook() && success;
     success = SetupNetworkCleanupDiagnosticsHook() && success;
+    success = SetupBookMessageDiagnosticsHook() && success;
+    success = SetupNetworkEventDiagnosticsHook() && success;
+    success = SetupLobbyJoinDiagnosticsHook() && success;
     success = SetupStatsMenuDiagnosticsHook() && success;
     success = SetupMenuOnlineCompatibilityHook() && success;
 
@@ -95,6 +101,8 @@ bool InitializeSaveExpansion() {
 
 } // namespace Save
 } // namespace HookCrashers
+
+
 
 
 

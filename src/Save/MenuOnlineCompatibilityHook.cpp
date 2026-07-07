@@ -3,6 +3,7 @@
 #include "OnlineCompatibilityMode.h"
 #include "../Util/Logger.h"
 #include "../Util/MemoryPatcher.h"
+#include "../SWF/Runtime/SWFRuntimeInjector.h"
 #include <spdlog/logger.h>
 #include "../../include/HookCrashers/Public/Globals.h"
 
@@ -126,17 +127,98 @@ namespace {
     bool g_suppressNextModeMenuBack = false;
     bool g_onlineModeMenuArmed = false;
     bool g_playerLobbiesHandlerBuilt = false;
+    int g_playerLobbiesSelectedIndex = -1;
+    bool g_playerLobbiesKeyboardArmed = false;
+    bool g_previousPlayerLobbiesUp = false;
+    bool g_previousPlayerLobbiesDown = false;
+    bool g_previousPlayerLobbiesEscape = false;
+
 
     void LogLine(const std::string& message);
     std::string Hex(uintptr_t value);
     int __cdecl PlayerLobbiesUpdate(int self);
+    bool EnsureOnlineCompatibilityHandler(uint32_t* self, int originalMenuState);
     bool EnsurePlayerLobbiesHandler(uint32_t* self);
+    int __fastcall DetouredSetMenuState(uint32_t* self, void*, int16_t menuId, int menuState);
+    uint32_t ReadU32(uintptr_t address);
     void ResetOnlineCompatibilityKeyboardState() {
         g_onlineCompatibilityKeyboardArmed = false;
         g_previousOnlineUp = false;
         g_previousOnlineDown = false;
         g_previousOnlineEnter = false;
         g_previousOnlineEscape = false;
+    }
+
+    void ResetPlayerLobbiesSelectionState() {
+        g_playerLobbiesSelectedIndex = -1;
+        g_playerLobbiesKeyboardArmed = false;
+        g_previousPlayerLobbiesUp = false;
+        g_previousPlayerLobbiesDown = false;
+        g_previousPlayerLobbiesEscape = false;
+    }
+
+    bool TryGetClientMouse(float& x, float& y, uint32_t& width, uint32_t& height) {
+        HWND window = GetForegroundWindow();
+        if (!window) {
+            return false;
+        }
+
+        POINT point{};
+        if (!GetCursorPos(&point) || !ScreenToClient(window, &point)) {
+            return false;
+        }
+
+        RECT rect{};
+        if (!GetClientRect(window, &rect)) {
+            return false;
+        }
+
+        width = static_cast<uint32_t>(rect.right - rect.left);
+        height = static_cast<uint32_t>(rect.bottom - rect.top);
+        if (!width || !height) {
+            return false;
+        }
+
+        x = static_cast<float>(point.x);
+        y = static_cast<float>(point.y);
+        return true;
+    }
+
+    int GetHoveredPlayerLobbyRow() {
+        float mouseX = 0.0f;
+        float mouseY = 0.0f;
+        uint32_t clientWidth = 0;
+        uint32_t clientHeight = 0;
+        if (!TryGetClientMouse(mouseX, mouseY, clientWidth, clientHeight)) {
+            return -1;
+        }
+
+        const uintptr_t displayConfig = ReadU32(g_moduleBase + kGlobalDisplayConfigRva);
+        const float designWidth = displayConfig ? static_cast<float>(ReadU32(displayConfig + 12)) : 800.0f;
+        const float designHeight = displayConfig ? static_cast<float>(ReadU32(displayConfig + 16)) : 600.0f;
+        if (designWidth <= 0.0f || designHeight <= 0.0f) {
+            return -1;
+        }
+
+        const float x = mouseX * (designWidth / static_cast<float>(clientWidth));
+        const float y = mouseY * (designHeight / static_cast<float>(clientHeight));
+        const float centerX = designWidth * 0.5f;
+        const float centerY = designHeight * 0.5f;
+        constexpr float kRowLocalY[4] = { -154.85f, -85.10f, -15.65f, 54.00f };
+        constexpr float kRowHalfHeight = 31.0f;
+        constexpr float kRowLeftOffset = -285.0f;
+        constexpr float kRowRightOffset = 285.0f;
+
+        if (x < centerX + kRowLeftOffset || x > centerX + kRowRightOffset) {
+            return -1;
+        }
+        for (int i = 0; i < 4; ++i) {
+            const float rowY = centerY + kRowLocalY[i];
+            if (y >= rowY - kRowHalfHeight && y <= rowY + kRowHalfHeight) {
+                return i;
+            }
+        }
+        return -1;
     }
 
     void PlayMenuConfirmSound() {
@@ -277,6 +359,24 @@ namespace {
                << " state=" << Hex(menuState) << ".";
         LogLine(stream.str());
     }
+    void DetachOnlineCompatibilityForTransition(uint32_t* self, const char* reason) {
+        if (!self) {
+            return;
+        }
+
+        auto* mainMenu = reinterpret_cast<uint8_t*>(self);
+        uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(mainMenu + kHandlerTableOffset);
+        uintptr_t currentState = *reinterpret_cast<uintptr_t*>(mainMenu + kCurrentHandlerOffset);
+        const uintptr_t compatibilityState = handlerTable ? handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize : 0;
+        if (!compatibilityState || currentState != compatibilityState) {
+            return;
+        }
+
+        DetachMenuHandlerArraysForTransition(compatibilityState, reason ? reason : "menu transition");
+        g_onlineCompatibilityHandlerBuilt = false;
+        g_onlineCompatibilityGraphicObject = 0;
+        ResetOnlineCompatibilityKeyboardState();
+    }
     int SetOnlineCompatibilitySelection(int self, uint16_t selectedIndex) {
         if (!self) {
             return 0;
@@ -334,7 +434,7 @@ namespace {
             *reinterpret_cast<uint16_t*>(currentState + kMenuSelectionOffset) = 0;
             *reinterpret_cast<uint16_t*>(mainMenu + 12) = 0;
         }
-        ResetOnlineCompatibilityKeyboardState();
+        DetachOnlineCompatibilityForTransition(self, "opening playwithfriends");
         std::ostringstream stream;
         stream << "[OnlineCompatibility] Select " << OnlineCompatibilityModeName(mode)
                << " -> vanilla MainMenu_StartPlayWithFriendsTransition"
@@ -357,18 +457,26 @@ namespace {
             return 0;
         }
         SetOnlineCompatibilityMode(OnlineCompatibilityMode::Modded);
-        EnsurePlayerLobbiesHandler(menu);
         uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(static_cast<uintptr_t>(self) + kHandlerTableOffset);
         if (!handlerTable) {
             return self;
         }
-        ResetOnlineCompatibilityKeyboardState();
+        if (!EnsurePlayerLobbiesHandler(menu)) {
+            LogLine("[OnlineCompatibility] Failed to build playerlobbies handler.");
+            return self;
+        }
+        const uintptr_t compatibilityState = handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize;
         const int playerLobbiesState = static_cast<int>(handlerTable + kPlayerLobbiesMenuId * kMenuHandlerSize);
         std::ostringstream stream;
         stream << "[OnlineCompatibility] Select modded -> SetMenuState playerlobbies id=" << kPlayerLobbiesMenuId
                << " state=" << Hex(static_cast<uintptr_t>(playerLobbiesState)) << ".";
         LogLine(stream.str());
-        return g_originalSetMenuState(menu, static_cast<int16_t>(kPlayerLobbiesMenuId), playerLobbiesState);
+        const int result = DetouredSetMenuState(menu, nullptr, static_cast<int16_t>(kPlayerLobbiesMenuId), playerLobbiesState);
+        DetachMenuHandlerArraysForTransition(compatibilityState, "hiding compatibility after playerlobbies open");
+        g_onlineCompatibilityHandlerBuilt = false;
+        g_onlineCompatibilityGraphicObject = 0;
+        ResetOnlineCompatibilityKeyboardState();
+        return result;
     }
     int __cdecl OnlineCompatibilityUpdate(int self) {
         if (!self) {
@@ -441,16 +549,53 @@ namespace {
             return 0;
         }
 
+        const bool upDown = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
+        const bool downDown = (GetAsyncKeyState(VK_DOWN) & 0x8000) != 0;
         const bool escapeDown = (GetAsyncKeyState(VK_ESCAPE) & 0x8000) != 0;
-        if (escapeDown && !g_previousOnlineEscape) {
+
+        if (!g_playerLobbiesKeyboardArmed) {
+            if (!upDown && !downDown && !escapeDown) {
+                g_playerLobbiesKeyboardArmed = true;
+            }
+            g_previousPlayerLobbiesUp = upDown;
+            g_previousPlayerLobbiesDown = downDown;
+            g_previousPlayerLobbiesEscape = escapeDown;
+            return self;
+        }
+
+        const bool upPressed = upDown && !g_previousPlayerLobbiesUp;
+        const bool downPressed = downDown && !g_previousPlayerLobbiesDown;
+        const bool escapePressed = escapeDown && !g_previousPlayerLobbiesEscape;
+
+        g_previousPlayerLobbiesUp = upDown;
+        g_previousPlayerLobbiesDown = downDown;
+        g_previousPlayerLobbiesEscape = escapeDown;
+
+        const int hoveredRow = GetHoveredPlayerLobbyRow();
+        if (hoveredRow >= 0 && hoveredRow != g_playerLobbiesSelectedIndex) {
+            g_playerLobbiesSelectedIndex = hoveredRow;
+        }
+
+        if (downPressed) {
+            g_playerLobbiesSelectedIndex = g_playerLobbiesSelectedIndex < 0 ? 0 : (g_playerLobbiesSelectedIndex + 1) & 3;
+        }
+        else if (upPressed) {
+            g_playerLobbiesSelectedIndex = g_playerLobbiesSelectedIndex < 0 ? 3 : (g_playerLobbiesSelectedIndex + 3) & 3;
+        }
+
+        if (escapePressed) {
             uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(static_cast<uintptr_t>(self) + kHandlerTableOffset);
             if (handlerTable && g_originalSetMenuState) {
+                uintptr_t playerLobbiesState = handlerTable + kPlayerLobbiesMenuId * kMenuHandlerSize;
+                DetachMenuHandlerArraysForTransition(playerLobbiesState, "closing playerlobbies");
+                g_playerLobbiesHandlerBuilt = false;
+                ResetPlayerLobbiesSelectionState();
+                EnsureOnlineCompatibilityHandler(reinterpret_cast<uint32_t*>(self), static_cast<int>(handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize));
                 ResetOnlineCompatibilityKeyboardState();
                 int compatibilityState = static_cast<int>(handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize);
                 return g_originalSetMenuState(reinterpret_cast<uint32_t*>(self), static_cast<int16_t>(kOnlineCompatibilityMenuId), compatibilityState);
             }
         }
-        g_previousOnlineEscape = escapeDown;
         return self;
     }
     void LogLine(const std::string& message) {
@@ -748,16 +893,30 @@ namespace {
         const float centerX = static_cast<float>(width) * 0.5f;
         const float centerY = static_cast<float>(height) * 0.5f;
 
-        const int lobbyObject = CreateGraphicMenuItem(self, reinterpret_cast<int>(playerLobbiesHandler), "playerlobbies", kPlayWithFriendsAssetId, centerX, centerY, true);
+        const uint16_t playerLobbiesAssetId = HookCrashers::SWF::Runtime::GetInjectedMatchmakingMenuSpriteId();
+        const int lobbyObject = CreateGraphicMenuItem(
+            self,
+            reinterpret_cast<int>(playerLobbiesHandler),
+            "playerlobbies",
+            playerLobbiesAssetId ? playerLobbiesAssetId : kPlayWithFriendsAssetId,
+            centerX,
+            centerY,
+            true);
+        const uintptr_t lobbyDisplay = lobbyObject
+            ? *reinterpret_cast<uintptr_t*>(static_cast<uintptr_t>(lobbyObject) + kGraphicMenuItemDisplayObjectOffset)
+            : 0;
         *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuOwnerOffset) = reinterpret_cast<uintptr_t>(self);
         *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuUpdateCallbackOffset) = reinterpret_cast<uintptr_t>(&PlayerLobbiesUpdate);
         *reinterpret_cast<uintptr_t*>(playerLobbiesHandler + kMenuInitCallbackOffset) = 0;
         *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kMenuConfiguredTargetOffset) = kOnlineCompatibilityMenuId;
+        ResetPlayerLobbiesSelectionState();
 
         std::ostringstream stream;
         stream << "[OnlineCompatibility] Built playerlobbies menu id=" << kPlayerLobbiesMenuId
                << " handler=" << Hex(reinterpret_cast<uintptr_t>(playerLobbiesHandler))
                << " object=" << Hex(static_cast<uintptr_t>(lobbyObject))
+               << " display=" << Hex(lobbyDisplay)
+               << " asset_id=" << playerLobbiesAssetId
                << " graphics=" << *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kGraphicCountOffset)
                << ".";
         LogLine(stream.str());
@@ -870,7 +1029,6 @@ namespace {
         uintptr_t handlerTable = self ? *reinterpret_cast<uintptr_t*>(reinterpret_cast<uint8_t*>(self) + kHandlerTableOffset) : 0;
         if (handlerTable) {
             EnsureOnlineCompatibilityHandler(self, static_cast<int>(handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize));
-            EnsurePlayerLobbiesHandler(self);
         }
 
         std::ostringstream stream;
@@ -1008,6 +1166,10 @@ return g_originalSetMenuState(self, menuId, menuState);
     }
 }
 
+int GetPlayerLobbySelectedFrame() {
+    return g_playerLobbiesSelectedIndex < 0 ? 1 : g_playerLobbiesSelectedIndex + 2;
+}
+
 bool SetupMenuOnlineCompatibilityHook() {
     g_originalMenuBuilder = reinterpret_cast<MenuBuilderFn>(g_moduleBase + kMenuBuilderRva);
     g_originalBuildOnlineMenu = reinterpret_cast<BuildOnlineMenuFn>(g_moduleBase + kBuildOnlineMenuRva);
@@ -1064,6 +1226,16 @@ bool SetupMenuOnlineCompatibilityHook() {
 }
 
 } // namespace HookCrashers::Save
+
+
+
+
+
+
+
+
+
+
 
 
 

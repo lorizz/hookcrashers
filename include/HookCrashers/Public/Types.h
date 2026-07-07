@@ -97,6 +97,13 @@ namespace HookCrashers {
 				GetHookCrashersVersion = 50002,
 				GetModCount = 50003,
 				GetModInfo = 50004,
+				FetchLobbies = 50005,
+				GetLobbyName = 50006,
+				GetLobbyPlayers = 50007,
+				GetLobbyPingFrame = 50008,
+				GetLobbyVisible = 50009,
+				GetLobbyCount = 50010,
+				GetLobbySelectedFrame = 50011,
 			};
 
 		} // namespace Data

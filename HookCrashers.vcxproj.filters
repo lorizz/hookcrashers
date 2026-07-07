@@ -186,6 +186,21 @@
     <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Save\StatsMenuDiagnosticsHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\MenuOnlineCompatibilityHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\OnlineCompatibilityMode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Util\CrashLogger.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SWF\Runtime\MatchmakingSwfData.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\pch.cpp">
@@ -440,6 +455,18 @@
     <ClCompile Include="src\SWF\Runtime\SWFRuntimeInjector.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Save\StatsMenuDiagnosticsHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\MenuOnlineCompatibilityHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\OnlineCompatibilityMode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Util\CrashLogger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <None Include=".gitignore" />
@@ -447,6 +474,3 @@
     <None Include="README.md" />
   </ItemGroup>
 </Project>
-
-
-
