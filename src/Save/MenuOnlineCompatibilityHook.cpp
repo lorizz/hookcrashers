@@ -1,9 +1,10 @@
-﻿#include "MenuOnlineCompatibilityHook.h"
+#include "MenuOnlineCompatibilityHook.h"
 
 #include "OnlineCompatibilityMode.h"
 #include "../Util/Logger.h"
 #include "../Util/MemoryPatcher.h"
 #include "../SWF/Runtime/SWFRuntimeInjector.h"
+#include "../Game/MenuStructs.h"
 #include <spdlog/logger.h>
 #include "../../include/HookCrashers/Public/Globals.h"
 
@@ -124,6 +125,7 @@ namespace {
     bool g_previousOnlineEnter = false;
     bool g_previousOnlineEscape = false;
     bool g_suppressNextPlayWithFriendsLobbyOpen = false;
+    bool g_returnPlayWithFriendsToCompatibility = false;
     bool g_suppressNextModeMenuBack = false;
     bool g_onlineModeMenuArmed = false;
     bool g_playerLobbiesHandlerBuilt = false;
@@ -421,7 +423,7 @@ namespace {
         return SetOnlineCompatibilitySelection(self, 1);
     }
     int OpenPlayWithFriendsWithMode(uint32_t* self, OnlineCompatibilityMode mode) {
-        SetOnlineCompatibilityMode(mode);
+        SetOnlineCompatibilityMode(mode == OnlineCompatibilityMode::Vanilla ? OnlineCompatibilityMode::Unknown : mode);
         if (!self || !g_startPlayWithFriendsTransition) {
             return 0;
         }
@@ -434,7 +436,8 @@ namespace {
             *reinterpret_cast<uint16_t*>(currentState + kMenuSelectionOffset) = 0;
             *reinterpret_cast<uint16_t*>(mainMenu + 12) = 0;
         }
-        DetachOnlineCompatibilityForTransition(self, "opening playwithfriends");
+        HideOnlineCompatibilityGraphic();
+        ResetOnlineCompatibilityKeyboardState();
         std::ostringstream stream;
         stream << "[OnlineCompatibility] Select " << OnlineCompatibilityModeName(mode)
                << " -> vanilla MainMenu_StartPlayWithFriendsTransition"
@@ -445,6 +448,7 @@ namespace {
                << " playwithfriends=" << Hex(playWithFriendsState) << ".";
         LogLine(stream.str());
         g_suppressNextPlayWithFriendsLobbyOpen = false;
+        g_returnPlayWithFriendsToCompatibility = mode == OnlineCompatibilityMode::Vanilla;
         return g_startPlayWithFriendsTransition(reinterpret_cast<int>(self));
     }
     int __cdecl PlayVanillaClicked(int self) {
@@ -465,18 +469,13 @@ namespace {
             LogLine("[OnlineCompatibility] Failed to build playerlobbies handler.");
             return self;
         }
-        const uintptr_t compatibilityState = handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize;
         const int playerLobbiesState = static_cast<int>(handlerTable + kPlayerLobbiesMenuId * kMenuHandlerSize);
+        DetachOnlineCompatibilityForTransition(menu, "opening playerlobbies");
         std::ostringstream stream;
         stream << "[OnlineCompatibility] Select modded -> SetMenuState playerlobbies id=" << kPlayerLobbiesMenuId
                << " state=" << Hex(static_cast<uintptr_t>(playerLobbiesState)) << ".";
         LogLine(stream.str());
-        const int result = DetouredSetMenuState(menu, nullptr, static_cast<int16_t>(kPlayerLobbiesMenuId), playerLobbiesState);
-        DetachMenuHandlerArraysForTransition(compatibilityState, "hiding compatibility after playerlobbies open");
-        g_onlineCompatibilityHandlerBuilt = false;
-        g_onlineCompatibilityGraphicObject = 0;
-        ResetOnlineCompatibilityKeyboardState();
-        return result;
+        return g_originalSetMenuState(menu, static_cast<int16_t>(kPlayerLobbiesMenuId), playerLobbiesState);
     }
     int __cdecl OnlineCompatibilityUpdate(int self) {
         if (!self) {
@@ -714,90 +713,133 @@ namespace {
     }
 
 
-    int CreateGraphicMenuItem(uint32_t* self, int menuState, const char* exportNameText, int assetId, float x, float y, bool finalize) {
-        if (!self || !menuState || !exportNameText) {
-            return 0;
+    HookCrashers::Game::MenuState* GetMenu(uint32_t* self, uint16_t menuId) {
+        if (!self) {
+            return nullptr;
+        }
+        auto* mainMenu = reinterpret_cast<HookCrashers::Game::MainMenu*>(self);
+        if (!mainMenu->menuTable) {
+            return nullptr;
+        }
+        return mainMenu->menuTable + menuId;
+    }
+
+    void CreateMenu(HookCrashers::Game::MenuState* menu, const HookCrashers::Game::MenuState* templateMenu) {
+        if (!menu || !templateMenu) {
+            return;
+        }
+        const void* menuVtable = templateMenu->vtable;
+        std::memset(menu, 0, sizeof(HookCrashers::Game::MenuState));
+        menu->vtable = const_cast<void*>(menuVtable);
+        menu->selectedIndex = 0;
+        menu->field_14 = 1;
+    }
+
+    HookCrashers::Game::GraphicMenuItem* CreateGraphicMenuItem(
+        uint32_t* self,
+        HookCrashers::Game::MenuState* menu,
+        const char* exportNameText,
+        int assetId,
+        float x,
+        float y,
+        bool finalize) {
+        if (!self || !menu || !exportNameText) {
+            return nullptr;
         }
 
-        void* storage = AllocateGameObject(kGraphicMenuItemSize);
+        void* storage = AllocateGameObject(sizeof(HookCrashers::Game::GraphicMenuItem));
         if (!storage) {
-            return 0;
+            return nullptr;
         }
 
         uint32_t exportName[22]{};
         g_prepareStringObject(exportName, exportNameText);
         int object = 0;
         if (!TryCreateGraphicMenuItemObject(storage, self[1], exportName, assetId, x, y, &object)) {
-            return 0;
+            return nullptr;
         }
         if (finalize && object) {
-            g_finalizeAndAddElement(menuState, reinterpret_cast<void*>(object));
+            g_finalizeAndAddElement(reinterpret_cast<int>(menu), reinterpret_cast<void*>(object));
         }
-        return object;
+        return reinterpret_cast<HookCrashers::Game::GraphicMenuItem*>(object);
     }
 
-    int CreateBackButton(uint32_t* self, int menuState) {
-        if (!self || !menuState || !g_initGraphicMenuItem || !g_buttonMenuItemSetPreset) {
-            return 0;
-        }
-
-        auto* button = reinterpret_cast<uint8_t*>(AllocateGameObject(kButtonMenuItemSize));
-        if (!button) {
-            return 0;
-        }
-
-        g_initGraphicMenuItem(button, self[1]);
-        *reinterpret_cast<uintptr_t*>(button) = g_moduleBase + kButtonMenuItemVtableRva;
-        *reinterpret_cast<uint32_t*>(button + 0x5C) = 0;
-        g_buttonMenuItemSetPreset(button, nullptr);
-        uint32_t color = 0xAAAAAAFF;
-        const uint32_t customColor = *reinterpret_cast<uint32_t*>(button + 0x14);
-        if (customColor) {
-            color = customColor;
-        }
-        *reinterpret_cast<uint32_t*>(button + 0x10) = color;
-        *reinterpret_cast<uintptr_t*>(button) = g_moduleBase + kButtonMenuItemVtableRva;
-        g_finalizeAndAddElement(menuState, button);
-        return reinterpret_cast<int>(button);
+    int CreateGraphicMenuItem(uint32_t* self, int menuState, const char* exportNameText, int assetId, float x, float y, bool finalize) {
+        return reinterpret_cast<int>(CreateGraphicMenuItem(
+            self,
+            reinterpret_cast<HookCrashers::Game::MenuState*>(menuState),
+            exportNameText,
+            assetId,
+            x,
+            y,
+            finalize));
     }
 
-    void AddOnlineCompatibilityHotspot(uint8_t* menuState, uint32_t* self, uint32_t x1, uint32_t y1, uint32_t x2, uint32_t y2, uintptr_t onSelect, uintptr_t onClick) {
-        if (!menuState || !self) {
+    HookCrashers::Game::ButtonMenuItem* CreateButtonMenuItem(uint32_t* self, HookCrashers::Game::MenuState* menu, uint32_t presetId) {
+        if (!self || !menu || !g_initGraphicMenuItem || !g_buttonMenuItemSetPreset) {
+            return nullptr;
+        }
+
+        void* storage = AllocateGameObject(kButtonMenuItemSize);
+        if (!storage) {
+            return nullptr;
+        }
+
+        g_initGraphicMenuItem(storage, self[1]);
+        *reinterpret_cast<uintptr_t*>(storage) = g_moduleBase + kButtonMenuItemVtableRva;
+        *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(storage) + 0x5C) = presetId;
+        g_buttonMenuItemSetPreset(storage, nullptr);
+
+        const uint32_t fallbackColor = *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(storage) + 0x14);
+        *reinterpret_cast<uint32_t*>(static_cast<uint8_t*>(storage) + 0x10) = fallbackColor ? fallbackColor : 0xAAAAAAFF;
+        *reinterpret_cast<uintptr_t*>(storage) = g_moduleBase + kButtonMenuItemVtableRva;
+
+        g_finalizeAndAddElement(reinterpret_cast<int>(menu), storage);
+        return reinterpret_cast<HookCrashers::Game::ButtonMenuItem*>(storage);
+    }
+
+    HookCrashers::Game::ButtonMenuItem* CreateBackButton(uint32_t* self, HookCrashers::Game::MenuState* menu) {
+        return CreateButtonMenuItem(self, menu, 0);
+    }
+
+    void AddOnlineCompatibilityHotspot(
+        HookCrashers::Game::MenuState* menu,
+        uint32_t* self,
+        float x1,
+        float y1,
+        float x2,
+        float y2,
+        uintptr_t onSelect,
+        uintptr_t onClick) {
+        if (!menu || !self || menu->hotspotCount >= (sizeof(menu->hotspots) / sizeof(menu->hotspots[0]))) {
             return;
         }
 
-        auto* hotspot = reinterpret_cast<uint8_t*>(AllocateGameObject(static_cast<int>(kHotspotObjectSize)));
+        auto* hotspot = reinterpret_cast<HookCrashers::Game::MenuHotspot*>(AllocateGameObject(sizeof(HookCrashers::Game::MenuHotspot)));
         if (!hotspot) {
             return;
         }
-        std::memset(hotspot, 0, kHotspotObjectSize);
-        *reinterpret_cast<uint32_t*>(hotspot + 0x00) = x1;
-        *reinterpret_cast<uint32_t*>(hotspot + 0x04) = y1;
-        *reinterpret_cast<uint32_t*>(hotspot + 0x08) = x2;
-        *reinterpret_cast<uint32_t*>(hotspot + 0x0C) = y2;
-        *reinterpret_cast<uint32_t*>(hotspot + 0x30) |= 1;
-        *reinterpret_cast<uintptr_t*>(hotspot + 0x1C) = reinterpret_cast<uintptr_t>(self);
-        *reinterpret_cast<uintptr_t*>(hotspot + kHotspotSelectOffset) = onSelect;
-        *reinterpret_cast<uintptr_t*>(hotspot + kHotspotClickOffset) = onClick;
-
-        uint16_t& hotspotCount = *reinterpret_cast<uint16_t*>(menuState + kHotspotCountOffset);
-        auto* hotspots = reinterpret_cast<uintptr_t*>(menuState + kHotspotArrayOffset);
-        hotspots[hotspotCount++] = reinterpret_cast<uintptr_t>(hotspot);
+        std::memset(hotspot, 0, sizeof(HookCrashers::Game::MenuHotspot));
+        hotspot->left = x1;
+        hotspot->top = y1;
+        hotspot->right = x2;
+        hotspot->bottom = y2;
+        hotspot->flags |= 1;
+        hotspot->owner = self;
+        hotspot->onSelect = reinterpret_cast<void*>(onSelect);
+        hotspot->onClick = reinterpret_cast<void*>(onClick);
+        menu->hotspots[menu->hotspotCount++] = hotspot;
     }
 
-    bool BuildOnlineCompatibilityHandlerFromScratch(uint32_t* self, uint8_t* compatibilityHandler, uint8_t* templateHandler) {
+    bool BuildOnlineCompatibilityHandlerFromScratch(
+        uint32_t* self,
+        HookCrashers::Game::MenuState* compatibilityHandler,
+        const HookCrashers::Game::MenuState* templateHandler) {
         if (!self || !compatibilityHandler || !templateHandler) {
             return false;
         }
 
-        const uintptr_t menuVtable = *reinterpret_cast<uintptr_t*>(templateHandler);
-        std::memset(compatibilityHandler, 0, kMenuHandlerSize);
-        *reinterpret_cast<uintptr_t*>(compatibilityHandler) = menuVtable;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kMenuItemCountOffset) = 0;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kGraphicCountOffset) = 0;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kButtonCountOffset) = 0;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kHotspotCountOffset) = 0;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kMenuSelectionOffset) = 0;
+        CreateMenu(compatibilityHandler, templateHandler);
 
         const uintptr_t displayConfig = ReadU32(g_moduleBase + kGlobalDisplayConfigRva);
         const uint32_t width = displayConfig ? ReadU32(displayConfig + 12) : 0;
@@ -806,38 +848,39 @@ namespace {
         const float centerY = static_cast<float>(height) * 0.5f;
         const float modeMenuY = height == 576 ? 68.0f : 0.0f;
 
-        const int modeMenuObject = CreateGraphicMenuItem(self, reinterpret_cast<int>(compatibilityHandler), "modemenu", 2006, centerX, modeMenuY, true);
-        const int onlineObject = CreateGraphicMenuItem(self, reinterpret_cast<int>(compatibilityHandler), "onlinecompatibility", kPlayWithFriendsAssetId, centerX, centerY, true);
-        g_onlineCompatibilityGraphicObject = static_cast<uintptr_t>(onlineObject);
-        const int backButton = CreateBackButton(self, reinterpret_cast<int>(compatibilityHandler));
+        auto* modeMenuObject = CreateGraphicMenuItem(self, compatibilityHandler, "modemenu", 2006, centerX, modeMenuY, true);
+        auto* onlineObject = CreateGraphicMenuItem(self, compatibilityHandler, "onlinecompatibility", kPlayWithFriendsAssetId, centerX, centerY, true);
+        g_onlineCompatibilityGraphicObject = reinterpret_cast<uintptr_t>(onlineObject);
+        auto* backButton = CreateBackButton(self, compatibilityHandler);
 
         std::ostringstream buildStream;
-        buildStream << "[OnlineCompatibility] Scratch visuals modemenu=" << Hex(static_cast<uintptr_t>(modeMenuObject))
-                    << " online=" << Hex(static_cast<uintptr_t>(onlineObject))
-                    << " back=" << Hex(static_cast<uintptr_t>(backButton))
-                    << " counts menu=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kMenuItemCountOffset)
-                    << " graphic=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kGraphicCountOffset)
-                    << " button=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kButtonCountOffset) << ".";
+        buildStream << "[OnlineCompatibility] Scratch visuals modemenu=" << Hex(reinterpret_cast<uintptr_t>(modeMenuObject))
+                    << " online=" << Hex(reinterpret_cast<uintptr_t>(onlineObject))
+                    << " back=" << Hex(reinterpret_cast<uintptr_t>(backButton))
+                    << " counts menu=" << compatibilityHandler->menuItemCount
+                    << " graphic=" << compatibilityHandler->graphicCount
+                    << " button=" << compatibilityHandler->buttonCount << ".";
         LogLine(buildStream.str());
 
-        AddOnlineCompatibilityHotspot(compatibilityHandler, self, 0x43908000, 0x43138000, 0x4406C000, 0x434A8000, reinterpret_cast<uintptr_t>(&SelectPlayVanilla), reinterpret_cast<uintptr_t>(&PlayVanillaClicked));
-        AddOnlineCompatibilityHotspot(compatibilityHandler, self, 0x43908000, 0x43548000, 0x4406C000, 0x4385C000, reinterpret_cast<uintptr_t>(&SelectPlayModded), reinterpret_cast<uintptr_t>(&PlayModdedClicked));
+        AddOnlineCompatibilityHotspot(compatibilityHandler, self, 289.0f, 147.5f, 539.0f, 202.5f, reinterpret_cast<uintptr_t>(&SelectPlayVanilla), reinterpret_cast<uintptr_t>(&PlayVanillaClicked));
+        AddOnlineCompatibilityHotspot(compatibilityHandler, self, 289.0f, 212.5f, 539.0f, 267.5f, reinterpret_cast<uintptr_t>(&SelectPlayModded), reinterpret_cast<uintptr_t>(&PlayModdedClicked));
 
-        *reinterpret_cast<uintptr_t*>(compatibilityHandler + kMenuOwnerOffset) = reinterpret_cast<uintptr_t>(self);
-        *reinterpret_cast<uintptr_t*>(compatibilityHandler + kMenuUpdateCallbackOffset) = reinterpret_cast<uintptr_t>(&OnlineCompatibilityUpdate);
-        *reinterpret_cast<uintptr_t*>(compatibilityHandler + kMenuInitCallbackOffset) = 0;
-        *reinterpret_cast<uint16_t*>(compatibilityHandler + kMenuConfiguredTargetOffset) = kModeMenuId;
+        compatibilityHandler->owner = self;
+        compatibilityHandler->updateCallback = reinterpret_cast<void*>(&OnlineCompatibilityUpdate);
+        compatibilityHandler->initCallback = nullptr;
+        compatibilityHandler->configuredTargetMenuId = kModeMenuId;
         ResetOnlineCompatibilityKeyboardState();
         SetOnlineCompatibilityFrame(reinterpret_cast<uintptr_t>(compatibilityHandler), 0);
-        return onlineObject != 0;
+        return onlineObject != nullptr;
     }
+
     bool EnsureOnlineCompatibilityHandler(uint32_t* self, int originalMenuState) {
         if (!self || !originalMenuState) {
             return false;
         }
 
-        auto* ownerBytes = reinterpret_cast<uint8_t*>(self);
-        uintptr_t handlerTable = *reinterpret_cast<uintptr_t*>(ownerBytes + kHandlerTableOffset);
+        auto* mainMenu = reinterpret_cast<HookCrashers::Game::MainMenu*>(self);
+        uintptr_t handlerTable = reinterpret_cast<uintptr_t>(mainMenu->menuTable);
         if (!handlerTable) {
             LogLine("[OnlineCompatibility] Cannot build menu handler: handler table is null.");
             return false;
@@ -851,9 +894,8 @@ namespace {
             g_onlineCompatibilityGraphicObject = 0;
         }
 
-        auto* handlers = reinterpret_cast<uint8_t*>(handlerTable);
-        auto* playWithFriendsHandler = handlers + kPlayWithFriendsBuilderMenuId * kMenuHandlerSize;
-        auto* compatibilityHandler = handlers + kOnlineCompatibilityMenuId * kMenuHandlerSize;
+        auto* playWithFriendsHandler = GetMenu(self, kPlayWithFriendsBuilderMenuId);
+        auto* compatibilityHandler = GetMenu(self, kOnlineCompatibilityMenuId);
 
         if (!g_onlineCompatibilityHandlerBuilt) {
             const bool built = BuildOnlineCompatibilityHandlerFromScratch(self, compatibilityHandler, playWithFriendsHandler);
@@ -863,12 +905,12 @@ namespace {
             stream << "[OnlineCompatibility] Built registered onlinecompatibility menu id=" << kOnlineCompatibilityMenuId
                    << " handler=" << Hex(reinterpret_cast<uintptr_t>(compatibilityHandler))
                    << " table=" << Hex(handlerTable)
-                   << " menu_items=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kMenuItemCountOffset)
-                   << " graphics=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kGraphicCountOffset)
-                   << " buttons=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kButtonCountOffset)
-                   << " hotspots=" << *reinterpret_cast<uint16_t*>(compatibilityHandler + kHotspotCountOffset)
-                   << " update=" << Hex(*reinterpret_cast<uintptr_t*>(compatibilityHandler + kMenuUpdateCallbackOffset))
-                   << " init=" << Hex(*reinterpret_cast<uintptr_t*>(compatibilityHandler + kMenuInitCallbackOffset)) << ".";
+                   << " menu_items=" << (compatibilityHandler ? compatibilityHandler->menuItemCount : 0)
+                   << " graphics=" << (compatibilityHandler ? compatibilityHandler->graphicCount : 0)
+                   << " buttons=" << (compatibilityHandler ? compatibilityHandler->buttonCount : 0)
+                   << " hotspots=" << (compatibilityHandler ? compatibilityHandler->hotspotCount : 0)
+                   << " update=" << Hex(compatibilityHandler ? reinterpret_cast<uintptr_t>(compatibilityHandler->updateCallback) : 0)
+                   << " init=" << Hex(compatibilityHandler ? reinterpret_cast<uintptr_t>(compatibilityHandler->initCallback) : 0) << ".";
             LogLine(stream.str());
         }
         return g_onlineCompatibilityHandlerBuilt;
@@ -886,6 +928,7 @@ namespace {
         *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kButtonCountOffset) = 0;
         *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kHotspotCountOffset) = 0;
         *reinterpret_cast<uint16_t*>(playerLobbiesHandler + kMenuSelectionOffset) = 0;
+        *reinterpret_cast<uint8_t*>(playerLobbiesHandler + 0x14) = 1;
 
         const uintptr_t displayConfig = ReadU32(g_moduleBase + kGlobalDisplayConfigRva);
         const uint32_t width = displayConfig ? ReadU32(displayConfig + 12) : 0;
@@ -1022,6 +1065,7 @@ namespace {
         g_originalHandlers = 0;
         g_onlineCompatibilityHandlerBuilt = false;
         g_playerLobbiesHandlerBuilt = false;
+        g_returnPlayWithFriendsToCompatibility = false;
         g_onlineCompatibilityGraphicObject = 0;
         ResetOnlineCompatibilityKeyboardState();
 
@@ -1111,7 +1155,7 @@ namespace {
             }
         }
 
-        if (menuId == kModeMenuId && GetOnlineCompatibilityMode() != OnlineCompatibilityMode::Unknown) {
+        if (menuId == kModeMenuId && (GetOnlineCompatibilityMode() != OnlineCompatibilityMode::Unknown || g_returnPlayWithFriendsToCompatibility)) {
             const uintptr_t playWithFriendsState = handlerTable ? handlerTable + kPlayWithFriendsBuilderMenuId * kMenuHandlerSize : 0;
             if (currentHandler == playWithFriendsState) {
                 EnsureOnlineCompatibilityHandler(self, static_cast<int>(playWithFriendsState));
@@ -1123,6 +1167,7 @@ namespace {
                        << " state=" << Hex(static_cast<uintptr_t>(compatibilityState)) << ".";
                 LogLine(stream.str());
                 SetOnlineCompatibilityMode(OnlineCompatibilityMode::Unknown);
+                g_returnPlayWithFriendsToCompatibility = false;
                 ResetOnlineCompatibilityKeyboardState();
                 return g_originalSetMenuState(self, static_cast<int16_t>(kOnlineCompatibilityMenuId), compatibilityState);
             }

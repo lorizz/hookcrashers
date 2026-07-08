@@ -1,6 +1,7 @@
 #include "SWFRuntimeInjector.h"
 #include "MatchmakingSwfData.h"
 #include "MapNewSwfData.h"
+#include "OnlineCompatibilitySwfData.h"
 
 #include "../../Save/CharacterConfig.h"
 #include "../../Util/Logger.h"
@@ -3857,93 +3858,111 @@ const uint8_t* FindDefineSpriteTagByIdRaw(const uint8_t* cursor, const uint8_t* 
 			return static_cast<uint16_t>(maxCharacterId + 1);
 		}
 
+		uint16_t FindRemappedCharacterId(const std::vector<std::pair<uint16_t, uint16_t>>& remap, uint16_t oldId);
+		bool ShouldCopyImportedSwfTag(uint16_t code);
+		void PatchDefineEditTextFontReference(std::vector<uint8_t>& payload, const std::vector<std::pair<uint16_t, uint16_t>>& remap);
+		void InsertStopActionOnFirstSpriteFrame(std::vector<uint8_t>& spritePayload, bool fetchLobbies);
+
 		MenuOnlineCompatibilityInjection BuildMenuOnlineCompatibilityInjection(const SWFBufferView& view, const uint8_t* physicalEnd) {
 			MenuOnlineCompatibilityInjection injection;
+			SWFBufferView imported = MakeSWFBufferView(const_cast<uint8_t*>(kOnlineCompatibilitySwfData));
+			if (!imported.valid || imported.compressed || imported.fileLength != kOnlineCompatibilitySwfSize || !imported.tags) {
+				Util::Logger::Instance().Get()->warn(
+					"[SWFInject] skip onlinecompatibility import: invalid embedded SWF valid={} compressed={} length={} expected={}",
+					imported.valid,
+					imported.compressed,
+					imported.fileLength,
+					kOnlineCompatibilitySwfSize);
+				return injection;
+			}
+
 			uint16_t nextId = FindNextAvailableCharacterId(view, physicalEnd, true);
-			if (nextId > 65531) {
-				Util::Logger::Instance().Get()->debug("[SWFInject] skip onlinecompatibility clone: no character ids available next_id={}", nextId);
+			std::array<bool, 65536> importedCharacterIds{};
+			const uint8_t* cursor = imported.tags;
+			const uint8_t* end = imported.base + imported.fileLength;
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) {
+					break;
+				}
+				if (IsCharacterIdTag(tag.code) && tag.length >= 2) {
+					importedCharacterIds[ReadU16(tag.payload)] = true;
+				}
+				cursor = tag.next;
+				if (tag.code == 0) {
+					break;
+				}
+			}
+
+			std::vector<std::pair<uint16_t, uint16_t>> remap;
+			for (uint32_t oldId = 1; oldId < importedCharacterIds.size(); ++oldId) {
+				if (!importedCharacterIds[oldId]) {
+					continue;
+				}
+				if (nextId == 0 || nextId >= 65535) {
+					Util::Logger::Instance().Get()->warn("[SWFInject] skip onlinecompatibility import: no ids left next_id={}", nextId);
+					return injection;
+				}
+				remap.emplace_back(static_cast<uint16_t>(oldId), nextId++);
+			}
+
+			cursor = imported.tags;
+			while (cursor < end) {
+				Tag tag;
+				if (!ReadTag(cursor, end, tag)) {
+					break;
+				}
+				if (ShouldCopyImportedSwfTag(tag.code) && tag.length >= 2) {
+					std::vector<uint8_t> payload(tag.payload, tag.payload + tag.length);
+					const uint16_t oldId = ReadU16(payload.data());
+					if (oldId == 24 || oldId == 25 || oldId == 26) {
+						cursor = tag.next;
+						continue;
+					}
+					const uint16_t newId = FindRemappedCharacterId(remap, oldId);
+					PatchU16(payload, 0, newId);
+
+					if (tag.code == 39) {
+						for (const auto& pair : remap) {
+							PatchPlaceObjectCharacterReferences(payload, 4, payload.size(), pair.first, pair.second);
+						}
+						if (oldId == 292) {
+							PatchPlaceObjectCharacterReferences(payload, 4, payload.size(), FindRemappedCharacterId(remap, 26), 855);
+						}
+						if (oldId == 291) {
+							PatchPlaceObject2NamesForCharacter(payload, 4, payload.size(), FindRemappedCharacterId(remap, 289), "textPlayVanilla");
+							PatchPlaceObject2NamesForCharacter(payload, 4, payload.size(), FindRemappedCharacterId(remap, 290), "textPlayModded");
+						}
+						if (oldId == 292) {
+							InsertStopActionOnFirstSpriteFrame(payload, false);
+						}
+					}
+					else if (tag.code == 37) {
+						PatchDefineEditTextFontReference(payload, remap);
+					}
+
+					injection.definitions.push_back({ tag.code, std::move(payload) });
+				}
+				cursor = tag.next;
+				if (tag.code == 0) {
+					break;
+				}
+			}
+
+			const uint16_t rootSpriteId = FindRemappedCharacterId(remap, 292);
+			if (rootSpriteId == 292) {
+				Util::Logger::Instance().Get()->warn("[SWFInject] skip onlinecompatibility import: root sprite 292 was not remapped.");
 				return injection;
 			}
-
-			Tag playWithFriendsTag;
-			Tag buttonsMenuTag;
-			Tag textAnyoneTag;
-			Tag textFriendsTag;
-			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 39, 857, playWithFriendsTag)) {
-				Util::Logger::Instance().Get()->debug("[SWFInject] skip onlinecompatibility clone: DefineSprite 857 playwithfriends not found.");
-				return injection;
-			}
-			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 39, 853, buttonsMenuTag)) {
-				Util::Logger::Instance().Get()->debug("[SWFInject] skip onlinecompatibility clone: DefineSprite 853 menu buttons not found.");
-				return injection;
-			}
-			if (!FindCharacterTagByIdRaw(view.tags, physicalEnd, 37, 851, textAnyoneTag)
-				|| !FindCharacterTagByIdRaw(view.tags, physicalEnd, 37, 852, textFriendsTag)) {
-				Util::Logger::Instance().Get()->debug(
-					"[SWFInject] skip onlinecompatibility clone: text edit tags missing text_anyone={} text_friends={}",
-					textAnyoneTag.payload != nullptr,
-					textFriendsTag.payload != nullptr);
-				return injection;
-			}
-
-			const uint16_t vanillaTextId = nextId++;
-			const uint16_t moddedTextId = nextId++;
-			const uint16_t buttonsMenuCloneId = nextId++;
-			const uint16_t playWithFriendsCloneId = nextId++;
-
-			std::vector<uint8_t> vanillaTextPayload = CloneCharacterPayload(textAnyoneTag, vanillaTextId);
-			std::vector<uint8_t> moddedTextPayload = CloneCharacterPayload(textFriendsTag, moddedTextId);
-			const bool vanillaTextReplaced = ReplaceAsciiCString(vanillaTextPayload, "Play with anyone!", "Play vanilla!");
-			bool moddedTextReplaced = ReplaceAsciiCString(moddedTextPayload, "play with friends!", "Play modded!");
-			if (!moddedTextReplaced) {
-				moddedTextReplaced = ReplaceAsciiCString(moddedTextPayload, "Play with friends!", "Play modded!");
-			}
-			if (!vanillaTextReplaced || !moddedTextReplaced) {
-				Util::Logger::Instance().Get()->warn(
-					"[SWFInject] onlinecompatibility clone: cloned text fields but initial text CString was not found vanilla_replaced={} modded_replaced={}",
-					vanillaTextReplaced,
-					moddedTextReplaced);
-			}
-
-			std::vector<uint8_t> buttonsMenuPayload = CloneCharacterPayload(buttonsMenuTag, buttonsMenuCloneId);
-			const size_t textAnyonePatchCount = PatchPlaceObjectCharacterReferences(buttonsMenuPayload, 4, buttonsMenuPayload.size(), 851, vanillaTextId);
-			const size_t textFriendsPatchCount = PatchPlaceObjectCharacterReferences(buttonsMenuPayload, 4, buttonsMenuPayload.size(), 852, moddedTextId);
-			const size_t textVanillaNamePatchCount = PatchPlaceObject2NamesForCharacter(buttonsMenuPayload, 4, buttonsMenuPayload.size(), vanillaTextId, "textPlayVanilla");
-			const size_t textFriendsNamePatchCount = PatchPlaceObject2NamesForCharacter(buttonsMenuPayload, 4, buttonsMenuPayload.size(), moddedTextId, "textPlayModded");
-			if (!textAnyonePatchCount || !textFriendsPatchCount) {
-				Util::Logger::Instance().Get()->warn(
-					"[SWFInject] onlinecompatibility clone: text remap counts low in cloned 853 text_anyone={} text_friends={}",
-					textAnyonePatchCount,
-					textFriendsPatchCount);
-			}
-
-			std::vector<uint8_t> playWithFriendsPayload = CloneCharacterPayload(playWithFriendsTag, playWithFriendsCloneId);
-			const size_t menuPatchCount = PatchPlaceObjectCharacterReferences(playWithFriendsPayload, 4, playWithFriendsPayload.size(), 853, buttonsMenuCloneId);
-			if (!menuPatchCount) {
-				Util::Logger::Instance().Get()->warn("[SWFInject] onlinecompatibility clone: no PlaceObject reference 853 found in cloned 857 payload.");
-			}
-
-			injection.definitions.push_back({ 37, std::move(vanillaTextPayload) });
-			injection.definitions.push_back({ 37, std::move(moddedTextPayload) });
-			injection.definitions.push_back({ 39, std::move(buttonsMenuPayload) });
-			injection.definitions.push_back({ 39, std::move(playWithFriendsPayload) });
-			injection.definitions.push_back({ 56, BuildExportAssetsPayload(playWithFriendsCloneId, "onlinecompatibility") });
-			injection.exportedSpriteId = playWithFriendsCloneId;
+			injection.definitions.push_back({ 56, BuildExportAssetsPayload(rootSpriteId, "onlinecompatibility") });
+			injection.exportedSpriteId = rootSpriteId;
 			injection.nextCharacterId = nextId;
 			injection.valid = true;
 			Util::Logger::Instance().Get()->info(
-				"[SWFInject] prepared onlinecompatibility clone source=857 clone={} source_menu=853 clone_menu={} text_vanilla={} text_modded={} menu_patch_count={} text_patch_counts={}/{} text_names={}/{} text_replaced={}/{} next_id={}",
-				playWithFriendsCloneId,
-				buttonsMenuCloneId,
-				vanillaTextId,
-				moddedTextId,
-				menuPatchCount,
-				textAnyonePatchCount,
-				textFriendsPatchCount,
-				textVanillaNamePatchCount,
-				textFriendsNamePatchCount,
-				vanillaTextReplaced,
-				moddedTextReplaced,
+				"[SWFInject] prepared onlinecompatibility import root_old=292 root_new={} definitions={} remap_count={} next_id={}",
+				rootSpriteId,
+				injection.definitions.size(),
+				remap.size(),
 				nextId);
 			return injection;
 		}

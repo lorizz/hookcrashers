@@ -201,6 +201,18 @@
     <ClInclude Include="src\SWF\Runtime\MatchmakingSwfData.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="src\Save\BookMessageDiagnosticsHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\NetworkEventDiagnosticsHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\LobbyJoinDiagnosticsHook.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Game\MenuStructs.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\pch.cpp">
@@ -465,6 +477,15 @@
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\Util\CrashLogger.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\BookMessageDiagnosticsHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\NetworkEventDiagnosticsHook.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\Save\LobbyJoinDiagnosticsHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
