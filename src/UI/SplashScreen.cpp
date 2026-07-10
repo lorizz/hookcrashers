@@ -51,7 +51,7 @@ struct LoadedImage {
 LoadedImage LoadSplashImage(HMODULE moduleHandle) {
     LoadedImage result {};
 
-    HRSRC resource = FindResourceA(moduleHandle, MAKEINTRESOURCEA(IDR_HOOKCRASHERS_SPLASH), RT_RCDATA);
+    HRSRC resource = FindResourceA(moduleHandle, MAKEINTRESOURCEA(IDR_HOOKCRASHERS_SPLASH), MAKEINTRESOURCEA(10));
     if (!resource) {
         Core::Logger::Error("SplashScreen: splash resource was not found");
         return result;
