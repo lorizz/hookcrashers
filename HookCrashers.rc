@@ -1,0 +1,3 @@
+#include "src/UI/resource.h"
+
+IDR_HOOKCRASHERS_SPLASH RCDATA "assets\\splash\\hookcrashers_splash.png"

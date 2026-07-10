@@ -61,7 +61,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -83,7 +83,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -106,6 +106,7 @@
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp" />
     <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp" />
     <ClCompile Include="src\UI\DebugOverlay.cpp" />
+    <ClCompile Include="src\UI\SplashScreen.cpp" />
     <ClCompile Include="src\dllmain.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -124,6 +125,12 @@
     <ClInclude Include="src\SWF\InitSaveSystemBytecode.h" />
     <ClInclude Include="src\SWF\SWFStructures.h" />
     <ClInclude Include="src\UI\DebugOverlay.h" />
+    <ClInclude Include="src\UI\resource.h" />
+    <ClInclude Include="src\UI\SplashScreen.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="HookCrashers.rc" />
+    <Image Include="assets\splash\hookcrashers_splash.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

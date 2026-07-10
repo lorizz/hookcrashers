@@ -8,6 +8,7 @@
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
 #include "UI/DebugOverlay.h"
+#include "UI/SplashScreen.h"
 
 namespace {
 
@@ -41,6 +42,7 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     auto module = static_cast<HMODULE>(parameter);
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
+    HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));
     const std::uintptr_t targetAddress = ReadTargetAddress(gameBase);
