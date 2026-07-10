@@ -5,6 +5,7 @@ REPO="${HOOKCRASHERS_REPO:-lorizz/hookcrashers}"
 TAG="${HOOKCRASHERS_TAG:-v5.0.0-draft}"
 ASSET="${HOOKCRASHERS_ASSET:-HookCrashers-v5-dropin.zip}"
 TARGET_DIR="${HOOKCRASHERS_TARGET_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers/drive_c/Program Files (x86)/Steam/steamapps/common/CastleCrashers}"
+BOTTLE_DIR="${HOOKCRASHERS_BOTTLE_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers}"
 
 WORK_DIR="$(mktemp -d /tmp/hookcrashers-install.XXXXXX)"
 cleanup() {
@@ -16,6 +17,7 @@ echo "HookCrashers installer"
 echo "Repo:   $REPO"
 echo "Tag:    $TAG"
 echo "Target: $TARGET_DIR"
+echo "Bottle: $BOTTLE_DIR"
 
 if ! command -v gh >/dev/null 2>&1; then
     echo "error: GitHub CLI 'gh' is required because the v5 draft is private." >&2
@@ -30,6 +32,13 @@ fi
 if [[ ! -d "$TARGET_DIR" ]]; then
     echo "error: Castle Crashers target directory does not exist:" >&2
     echo "$TARGET_DIR" >&2
+    exit 1
+fi
+
+USER_REG="$BOTTLE_DIR/user.reg"
+if [[ ! -f "$USER_REG" ]]; then
+    echo "error: CrossOver bottle registry was not found:" >&2
+    echo "$USER_REG" >&2
     exit 1
 fi
 
@@ -61,6 +70,9 @@ cp "$WORK_DIR/extract/dinput8.dll" "$TARGET_DIR/dinput8.dll"
 echo "Installing mods..."
 ditto "$WORK_DIR/extract/mods" "$TARGET_DIR/mods"
 find "$TARGET_DIR/mods" -name .DS_Store -type f -delete
+
+echo "Ensuring Wine loads local dinput8.dll..."
+/usr/bin/ruby -e 'path=ARGV[0]; text=File.read(path); section="[Software\\\\Wine\\\\DllOverrides]"; line="\"dinput8\"=\"native,builtin\""; if text.include?(line); exit 0; end; index=text.index(section); abort "DllOverrides section not found" unless index; insert_at=text.index("\n", index); abort "DllOverrides section header malformed" unless insert_at; text.insert(insert_at + 1, line + "\n"); File.write(path, text)' "$USER_REG"
 
 echo "Done."
 echo "Log will be written by the game to: $TARGET_DIR/HookCrashers.log"
