@@ -12,6 +12,7 @@
 #include <fstream>
 #include <sstream>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace HookCrashers::Core::ModLoader {
@@ -32,6 +33,76 @@ std::string Trim(std::string value) {
     value.erase(value.begin(), std::find_if(value.begin(), value.end(), [&](char ch) { return !isSpace(static_cast<unsigned char>(ch)); }));
     value.erase(std::find_if(value.rbegin(), value.rend(), [&](char ch) { return !isSpace(static_cast<unsigned char>(ch)); }).base(), value.end());
     return value;
+}
+
+bool ParseQuotedString(const std::string& value, std::string& out);
+bool ParseInt(const std::string& value, int& out);
+
+std::string StripLuaLineComments(const std::string& text) {
+    std::string out;
+    out.reserve(text.size());
+
+    bool inString = false;
+    bool escape = false;
+    for (std::size_t i = 0; i < text.size(); ++i) {
+        const char ch = text[i];
+
+        if (escape) {
+            out.push_back(ch);
+            escape = false;
+            continue;
+        }
+
+        if (ch == '\\' && inString) {
+            out.push_back(ch);
+            escape = true;
+            continue;
+        }
+
+        if (ch == '"') {
+            inString = !inString;
+            out.push_back(ch);
+            continue;
+        }
+
+        if (!inString && ch == '-' && i + 1 < text.size() && text[i + 1] == '-') {
+            while (i < text.size() && text[i] != '\n') {
+                ++i;
+            }
+            if (i < text.size()) {
+                out.push_back(text[i]);
+            }
+            continue;
+        }
+
+        out.push_back(ch);
+    }
+
+    return out;
+}
+
+std::string NormalizeEnumToken(std::string value) {
+    value = Trim(value);
+
+    std::string quoted;
+    if (ParseQuotedString(value, quoted)) {
+        value = quoted;
+    }
+
+    const std::size_t lastDot = value.find_last_of('.');
+    if (lastDot != std::string::npos) {
+        value = value.substr(lastDot + 1);
+    }
+
+    std::string normalized;
+    normalized.reserve(value.size());
+    for (unsigned char ch : value) {
+        if (ch == '_' || ch == '-' || std::isspace(ch) != 0) {
+            continue;
+        }
+        normalized.push_back(static_cast<char>(std::tolower(ch)));
+    }
+    return normalized;
 }
 
 bool FileExists(const std::string& path) {
@@ -144,6 +215,153 @@ bool ParseQuotedString(const std::string& value, std::string& out) {
     return true;
 }
 
+const std::unordered_map<std::string, int>& WeaponEnumMap() {
+    static const std::unordered_map<std::string, int> values {
+        {"none", 0},
+        {"skinnysword", 2},
+        {"thinsword", 3},
+        {"thicksword", 4},
+        {"pumpkinpeeler", 5},
+        {"gladiatorsword", 6},
+        {"butcherknife", 7},
+        {"halfsword", 8},
+        {"carrot", 9},
+        {"thiefsword", 10},
+        {"goldsword", 11},
+        {"dualprongsword", 12},
+        {"zigzag", 13},
+        {"playdopastamaker", 14},
+        {"falchion", 15},
+        {"pointysword", 16},
+        {"chewedupsword", 17},
+        {"fencersfoil", 18},
+        {"barbarianaxe", 19},
+        {"pitchfork", 20},
+        {"curvedsword", 21},
+        {"keysword", 22},
+        {"applepeeler", 23},
+        {"rubberhandlesword", 24},
+        {"mace", 25},
+        {"club", 26},
+        {"uglymace", 27},
+        {"refinedmace", 28},
+        {"fish", 29},
+        {"wrappedsword", 30},
+        {"skeletormace", 31},
+        {"clunkymace", 32},
+        {"snakeymace", 33},
+        {"ratbeatingbat", 34},
+        {"blackmorningstar", 35},
+        {"kingsmace", 36},
+        {"meattenderizer", 37},
+        {"leaf", 38},
+        {"sheathedsword", 39},
+        {"practicefoil", 40},
+        {"twig", 41},
+        {"leafytwig", 42},
+        {"lightsaber", 43},
+        {"staff", 44},
+        {"woodenspoon", 45},
+        {"boneleg", 46},
+        {"aliengun", 47},
+        {"fishingspear", 48},
+        {"lance", 49},
+        {"sai", 50},
+        {"unicornhorn", 51},
+        {"ribeye", 52},
+        {"kielbasa", 53},
+        {"lobster", 54},
+        {"umbrella", 55},
+        {"broadax", 56},
+        {"broadaxe", 56},
+        {"evilsword", 57},
+        {"icesword", 58},
+        {"candlestick", 59},
+        {"panicmallet", 60},
+        {"fishingrod", 61},
+        {"wrench", 62},
+        {"nglollipop", 63},
+        {"goldskullmace", 64},
+        {"nggoldsword", 65},
+        {"chainsaw", 66},
+        {"broadspear", 67},
+        {"glowstick", 68},
+        {"chickenstick", 69},
+        {"demonsword", 70},
+        {"broccolisword", 71},
+        {"mancatcher", 72},
+        {"woodenmace", 73},
+        {"ninjaclaw", 74},
+        {"buffalomace", 75},
+        {"electriceel", 76},
+        {"scissors", 77},
+        {"dinnerfork", 78},
+        {"cattleprod", 79},
+        {"lightningbolt", 80},
+        {"twobyfour", 81},
+        {"woodensword", 82},
+        {"cardboardtube", 83},
+        {"emeraldsword", 84},
+        {"hammer", 85},
+        {"pencil", 86},
+        {"workshopdefault", 214},
+        {"addondefault", 214},
+    };
+    return values;
+}
+
+const std::unordered_map<std::string, int>& PetEnumMap() {
+    static const std::unordered_map<std::string, int> values {
+        {"none", 0},
+        {"cardinal", 1},
+        {"owlet", 2},
+        {"rammy", 3},
+        {"frogglet", 4},
+        {"monkeyface", 5},
+        {"bipolarbear", 6},
+        {"biteybat", 7},
+        {"yeti", 8},
+        {"troll", 9},
+        {"snailburt", 10},
+        {"giraffey", 11},
+        {"zebra", 12},
+        {"meowburt", 13},
+        {"pazzo", 14},
+        {"burlybear", 15},
+        {"hawkster", 16},
+        {"snoot", 17},
+        {"piggy", 18},
+        {"spiny", 19},
+        {"scratchpaw", 20},
+        {"seahorse", 21},
+        {"chicken", 22},
+        {"installball", 23},
+        {"installbat", 23},
+        {"mrbuddy", 24},
+        {"sherbert", 25},
+        {"pelter", 26},
+        {"dragonhead", 27},
+        {"beholder", 28},
+        {"goldenwhale", 29},
+    };
+    return values;
+}
+
+bool ParseByteEnum(const std::string& value, const std::unordered_map<std::string, int>& enumMap, int& out) {
+    if (ParseInt(value, out)) {
+        return out >= 0 && out <= 255;
+    }
+
+    const std::string normalized = NormalizeEnumToken(value);
+    const auto found = enumMap.find(normalized);
+    if (found == enumMap.end()) {
+        return false;
+    }
+
+    out = found->second;
+    return true;
+}
+
 bool ParseBool(const std::string& value, bool& out) {
     const std::string trimmed = Trim(value);
     if (trimmed == "true") {
@@ -181,11 +399,17 @@ bool ExecuteRegisterCharacter(const std::string& args, const std::string& script
     bool initiallyUnlocked = false;
     bool freshOnly = false;
     if (!ParseQuotedString(parsed[0], name) ||
-        !ParseInt(parsed[1], weapon) ||
-        !ParseInt(parsed[2], pet) ||
+        !ParseByteEnum(parsed[1], WeaponEnumMap(), weapon) ||
+        !ParseByteEnum(parsed[2], PetEnumMap(), pet) ||
         !ParseBool(parsed[3], initiallyUnlocked) ||
         !ParseBool(parsed[4], freshOnly)) {
-        Logger::Error("Failed to parse RegisterCharacter arguments in %s", scriptPath.c_str());
+        Logger::Error("Failed to parse RegisterCharacter arguments in %s: name='%s' weapon='%s' pet='%s' initiallyUnlocked='%s' freshOnly='%s'",
+                      scriptPath.c_str(),
+                      parsed[0].c_str(),
+                      parsed[1].c_str(),
+                      parsed[2].c_str(),
+                      parsed[3].c_str(),
+                      parsed[4].c_str());
         return false;
     }
 
@@ -213,12 +437,13 @@ bool ExecuteRegisterCharacter(const std::string& args, const std::string& script
 
 int ExecuteScript(const std::string& scriptPath) {
     Logger::Info("Executing mod script: %s", scriptPath.c_str());
-    const std::string text = ReadTextFile(scriptPath);
-    if (text.empty()) {
+    const std::string rawText = ReadTextFile(scriptPath);
+    if (rawText.empty()) {
         Logger::Warn("Script is empty or unreadable: %s", scriptPath.c_str());
         return 0;
     }
 
+    const std::string text = StripLuaLineComments(rawText);
     int registered = 0;
     std::size_t cursor = 0;
     constexpr const char* callName = "RegisterCharacter";
