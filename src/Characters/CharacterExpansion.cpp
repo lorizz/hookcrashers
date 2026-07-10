@@ -123,6 +123,10 @@ bool PatchSaveAndRosterConstants() {
     const int saveSlotCount = registry.SaveCharacterSlotCount();
     const int characterTableBytes = static_cast<int>(NativeDB::kCharacterTableEntryBytes) * addonCount + 14728;
     const int firstWorkshopId = registry.FirstWorkshopId();
+    const int statsClassicCount = registry.ClassicVisibleCount();
+    const int statsFreshCount = registry.FreshBaseCount();
+    const int statsTotalCount = statsFreshCount + static_cast<int>(NativeDB::kWorkshopSaveSlotCount);
+    const int workshopNameBase = 953 - firstWorkshopId;
 
     Core::Logger::Info("Patching character expansion constants: addons=%d saveSize=0x%X payload=0x%X keybinds=0x%X networkBase=%d totalNetwork=%d firstWorkshopId=%d",
                        addonCount,
@@ -139,11 +143,19 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU32(0xFD2E6, saveSize) && ok;
     ok = Core::Memory::WriteU32(0xFD310, saveSize) && ok;
     ok = Core::Memory::WriteU32(0xFD31A, savePayloadSize) && ok;
+    ok = Core::Memory::WriteBytes(0x130F10, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 }) && ok;
+    ok = Core::Memory::WriteBytes(0xE90D3, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 }) && ok;
     ok = Core::Memory::WriteU32(0x130F68, saveSize) && ok;
     ok = Core::Memory::WriteU32(0x12F4A7, keybindsOffset) && ok;
     ok = Core::Memory::WriteU32(0x12F4B0, keybindsOffset) && ok;
     ok = Core::Memory::WriteU32(0x12EE3D, keybindsOffset) && ok;
     ok = Core::Memory::WriteU32(0x12EE46, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D200 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D209 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D6EB + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D6F4 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13E182 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13E18B + 3, keybindsOffset) && ok;
     ok = Core::Memory::WriteU32(0x12EDB6, 0x832 + addonBytes) && ok;
     ok = Core::Memory::WriteU32(0x12EDBF, 0x832 + addonBytes) && ok;
     ok = Core::Memory::WriteU32(0x12ED84, 0x821 + addonBytes) && ok;
@@ -182,6 +194,40 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU8(0x8D5FB, pastLastNetworkId) && ok;
     ok = Core::Memory::WriteU8(0x8D23C, firstWorkshopId) && ok;
     ok = Core::Memory::WriteU8(0x8D26C, firstWorkshopId) && ok;
+
+    // Addon display names and workshop name fallback ranges.
+    ok = Core::Memory::WriteU8(0x8A5C9, -firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8A5D5, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8A5E4, firstWorkshopId - 2) && ok;
+    ok = Core::Memory::WriteU8(0x8A678, -firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x8A68A, static_cast<std::uint32_t>(workshopNameBase)) && ok;
+    ok = Core::Memory::WriteU8(0x8A6BB, firstWorkshopId - 2) && ok;
+    ok = Core::Memory::WriteU8(0x8FC6C, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8FD12, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8A730, pastLastNetworkId) && ok;
+
+    // Lobby workshop/addon behavior.
+    ok = Core::Memory::WriteU8(0x83FFD, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8EB14, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8EB56, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU32(0x106097, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
+    ok = Core::Memory::WriteU8(0x105EAA, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8FBF1, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8FC05, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x105D76, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x16080A, -firstWorkshopId) && ok;
+
+    // Stats menu character iterator. Classic addons use classic frames; fresh addons move
+    // the workshop block after the expanded fresh roster.
+    ok = Core::Memory::WriteU32(0x14CEC4, static_cast<std::uint32_t>(statsTotalCount)) && ok;
+    ok = Core::Memory::WriteU8(0x14CF1F, statsTotalCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CED6, statsClassicCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CF04, statsClassicCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CF30, statsFreshCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CF4D, statsFreshCount) && ok;
+
+    // Ready-state workshop validation.
+    ok = Core::Memory::WriteU8(0x87BEC, firstWorkshopId) && ok;
 
     Core::Logger::Info("PatchSaveAndRosterConstants result=%d", ok ? 1 : 0);
     return ok;

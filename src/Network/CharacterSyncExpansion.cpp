@@ -311,6 +311,7 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
             return true;
         }
 
+        const bool isWorkshopEntry = networkId > baseCount;
         for (auto* node = *reinterpret_cast<std::uint8_t**>(sentinel);
              node && node != sentinel;
              node = *reinterpret_cast<std::uint8_t**>(node)) {
@@ -322,8 +323,25 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
                 node[0x10] = 1;
             }
 
+            if (isWorkshopEntry) {
+                Core::Logger::Info("ApplyExpandedPacketToRoster matched workshop networkId=%d node=%p flag=%u id=%08X:%08X",
+                                   networkId,
+                                   node,
+                                   flag,
+                                   id.hi,
+                                   id.lo);
+                return true;
+            }
+
             int key = networkId;
             InsertResult result {};
+            Core::Logger::Info("ApplyExpandedPacketToRoster inserting base/addon networkId=%d node=%p map=%p flag=%u id=%08X:%08X",
+                               networkId,
+                               node,
+                               node + 0x38,
+                               flag,
+                               id.hi,
+                               id.lo);
             insertEntry(node + 0x38, &result, &key, &key, const_cast<std::uint8_t*>(packet.bytes.data()));
             return true;
         }
