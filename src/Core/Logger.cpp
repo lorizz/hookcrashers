@@ -3,6 +3,7 @@
 #include <windows.h>
 #include <cstdio>
 #include <cstring>
+#include <vector>
 
 namespace HookCrashers::Core::Logger {
 namespace {
@@ -12,6 +13,8 @@ bool g_Initialized = false;
 FILE* g_File = nullptr;
 std::string g_LogPath;
 std::string g_ModuleDirectory;
+std::vector<std::string> g_Lines;
+constexpr std::size_t kMaxBufferedLines = 600;
 
 std::string DirectoryOf(const char* path) {
     if (!path || !path[0]) {
@@ -26,26 +29,32 @@ std::string DirectoryOf(const char* path) {
     return value.substr(0, slash);
 }
 
-void WriteUnlocked(const char* level, const char* format, va_list args) {
-    if (!g_File) {
-        return;
-    }
-
+void WriteUnlocked(const char* level, const char* message) {
     SYSTEMTIME time {};
     GetLocalTime(&time);
-    std::fprintf(g_File,
-                 "[%04u-%02u-%02u %02u:%02u:%02u.%03u] [%s] ",
-                 time.wYear,
-                 time.wMonth,
-                 time.wDay,
-                 time.wHour,
-                 time.wMinute,
-                 time.wSecond,
-                 time.wMilliseconds,
-                 level);
-    std::vfprintf(g_File, format, args);
-    std::fputc('\n', g_File);
-    std::fflush(g_File);
+    char line[2300] {};
+    std::snprintf(line,
+                  sizeof(line),
+                  "[%04u-%02u-%02u %02u:%02u:%02u.%03u] [%s] %s",
+                  time.wYear,
+                  time.wMonth,
+                  time.wDay,
+                  time.wHour,
+                  time.wMinute,
+                  time.wSecond,
+                  time.wMilliseconds,
+                  level,
+                  message ? message : "");
+
+    g_Lines.emplace_back(line);
+    if (g_Lines.size() > kMaxBufferedLines) {
+        g_Lines.erase(g_Lines.begin(), g_Lines.begin() + (g_Lines.size() - kMaxBufferedLines));
+    }
+
+    if (g_File) {
+        std::fprintf(g_File, "%s\n", line);
+        std::fflush(g_File);
+    }
 }
 
 void LogVa(const char* level, const char* format, va_list args) {
@@ -53,8 +62,11 @@ void LogVa(const char* level, const char* format, va_list args) {
         return;
     }
 
+    char message[2048] {};
+    vsnprintf_s(message, sizeof(message), _TRUNCATE, format, args);
+
     EnterCriticalSection(&g_Lock);
-    WriteUnlocked(level, format, args);
+    WriteUnlocked(level, message);
     LeaveCriticalSection(&g_Lock);
 }
 
@@ -124,6 +136,17 @@ const std::string& LogPath() {
 
 const std::string& ModuleDirectory() {
     return g_ModuleDirectory;
+}
+
+std::vector<std::string> SnapshotLines() {
+    if (!g_Initialized) {
+        return {};
+    }
+
+    EnterCriticalSection(&g_Lock);
+    std::vector<std::string> copy = g_Lines;
+    LeaveCriticalSection(&g_Lock);
+    return copy;
 }
 
 } // namespace HookCrashers::Core::Logger

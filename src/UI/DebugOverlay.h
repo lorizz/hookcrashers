@@ -2,8 +2,9 @@
 
 namespace HookCrashers::UI::DebugOverlay {
 
-void Initialize();
-void Draw();
-bool IsInitialized();
+bool Install();
+void Shutdown();
+bool IsInstalled();
+bool IsVisible();
 
 } // namespace HookCrashers::UI::DebugOverlay

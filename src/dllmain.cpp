@@ -67,7 +67,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::NativeDB::SetGameBase(gameBase);
     HookCrashers::Core::Logger::Info("NativeDB game base set");
 
-    HookCrashers::UI::DebugOverlay::Initialize();
+    if (!HookCrashers::UI::DebugOverlay::Install()) {
+        HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
+    }
 
     const HookCrashers::Core::ModLoader::LoadResult loadResult =
         HookCrashers::Core::ModLoader::LoadAll(HookCrashers::Core::Logger::ModuleDirectory());
@@ -108,6 +110,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         }
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
+        HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::Characters::CharacterExpansion::Remove();
         HookCrashers::Core::Logger::Shutdown();
     }
