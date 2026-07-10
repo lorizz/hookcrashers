@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cstring>
 #include <memory>
+#include <utility>
 
 namespace HookCrashers::UI::SplashScreen {
 namespace {
@@ -38,6 +39,26 @@ struct GdiPlusSession {
 struct LoadedImage {
     IStream* stream = nullptr;
     std::unique_ptr<Gdiplus::Image> image;
+
+    LoadedImage() = default;
+    LoadedImage(const LoadedImage&) = delete;
+    LoadedImage& operator=(const LoadedImage&) = delete;
+
+    LoadedImage(LoadedImage&& other) noexcept
+        : stream(std::exchange(other.stream, nullptr)),
+          image(std::move(other.image)) {}
+
+    LoadedImage& operator=(LoadedImage&& other) noexcept {
+        if (this != &other) {
+            image.reset();
+            if (stream) {
+                stream->Release();
+            }
+            stream = std::exchange(other.stream, nullptr);
+            image = std::move(other.image);
+        }
+        return *this;
+    }
 
     ~LoadedImage() {
         image.reset();
