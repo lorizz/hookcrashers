@@ -1,0 +1,10 @@
+{
+  "en": {
+    "characters.test_addon.name": "HookCrashers Test Addon",
+    "characters.test_addon.unlock": "Unlocked by the HookCrashers v5 test mod."
+  },
+  "it": {
+    "characters.test_addon.name": "HookCrashers Test Addon",
+    "characters.test_addon.unlock": "Sbloccato dalla mod di test HookCrashers v5."
+  }
+}

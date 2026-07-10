@@ -38,11 +38,33 @@ jobs:
         run: |
           msbuild HookCrashers.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
 
+      - name: Package v5 drop-in build
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force -Path dist/mods | Out-Null
+          Copy-Item Release/HookCrashers.asi dist/HookCrashers.asi
+          Copy-Item Release/HookCrashers.pdb dist/HookCrashers.pdb
+          Copy-Item examples/mods/TestAddon dist/mods/TestAddon -Recurse
+
+          gh release download v9.7.2 `
+            --repo ThirteenAG/Ultimate-ASI-Loader `
+            --pattern Ultimate-ASI-Loader.zip `
+            --dir External/ultimate-asi-loader `
+            --clobber
+          Expand-Archive External/ultimate-asi-loader/Ultimate-ASI-Loader.zip External/ultimate-asi-loader/x86 -Force
+          Copy-Item External/ultimate-asi-loader/x86/dinput8.dll dist/dinput8.dll
+
+          Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
+
       - name: Upload ASI artifact
         uses: actions/upload-artifact@v4
         with:
           name: HookCrashers-v5-win32
           path: |
-            Release/HookCrashers.asi
-            Release/HookCrashers.pdb
+            dist/HookCrashers.asi
+            dist/HookCrashers.pdb
+            dist/dinput8.dll
+            dist/mods/**
+            HookCrashers-v5-dropin.zip
           if-no-files-found: error

@@ -1,0 +1,16 @@
+id: hookcrashers.test_addon
+name: HookCrashers Test Addon
+description: Minimal v5 smoke-test mod that registers one addon character.
+author: HookCrashers
+version: 0.1.0
+hookcrashers_version: ">=5.0.0"
+dependencies: []
+entrypoints:
+  - scripts/register_character.lua
+characters:
+  - id: test_addon
+    name: HookCrashers Test Addon
+    fresh_only: false
+    initially_unlocked: true
+    starting_weapon: 3
+    starting_pet: 0
