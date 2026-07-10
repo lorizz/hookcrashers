@@ -4,6 +4,7 @@ set -euo pipefail
 REPO="${HOOKCRASHERS_REPO:-lorizz/hookcrashers}"
 TAG="${HOOKCRASHERS_TAG:-v5.0.0-draft}"
 ASSET="${HOOKCRASHERS_ASSET:-HookCrashers-v5-dropin.zip}"
+PDB_ASSET="${HOOKCRASHERS_PDB_ASSET:-HookCrashers.pdb}"
 TARGET_DIR="${HOOKCRASHERS_TARGET_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers/drive_c/Program Files (x86)/Steam/steamapps/common/CastleCrashers}"
 BOTTLE_DIR="${HOOKCRASHERS_BOTTLE_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers}"
 
@@ -51,6 +52,15 @@ gh release download "$TAG" \
     --dir "$WORK_DIR/download" \
     --clobber
 
+echo "Downloading $PDB_ASSET..."
+if ! gh release download "$TAG" \
+    --repo "$REPO" \
+    --pattern "$PDB_ASSET" \
+    --dir "$WORK_DIR/download" \
+    --clobber; then
+    echo "warning: $PDB_ASSET was not downloaded; crash reports will have fewer symbols." >&2
+fi
+
 echo "Extracting..."
 unzip -q "$WORK_DIR/download/$ASSET" -d "$WORK_DIR/extract"
 
@@ -66,6 +76,11 @@ cp "$WORK_DIR/extract/HookCrashers.asi" "$TARGET_DIR/HookCrashers.asi"
 
 echo "Installing dinput8.dll..."
 cp "$WORK_DIR/extract/dinput8.dll" "$TARGET_DIR/dinput8.dll"
+
+if [[ -f "$WORK_DIR/download/$PDB_ASSET" ]]; then
+    echo "Installing HookCrashers.pdb..."
+    cp "$WORK_DIR/download/$PDB_ASSET" "$TARGET_DIR/HookCrashers.pdb"
+fi
 
 echo "Installing mods..."
 ditto "$WORK_DIR/extract/mods" "$TARGET_DIR/mods"
