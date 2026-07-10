@@ -61,7 +61,7 @@
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -83,7 +83,7 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)External\detours\lib.X86\detours.lib;d3d9.lib;gdiplus.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -97,6 +97,7 @@
     <ClCompile Include="src\Characters\CharacterApi.cpp" />
     <ClCompile Include="src\Characters\CharacterExpansion.cpp" />
     <ClCompile Include="src\Characters\CharacterRegistry.cpp" />
+    <ClCompile Include="src\Core\CrashHandler.cpp" />
     <ClCompile Include="src\Core\Logger.cpp" />
     <ClCompile Include="src\Core\Memory.cpp" />
     <ClCompile Include="src\Core\ModLoader.cpp" />
@@ -113,6 +114,7 @@
     <ClInclude Include="src\Characters\CharacterApi.h" />
     <ClInclude Include="src\Characters\CharacterExpansion.h" />
     <ClInclude Include="src\Characters\CharacterRegistry.h" />
+    <ClInclude Include="src\Core\CrashHandler.h" />
     <ClInclude Include="src\Core\Logger.h" />
     <ClInclude Include="src\Core\Memory.h" />
     <ClInclude Include="src\Core\ModLoader.h" />

@@ -4,6 +4,7 @@
 
 #include "Characters/CharacterExpansion.h"
 #include "Characters/CharacterRegistry.h"
+#include "Core/CrashHandler.h"
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
@@ -41,6 +42,7 @@ bool IsSupportedTarget(std::uintptr_t targetAddress) {
 DWORD WINAPI BootstrapThread(void* parameter) {
     auto module = static_cast<HMODULE>(parameter);
     HookCrashers::Core::Logger::Initialize(module);
+    HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
     HookCrashers::UI::SplashScreen::Show(module, 1000);
 
@@ -114,6 +116,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::Characters::CharacterExpansion::Remove();
+        HookCrashers::Core::CrashHandler::Uninstall();
         HookCrashers::Core::Logger::Shutdown();
     }
 
