@@ -1,109 +1,62 @@
-#include "stdafx.h"
-#include "Util/Logger.h"
-#include "Util/CrashLogger.h"
-#include "Core/HookManager.h"
-#include "Config/HookCrashersConfig.h"
-#include "UI/ImGuiOverlay.h"
-#include "../include/HookCrashersAPI.h"
-#include "../include/HookCrashers/Public/Globals.h"
-#include <string>
+#include <windows.h>
+#include <cstdint>
+#include <cstdio>
 
-static std::string GetModuleDirectory(HMODULE module) {
-    char path[MAX_PATH] = {};
-    GetModuleFileNameA(module, path, MAX_PATH);
-    std::string fullPath(path);
-    const size_t lastSlash = fullPath.find_last_of("\\/");
-    if (lastSlash == std::string::npos) {
-        return "";
+#include "NativeDB/Natives.h"
+
+namespace {
+
+constexpr std::uintptr_t kSteam32TargetAddress = 0x0085E310;
+constexpr std::uintptr_t kPePreferredImageBase = 0x00400000;
+
+std::uintptr_t ReadTargetAddress(std::uintptr_t moduleBase) {
+    if (moduleBase == 0) {
+        return 0;
     }
-    return fullPath.substr(0, lastSlash + 1);
+
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(moduleBase);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) {
+        return 0;
+    }
+
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(moduleBase + dos->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE) {
+        return 0;
+    }
+
+    const std::uintptr_t entryPoint = moduleBase + nt->OptionalHeader.AddressOfEntryPoint;
+    return entryPoint + (kPePreferredImageBase - moduleBase);
 }
 
-DWORD WINAPI InitThread(LPVOID lpParam) {
-    HMODULE selfModule = reinterpret_cast<HMODULE>(lpParam);
-    uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleA(NULL));
-    g_moduleBase = base;
-
-    const std::string moduleDir = GetModuleDirectory(selfModule);
-    const std::string configPath = moduleDir + "HookCrashers.ini";
-
-    HookCrashers::Util::Logger::SetDefaultLogDirectory(moduleDir);
-    HookCrashers::Util::CrashLogger::Install(moduleDir);
-    HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] HookCrashers InitThread started.");
-    HookCrashers::Util::Logger::Instance().Get()->debug("[Bootstrap] Config path: {}", configPath);
-    HookCrashers::Config::HookCrashersConfig::Instance().Load(configPath);
-    HookCrashers::Util::Logger::Instance().Get()->debug(
-        "[Bootstrap] ShowExternalConsole={}",
-        HookCrashers::Config::HookCrashersConfig::Instance().Get().showExternalConsole);
-
-    if (HookCrashers::Config::HookCrashersConfig::Instance().Get().showExternalConsole) {
-        HookCrashers::Util::Logger::Instance().InitializeConsole();
-    }
-
-    if (!HookCrashers::Core::HookManager::Initialize(base)) {
-        HookCrashers::Util::Logger::Instance().Get()->critical("!!! HOOK INITIALIZATION FAILED !!!");
-        MessageBoxA(NULL, "Hook Crashers failed to initialize critical components.\nThe mod may not function correctly.", "Hook Init Error", MB_ICONERROR | MB_OK);
-    }
-
-    HookCrashers::Util::Logger::Instance().Get()->flush();
-
-    return 0;
+bool IsSupportedTarget(std::uintptr_t targetAddress) {
+    return targetAddress == kSteam32TargetAddress;
 }
 
+} // namespace
 
-BOOL APIENTRY DllMain(HMODULE hModule, DWORD reason, LPVOID /*lpReserved*/) {
-    DisableThreadLibraryCalls(hModule);
+BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
+    (void)reserved;
 
     if (reason == DLL_PROCESS_ATTACH) {
-        const std::string moduleDir = GetModuleDirectory(hModule);
+        DisableThreadLibraryCalls(module);
 
-        uintptr_t base = reinterpret_cast<uintptr_t>(GetModuleHandleA(NULL));
-        if (base == 0) {
-            MessageBoxA(NULL, "Failed to get game module handle.", "Hook Crashers Error", MB_ICONERROR);
+        const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));
+        const std::uintptr_t targetAddress = ReadTargetAddress(gameBase);
+        if (!IsSupportedTarget(targetAddress)) {
+            char message[256] {};
+            std::snprintf(message,
+                          sizeof(message),
+                          "Unsupported Castle Crashers executable.\n"
+                          "Expected Steam 3.2 targetAddress: 0x%08X\n"
+                          "Current targetAddress: 0x%08X",
+                          static_cast<unsigned int>(kSteam32TargetAddress),
+                          static_cast<unsigned int>(targetAddress));
+            MessageBoxA(nullptr, message, "HookCrashers", MB_ICONERROR | MB_OK);
             return FALSE;
         }
 
-        IMAGE_DOS_HEADER* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(base);
-        IMAGE_NT_HEADERS* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(base + dos->e_lfanew);
-        uintptr_t entryPointAddr = base + nt->OptionalHeader.AddressOfEntryPoint;
-        
-        uintptr_t versionCheckValue = entryPointAddr + (0x400000 - base);
-
-        //if (versionCheckValue == 0x4B88FD || versionCheckValue == 0x730310) // Prior to 3.0
-        if (versionCheckValue == 0x0085E310) // 3.2
-        {
-            HANDLE hThread = CreateThread(NULL, 0, InitThread, reinterpret_cast<LPVOID>(hModule), 0, NULL);
-            if (hThread) {
-                CloseHandle(hThread);
-            }
-            else {
-                MessageBoxA(NULL, "Failed to create initialization thread.", "Hook Crashers", MB_ICONERROR);
-                return FALSE;
-            }
-        }
-        else {
-            char msg[256];
-            sprintf_s(msg, sizeof(msg),
-                "This .exe version is not supported by Hook Crashers.\n"
-                "Please use a compatible Steam version or debug.\n"
-                "Compatible version: 0x0085E310\n"
-                "BaseAddress: 0x%p", (void*)versionCheckValue);
-
-            MessageBoxA(NULL, msg, "Hook Crashers 4.2.0", MB_ICONERROR);
-            return FALSE;
-        }
+        HookCrashers::NativeDB::SetGameBase(gameBase);
     }
-    else if (reason == DLL_PROCESS_DETACH) {
-        HookCrashers::Util::CrashLogger::Uninstall();
-        HookCrashers::UI::ShutdownOverlay();
-        HookCrashers::Util::Logger::Instance().Get()->debug("===== HookCrashers DLL Detaching =====");
-        HookCrashers::Util::Logger::Instance().Shutdown();
-    }
+
     return TRUE;
-}
-
-namespace HookCrashers {
-    spdlog::logger* GetLogger() {
-        return Util::Logger::Instance().Get();
-    }
 }

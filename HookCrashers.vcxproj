@@ -9,14 +9,6 @@
       <Configuration>Release</Configuration>
       <Platform>Win32</Platform>
     </ProjectConfiguration>
-    <ProjectConfiguration Include="Debug|x64">
-      <Configuration>Debug</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
-    <ProjectConfiguration Include="Release|x64">
-      <Configuration>Release</Configuration>
-      <Platform>x64</Platform>
-    </ProjectConfiguration>
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <VCProjectVersion>17.0</VCProjectVersion>
@@ -26,26 +18,13 @@
     <WindowsTargetPlatformVersion>10.0</WindowsTargetPlatformVersion>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>false</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <WholeProgramOptimization>true</WholeProgramOptimization>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
-    <ConfigurationType>DynamicLibrary</ConfigurationType>
-    <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v145</PlatformToolset>
-    <CharacterSet>Unicode</CharacterSet>
-  </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
+  <PropertyGroup Label="Configuration" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ConfigurationType>DynamicLibrary</ConfigurationType>
     <UseDebugLibraries>false</UseDebugLibraries>
     <PlatformToolset>v145</PlatformToolset>
@@ -53,27 +32,19 @@
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.props" />
-  <ImportGroup Label="ExtensionSettings">
-  </ImportGroup>
-  <ImportGroup Label="Shared">
-  </ImportGroup>
+  <ImportGroup Label="ExtensionSettings" />
+  <ImportGroup Label="Shared" />
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
   <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
   </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
-  <ImportGroup Label="PropertySheets" Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <Import Project="$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props" Condition="exists('$(UserRootDir)\Microsoft.Cpp.$(Platform).user.props')" Label="LocalAppDataPlatform" />
-  </ImportGroup>
   <PropertyGroup Label="UserMacros" />
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <TargetExt>.asi</TargetExt>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -83,15 +54,14 @@
       <PreprocessorDefinitions>WIN32;_DEBUG;HOOKCRASHERS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\External\json\;$(ProjectDir)..\External\spdlog\include;$(ProjectDir)..\External\detours\include;$(ProjectDir)..\External\imgui;$(ProjectDir)..\External\imgui\backends;$(ProjectDir)..\External\lua54\lua-5.4.7\src</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\External\detours\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)..\External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
   </ItemDefinitionGroup>
@@ -104,9 +74,8 @@
       <PreprocessorDefinitions>WIN32;NDEBUG;HOOKCRASHERS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\External\json\;$(ProjectDir)..\External\spdlog\include;$(ProjectDir)..\External\detours\include;$(ProjectDir)..\External\imgui;$(ProjectDir)..\External\imgui\backends;$(ProjectDir)..\External\lua54\lua-5.4.7\src</AdditionalIncludeDirectories>
       <LanguageStandard>stdcpp17</LanguageStandard>
+      <AdditionalIncludeDirectories>$(ProjectDir)..\External\detours\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -114,283 +83,35 @@
       <OptimizeReferences>true</OptimizeReferences>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableUAC>false</EnableUAC>
-      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;d3d9.lib;dbghelp.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(ProjectDir)..\External\detours\lib.X86\detours.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <AdditionalLibraryDirectories>$(ProjectDir)..\External\detours\lib.X86;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
     </Link>
-    <PostBuildEvent>
-      <Command>copy "$(TargetDir)HookCrashers.asi" "D:\SteamLibrary\steamapps\common\CastleCrashers"  /y</Command>
-    </PostBuildEvent>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>_DEBUG;HOOKCRASHERS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <EnableUAC>false</EnableUAC>
-    </Link>
-  </ItemDefinitionGroup>
-  <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
-      <IntrinsicFunctions>true</IntrinsicFunctions>
-      <SDLCheck>true</SDLCheck>
-      <PreprocessorDefinitions>NDEBUG;HOOKCRASHERS_EXPORTS;_WINDOWS;_USRDLL;%(PreprocessorDefinitions)</PreprocessorDefinitions>
-      <ConformanceMode>true</ConformanceMode>
-      <PrecompiledHeader>Use</PrecompiledHeader>
-      <PrecompiledHeaderFile>pch.h</PrecompiledHeaderFile>
-    </ClCompile>
-    <Link>
-      <SubSystem>Windows</SubSystem>
-      <EnableCOMDATFolding>true</EnableCOMDATFolding>
-      <OptimizeReferences>true</OptimizeReferences>
-      <GenerateDebugInformation>true</GenerateDebugInformation>
-      <EnableUAC>false</EnableUAC>
-    </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
-    <ClInclude Include="include\HookCrashers.h" />
-    <ClInclude Include="include\HookCrashers\Public\Enums.h" />
-    <ClInclude Include="include\HookCrashers\Public\Globals.h" />
-    <ClInclude Include="include\HookCrashers\Public\NativeCaller.h" />
-    <ClInclude Include="include\HookCrashers\Public\NativeFunctions.h" />
-    <ClInclude Include="include\HookCrashers\Public\Types.h" />
-    <ClInclude Include="src\Config\HookCrashersConfig.h" />
-    <ClInclude Include="src\Core\AddStringHook.h" />
-    <ClInclude Include="src\Core\BlowfishDecryptHook.h" />
-    <ClInclude Include="src\Core\DecryptSaveFileHook.h" />
-    <ClInclude Include="src\Core\GetPlayerObjectHook.h" />
-    <ClInclude Include="src\Core\IsFeatureEnabledHook.h" />
-    <ClInclude Include="src\Core\ModLoader.h" />
-    <ClInclude Include="src\Core\UIInputHandlerHook.h" />
-    <ClInclude Include="src\Data\LocalizedString.h" />
-    <ClInclude Include="src\framework.h" />
-    <ClInclude Include="include\HookCrashersAPI.h" />
-    <ClInclude Include="src\Game\Entities.h" />
-    <ClInclude Include="src\Game\MenuStructs.h" />
-    <ClInclude Include="src\Localization\LocalizedString.h" />
-    <ClInclude Include="src\Localization\LocalizationManager.h" />
-    <ClInclude Include="src\Localization\LocalizationSystem.h" />
-    <ClInclude Include="src\Localization\StringLookupHook.h" />
-    <ClInclude Include="src\pch.h" />
-    <ClInclude Include="src\Save\CharacterConfig.h" />
-    <ClInclude Include="src\Save\GenerateDefaultCharacterDataHook.h" />
-    <ClInclude Include="src\Save\PainterConfigHook.h" />
-    <ClInclude Include="src\Save\RebuildCharacterSlotTableHook.h" />
-    <ClInclude Include="src\Save\ReceiveCharacterSyncHook.h" />
-    <ClInclude Include="src\Save\NetworkCleanupDiagnosticsHook.h" />
-    <ClInclude Include="src\Save\BookMessageDiagnosticsHook.h" />
-    <ClInclude Include="src\Save\NetworkEventDiagnosticsHook.h" />
-    <ClInclude Include="src\Save\LobbyJoinDiagnosticsHook.h" />
-    <ClInclude Include="src\Save\StatsMenuDiagnosticsHook.h" />
-    <ClInclude Include="src\Save\SaveExpansion.h" />
-    <ClInclude Include="src\Save\SavePatches.h" />
-    <ClInclude Include="src\Save\SyncCharacterListFromSaveHook.h" />
-    <ClInclude Include="src\Save\MenuOnlineCompatibilityHook.h" />
-    <ClInclude Include="src\Save\OnlineCompatibilityMode.h" />
-    <ClInclude Include="src\Scripting\ScriptModLoader.h" />
-    <ClInclude Include="src\Core\BaseHook.h" />
-    <ClInclude Include="src\Core\CallSWFFunctionHook.h" />
-    <ClInclude Include="src\Core\DisplayListDepthHook.h" />
-    <ClInclude Include="src\Core\HookManager.h" />
-    <ClInclude Include="src\Core\RegisterAllSWFFunctionsHook.h" />
-    <ClInclude Include="src\Core\RegisterSWFFunctionHook.h" />
-    <ClInclude Include="src\Core\SWFDiagnosticsHook.h" />
-    <ClInclude Include="src\stdafx.h" />
-    <ClInclude Include="src\SWF\AS2NativeRegistry.h" />
-    <ClInclude Include="src\SWF\Custom\CustomFunctions.h" />
-    <ClInclude Include="src\SWF\Helpers\SWFArgumentReader.h" />
-    <ClInclude Include="src\SWF\Helpers\SWFReturnHelper.h" />
-    <ClInclude Include="src\SWF\Override\Overrides.h" />
-    <ClInclude Include="src\SWF\Runtime\MatchmakingSwfData.h" />
-    <ClInclude Include="src\SWF\Runtime\SWFRuntimeInjector.h" />
-    <ClInclude Include="src\SWF\SWFBytecode.h" />
-    <ClInclude Include="src\SWF\SWFStructures.h" />
-    <ClInclude Include="src\SWF\Dispatcher\Dispatcher.h" />
-    <ClInclude Include="src\UI\ImGuiOverlay.h" />
-    <ClInclude Include="src\Util\CrashLogger.h" />
-    <ClInclude Include="src\Util\Logger.h" />
-    <ClInclude Include="src\targetver.h" />
-    <ClInclude Include="src\Util\MemoryPatcher.h" />
-    <ClInclude Include="src\Util\SteamHelper.h" />
-    <ClInclude Include="src\Util\StringCache.h" />
-    <ClInclude Include="src\Util\StringUtils.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <ClCompile Include="include\HookCrashersAPI.cpp" />
-    <ClCompile Include="include\HookCrashers\Public\Globals.cpp" />
-    <ClCompile Include="include\HookCrashers\Public\NativeFunctions.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\backends\imgui_impl_dx9.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\backends\imgui_impl_win32.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_draw.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_tables.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\imgui\imgui_widgets.cpp" />
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lapi.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lauxlib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lbaselib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lcode.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lcorolib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lctype.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldblib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldebug.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldo.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ldump.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lfunc.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lgc.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\linit.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\liolib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\llex.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lmathlib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lmem.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\loadlib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lobject.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lopcodes.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\loslib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lparser.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstate.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstring.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lstrlib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltable.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltablib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\ltm.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lundump.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lutf8lib.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lvm.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="$(ProjectDir)..\External\lua54\lua-5.4.7\src\lzio.c">
-      <CompileAs>CompileAsC</CompileAs>
-    </ClCompile>
-    <ClCompile Include="src\Config\HookCrashersConfig.cpp" />
-    <ClCompile Include="src\Core\AddStringHook.cpp" />
-    <ClCompile Include="src\Core\DecryptSaveFileHook.cpp" />
-    <ClCompile Include="src\Core\GetPlayerObjectHook.cpp" />
-    <ClCompile Include="src\Core\IsFeatureEnabledHook.cpp" />
-    <ClCompile Include="src\Core\ModLoader.cpp" />
-    <ClCompile Include="src\Core\BlowfishDecryptHook.cpp" />
-    <ClCompile Include="src\Core\UIInputHandlerHook.cpp" />
-    <ClCompile Include="src\Localization\LocalizationManager.cpp" />
-    <ClCompile Include="src\Localization\LocalizationSystem.cpp" />
-    <ClCompile Include="src\Localization\StringLookupHook.cpp" />
-    <ClCompile Include="src\pch.cpp">
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">Create</PrecompiledHeader>
-      <PrecompiledHeader Condition="'$(Configuration)|$(Platform)'=='Release|x64'">Create</PrecompiledHeader>
-    </ClCompile>
-    <ClCompile Include="src\Core\BaseHook.cpp" />
-    <ClCompile Include="src\Core\CallSWFFunctionHook.cpp" />
-    <ClCompile Include="src\Core\DisplayListDepthHook.cpp" />
-    <ClCompile Include="src\Core\HookManager.cpp" />
-    <ClCompile Include="src\Core\RegisterAllSWFFunctionsHook.cpp" />
-    <ClCompile Include="src\Core\RegisterSWFFunctionHook.cpp" />
-    <ClCompile Include="src\Core\SWFDiagnosticsHook.cpp" />
+    <ClCompile Include="src\Characters\CharacterApi.cpp" />
+    <ClCompile Include="src\Characters\CharacterExpansion.cpp" />
+    <ClCompile Include="src\Characters\CharacterRegistry.cpp" />
+    <ClCompile Include="src\Core\Memory.cpp" />
+    <ClCompile Include="src\Lobby\LobbyPortraitExpansion.cpp" />
+    <ClCompile Include="src\NativeDB\LuaApi.cpp" />
+    <ClCompile Include="src\Network\CharacterSyncExpansion.cpp" />
+    <ClCompile Include="src\SWF\Cok6LoadHook.cpp" />
+    <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp" />
     <ClCompile Include="src\dllmain.cpp" />
-    <ClCompile Include="src\Save\CharacterConfig.cpp" />
-    <ClCompile Include="src\Save\GenerateDefaultCharacterDataHook.cpp" />
-    <ClCompile Include="src\Save\PainterConfigHook.cpp" />
-    <ClCompile Include="src\Save\RebuildCharacterSlotTableHook.cpp" />
-    <ClCompile Include="src\Save\ReceiveCharacterSyncHook.cpp" />
-    <ClCompile Include="src\Save\NetworkCleanupDiagnosticsHook.cpp" />
-    <ClCompile Include="src\Save\BookMessageDiagnosticsHook.cpp" />
-    <ClCompile Include="src\Save\NetworkEventDiagnosticsHook.cpp" />
-    <ClCompile Include="src\Save\LobbyJoinDiagnosticsHook.cpp" />
-    <ClCompile Include="src\Save\StatsMenuDiagnosticsHook.cpp" />
-    <ClCompile Include="src\Save\SaveExpansion.cpp" />
-    <ClCompile Include="src\Save\SavePatches.cpp" />
-    <ClCompile Include="src\Save\SyncCharacterListFromSaveHook.cpp" />
-    <ClCompile Include="src\Save\MenuOnlineCompatibilityHook.cpp" />
-    <ClCompile Include="src\Save\OnlineCompatibilityMode.cpp" />
-    <ClCompile Include="src\Scripting\ScriptModLoader.cpp" />
-    <ClCompile Include="src\stdafx.cpp" />
-    <ClCompile Include="src\SWF\Custom\CustomFunctions.cpp" />
-    <ClCompile Include="src\SWF\Helpers\SWFArgumentReader.cpp" />
-    <ClCompile Include="src\SWF\Helpers\SWFReturnHelper.cpp" />
-    <ClCompile Include="src\SWF\Override\Overrides.cpp" />
-    <ClCompile Include="src\SWF\Runtime\SWFRuntimeInjector.cpp" />
-    <ClCompile Include="src\SWF\Dispatcher\Dispatcher.cpp" />
-    <ClCompile Include="src\UI\ImGuiOverlay.cpp" />
-    <ClCompile Include="src\Util\CrashLogger.cpp" />
-    <ClCompile Include="src\Util\Logger.cpp" />
-    <ClCompile Include="src\Util\MemoryPatcher.cpp" />
-    <ClCompile Include="src\Util\SteamHelper.cpp" />
-    <ClCompile Include="src\Util\StringCache.cpp" />
-    <ClCompile Include="src\Util\StringUtils.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <None Include=".gitignore" />
-    <None Include="docs\enums.md" />
-    <None Include="README.md" />
+    <ClInclude Include="src\Characters\CharacterApi.h" />
+    <ClInclude Include="src\Characters\CharacterExpansion.h" />
+    <ClInclude Include="src\Characters\CharacterRegistry.h" />
+    <ClInclude Include="src\Core\Memory.h" />
+    <ClInclude Include="src\Lobby\LobbyPortraitExpansion.h" />
+    <ClInclude Include="src\NativeDB\Classes.h" />
+    <ClInclude Include="src\NativeDB\LuaApi.h" />
+    <ClInclude Include="src\NativeDB\Natives.h" />
+    <ClInclude Include="src\Network\CharacterSyncExpansion.h" />
+    <ClInclude Include="src\SWF\Cok6LoadHook.h" />
+    <ClInclude Include="src\SWF\InitSaveSystemBytecode.h" />
+    <ClInclude Include="src\SWF\SWFStructures.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
-  <ImportGroup Label="ExtensionTargets">
-  </ImportGroup>
 </Project>
