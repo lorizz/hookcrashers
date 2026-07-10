@@ -1,0 +1,48 @@
+name: Build HookCrashers ASI
+
+on:
+  push:
+    branches:
+      - v5
+      - main
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Windows x86 ASI
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup MSBuild
+        uses: microsoft/setup-msbuild@v2
+
+      - name: Checkout Detours
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/microsoft/Detours.git External/detours
+
+      - name: Build Detours x86
+        shell: cmd
+        run: |
+          for /f "usebackq tokens=*" %%i in (`"%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set VSINSTALL=%%i
+          call "%VSINSTALL%\VC\Auxiliary\Build\vcvars32.bat"
+          cd /d "%GITHUB_WORKSPACE%\External\detours"
+          nmake
+
+      - name: Build HookCrashers
+        shell: cmd
+        run: |
+          msbuild HookCrashers.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
+
+      - name: Upload ASI artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: HookCrashers-v5-win32
+          path: |
+            Release/HookCrashers.asi
+            Release/HookCrashers.pdb
+          if-no-files-found: error
