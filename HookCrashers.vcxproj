@@ -104,6 +104,7 @@
     <ClCompile Include="src\Lobby\LobbyPortraitExpansion.cpp" />
     <ClCompile Include="src\NativeDB\LuaApi.cpp" />
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp" />
+    <ClCompile Include="src\Save\SaveLayoutGuard.cpp" />
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp" />
     <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp" />
     <ClCompile Include="src\UI\DebugOverlay.cpp" />
@@ -123,6 +124,7 @@
     <ClInclude Include="src\NativeDB\LuaApi.h" />
     <ClInclude Include="src\NativeDB\Natives.h" />
     <ClInclude Include="src\Network\CharacterSyncExpansion.h" />
+    <ClInclude Include="src\Save\SaveLayoutGuard.h" />
     <ClInclude Include="src\SWF\Cok6LoadHook.h" />
     <ClInclude Include="src\SWF\InitSaveSystemBytecode.h" />
     <ClInclude Include="src\SWF\SWFStructures.h" />

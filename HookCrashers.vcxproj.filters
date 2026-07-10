@@ -50,6 +50,9 @@
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\Save\SaveLayoutGuard.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -95,6 +98,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\Network\CharacterSyncExpansion.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\Save\SaveLayoutGuard.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\SWF\Cok6LoadHook.h">

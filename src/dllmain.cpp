@@ -8,6 +8,7 @@
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
+#include "Save/SaveLayoutGuard.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
 
@@ -84,6 +85,8 @@ DWORD WINAPI BootstrapThread(void* parameter) {
                                     HookCrashers::Characters::Registry::Instance().AddonCount());
 
     if (HookCrashers::Characters::Registry::Instance().AddonCount() > 0) {
+        HookCrashers::Save::SaveLayoutGuard::InvalidateIfNeeded(HookCrashers::Core::Logger::ModuleDirectory());
+
         const bool installed = HookCrashers::Characters::CharacterExpansion::Install();
         HookCrashers::Core::Logger::Info("Character expansion auto-install result=%d", installed ? 1 : 0);
         if (!installed) {
