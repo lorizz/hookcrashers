@@ -1,6 +1,7 @@
 #include "CharacterExpansion.h"
 
 #include "CharacterRegistry.h"
+#include "../Core/Logger.h"
 #include "../Core/Memory.h"
 #include "../Lobby/LobbyPortraitExpansion.h"
 #include "../NativeDB/Classes.h"
@@ -80,11 +81,15 @@ void InitializeCharacterData(NativeDB::CC_CharacterData& character, std::uint32_
 
 void InitializeExpandedDefaultCharacterData(void* saveBuffer) {
     if (!saveBuffer) {
+        Core::Logger::Error("InitializeExpandedDefaultCharacterData called with null save buffer");
         return;
     }
 
     auto* bytes = reinterpret_cast<std::uint8_t*>(saveBuffer);
     const Registry& registry = Registry::Instance();
+    Core::Logger::Info("Initializing expanded default character data: saveSlots=%d addonCount=%d",
+                       registry.SaveCharacterSlotCount(),
+                       registry.AddonCount());
     for (int slot = 0; slot < registry.SaveCharacterSlotCount(); ++slot) {
         auto* character = reinterpret_cast<NativeDB::CC_CharacterData*>(
             bytes + NativeDB::kGlobalDataSize + NativeDB::kCharacterDataSize * slot);
@@ -95,14 +100,17 @@ void InitializeExpandedDefaultCharacterData(void* saveBuffer) {
 }
 
 void __fastcall DetouredCreateDefaultSave(void* saveBuffer) {
+    Core::Logger::Info("CC_CreateDefaultSave detour entered saveBuffer=%p", saveBuffer);
     g_OriginalCreateDefaultSave(saveBuffer);
     InitializeExpandedDefaultCharacterData(saveBuffer);
+    Core::Logger::Info("CC_CreateDefaultSave detour finished");
 }
 
 bool PatchSaveAndRosterConstants() {
     const Registry& registry = Registry::Instance();
     const int addonCount = registry.AddonCount();
     if (addonCount <= 0) {
+        Core::Logger::Info("No addons registered; skipping save/roster constant patches");
         return true;
     }
 
@@ -115,6 +123,15 @@ bool PatchSaveAndRosterConstants() {
     const int saveSlotCount = registry.SaveCharacterSlotCount();
     const int characterTableBytes = static_cast<int>(NativeDB::kCharacterTableEntryBytes) * addonCount + 14728;
     const int firstWorkshopId = registry.FirstWorkshopId();
+
+    Core::Logger::Info("Patching character expansion constants: addons=%d saveSize=0x%X payload=0x%X keybinds=0x%X networkBase=%d totalNetwork=%d firstWorkshopId=%d",
+                       addonCount,
+                       saveSize,
+                       savePayloadSize,
+                       keybindsOffset,
+                       networkBase,
+                       registry.NetworkTotalCount(),
+                       firstWorkshopId);
 
     bool ok = true;
 
@@ -166,6 +183,7 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU8(0x8D23C, firstWorkshopId) && ok;
     ok = Core::Memory::WriteU8(0x8D26C, firstWorkshopId) && ok;
 
+    Core::Logger::Info("PatchSaveAndRosterConstants result=%d", ok ? 1 : 0);
     return ok;
 }
 
@@ -173,31 +191,43 @@ bool InstallDefaultSaveHook() {
     g_OriginalCreateDefaultSave =
         reinterpret_cast<CreateDefaultSaveFn>(NativeDB::NativeAddress(NativeDB::Natives::CC_CreateDefaultSave));
 
+    Core::Logger::Info("Installing CC_CreateDefaultSave detour at %p", reinterpret_cast<void*>(g_OriginalCreateDefaultSave));
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
     const LONG attach = DetourAttach(reinterpret_cast<PVOID*>(&g_OriginalCreateDefaultSave), DetouredCreateDefaultSave);
     if (attach != NO_ERROR) {
+        Core::Logger::Error("DetourAttach CC_CreateDefaultSave failed: %ld", attach);
         DetourTransactionAbort();
         return false;
     }
-    return DetourTransactionCommit() == NO_ERROR;
+    const LONG commit = DetourTransactionCommit();
+    Core::Logger::Info("CC_CreateDefaultSave detour commit result=%ld", commit);
+    return commit == NO_ERROR;
 }
 
 } // namespace
 
 bool CharacterExpansion::Install() {
+    Core::Logger::Info("CharacterExpansion::Install begin addonCount=%d", Registry::Instance().AddonCount());
     bool ok = PatchSaveAndRosterConstants();
+    Core::Logger::Info("Installing LobbyPortraitExpansion");
     ok = Lobby::LobbyPortraitExpansion::Install() && ok;
+    Core::Logger::Info("Installing Cok6LoadHook");
     ok = SWF::Cok6LoadHook::Install() && ok;
+    Core::Logger::Info("Installing CharacterSyncExpansion");
     ok = Network::CharacterSyncExpansion::Install() && ok;
+    Core::Logger::Info("Installing default save hook");
     ok = InstallDefaultSaveHook() && ok;
+    Core::Logger::Info("CharacterExpansion::Install result=%d", ok ? 1 : 0);
     return ok;
 }
 
 void CharacterExpansion::Remove() {
+    Core::Logger::Info("CharacterExpansion::Remove begin");
     Network::CharacterSyncExpansion::Remove();
     SWF::Cok6LoadHook::Remove();
     if (!g_OriginalCreateDefaultSave) {
+        Core::Logger::Info("CharacterExpansion::Remove no default save hook installed");
         return;
     }
     DetourTransactionBegin();
@@ -205,6 +235,7 @@ void CharacterExpansion::Remove() {
     DetourDetach(reinterpret_cast<PVOID*>(&g_OriginalCreateDefaultSave), DetouredCreateDefaultSave);
     DetourTransactionCommit();
     g_OriginalCreateDefaultSave = nullptr;
+    Core::Logger::Info("CharacterExpansion::Remove complete");
 }
 
 } // namespace HookCrashers::Characters

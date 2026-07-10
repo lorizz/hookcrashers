@@ -1,6 +1,7 @@
 #include "LobbyPortraitExpansion.h"
 
 #include "../Characters/CharacterRegistry.h"
+#include "../Core/Logger.h"
 #include "../Core/Memory.h"
 #include <cstdint>
 
@@ -16,6 +17,7 @@ bool LobbyPortraitExpansion::Install() {
     const auto& registry = Characters::Registry::Instance();
     const int classicAddonCount = registry.ClassicAddonCount();
     if (classicAddonCount <= 0) {
+        Core::Logger::Info("LobbyPortraitExpansion skipped: no classic-visible addons");
         return true;
     }
 
@@ -25,7 +27,13 @@ bool LobbyPortraitExpansion::Install() {
     // CC_LobbySkinManagerAttachSkinGraphic(this, 36 / 0x24) maps fresh portrait frames
     // by subtracting the hardcoded first fresh frame. Classic/base addons inserted before
     // fresh shift that frame start, so only this lobby portrait path needs a dynamic fix.
-    return Core::Memory::WriteU16(kAttachSkinGraphicFreshPortraitSubtractImmediateRva, subtractImmediate);
+    Core::Logger::Info("LobbyPortraitExpansion patch: classicAddons=%d freshFrameStart=%d subtractImmediate=0x%04X",
+                       classicAddonCount,
+                       freshFrameStart,
+                       subtractImmediate);
+    const bool ok = Core::Memory::WriteU16(kAttachSkinGraphicFreshPortraitSubtractImmediateRva, subtractImmediate);
+    Core::Logger::Info("LobbyPortraitExpansion result=%d", ok ? 1 : 0);
+    return ok;
 }
 
 } // namespace HookCrashers::Lobby

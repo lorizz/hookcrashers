@@ -55,7 +55,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)External\detours\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External\detours\include;$(ProjectDir)External\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -75,7 +75,7 @@
       <ConformanceMode>true</ConformanceMode>
       <PrecompiledHeader>NotUsing</PrecompiledHeader>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)External\detours\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(ProjectDir)External\detours\include;$(ProjectDir)External\imgui;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
@@ -88,22 +88,31 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="External\imgui\imgui.cpp" />
+    <ClCompile Include="External\imgui\imgui_draw.cpp" />
+    <ClCompile Include="External\imgui\imgui_tables.cpp" />
+    <ClCompile Include="External\imgui\imgui_widgets.cpp" />
     <ClCompile Include="src\Characters\CharacterApi.cpp" />
     <ClCompile Include="src\Characters\CharacterExpansion.cpp" />
     <ClCompile Include="src\Characters\CharacterRegistry.cpp" />
+    <ClCompile Include="src\Core\Logger.cpp" />
     <ClCompile Include="src\Core\Memory.cpp" />
+    <ClCompile Include="src\Core\ModLoader.cpp" />
     <ClCompile Include="src\Lobby\LobbyPortraitExpansion.cpp" />
     <ClCompile Include="src\NativeDB\LuaApi.cpp" />
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp" />
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp" />
     <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp" />
+    <ClCompile Include="src\UI\DebugOverlay.cpp" />
     <ClCompile Include="src\dllmain.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Characters\CharacterApi.h" />
     <ClInclude Include="src\Characters\CharacterExpansion.h" />
     <ClInclude Include="src\Characters\CharacterRegistry.h" />
+    <ClInclude Include="src\Core\Logger.h" />
     <ClInclude Include="src\Core\Memory.h" />
+    <ClInclude Include="src\Core\ModLoader.h" />
     <ClInclude Include="src\Lobby\LobbyPortraitExpansion.h" />
     <ClInclude Include="src\NativeDB\Classes.h" />
     <ClInclude Include="src\NativeDB\LuaApi.h" />
@@ -112,6 +121,7 @@
     <ClInclude Include="src\SWF\Cok6LoadHook.h" />
     <ClInclude Include="src\SWF\InitSaveSystemBytecode.h" />
     <ClInclude Include="src\SWF\SWFStructures.h" />
+    <ClInclude Include="src\UI\DebugOverlay.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
 </Project>

@@ -1,6 +1,7 @@
 #include "CharacterSyncExpansion.h"
 
 #include "../Characters/CharacterRegistry.h"
+#include "../Core/Logger.h"
 #include "../Core/Memory.h"
 #include "../NativeDB/Classes.h"
 #include "../NativeDB/Natives.h"
@@ -181,6 +182,7 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
 
     auto* lobbyManager = *reinterpret_cast<void**>(Core::Memory::Va(kLobbyManagerGlobalRva));
     if (!lobbyManager) {
+        Core::Logger::Warn("BuildExpandedPacketFromRuntime: lobby manager is null");
         return packet;
     }
 
@@ -192,6 +194,10 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
         static_cast<std::uint8_t*>(lobbyManager) + kWorkshopRuntimeArrayOffset);
 
     const int baseCount = registry.NetworkBaseCount();
+    Core::Logger::Info("Building expanded character sync packet: baseCount=%d totalCount=%d packetSize=%u",
+                       baseCount,
+                       registry.NetworkTotalCount(),
+                       packet.layout.packetSize);
     for (int baseIndex = 0; baseIndex < baseCount; ++baseIndex) {
         const int networkIndex = baseIndex + 1;
         WriteRuntimeCharacterId(packet.bytes.data(),
@@ -264,23 +270,36 @@ bool TryReadWirePacket(std::uint8_t* payload, ExpandedPacket& packet) {
     if (version != kHookCrashersSyncVersion ||
         addonCount != static_cast<std::uint16_t>(registry.AddonCount()) ||
         packetSize != expectedLayout.packetSize) {
+        Core::Logger::Warn("Rejected HC5 sync packet: version=%u addonCount=%u packetSize=%u expectedVersion=%u expectedAddons=%u expectedSize=%u",
+                           version,
+                           addonCount,
+                           packetSize,
+                           kHookCrashersSyncVersion,
+                           static_cast<unsigned int>(registry.AddonCount()),
+                           expectedLayout.packetSize);
         return false;
     }
 
     packet.layout = expectedLayout;
     packet.bytes.assign(cursor, cursor + packetSize);
+    Core::Logger::Info("Accepted HC5 sync packet: addonCount=%u packetSize=%u", addonCount, packetSize);
     return true;
 }
 
 bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
     auto* lobbyManager = *reinterpret_cast<void**>(Core::Memory::Va(kLobbyManagerGlobalRva));
     if (!lobbyManager || packet.bytes.empty() || packet.bytes[0] == 0) {
+        Core::Logger::Warn("ApplyExpandedPacketToRoster failed early: lobbyManager=%p bytes=%u firstByte=%u",
+                           lobbyManager,
+                           static_cast<unsigned int>(packet.bytes.size()),
+                           packet.bytes.empty() ? 0 : packet.bytes[0]);
         return false;
     }
 
     auto insertEntry = reinterpret_cast<InsertCharacterSyncEntryFn>(Core::Memory::Va(0x12B030));
     auto* sentinel = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(lobbyManager) + 0x1C);
     if (!sentinel || !insertEntry) {
+        Core::Logger::Error("ApplyExpandedPacketToRoster missing sentinel/insertEntry sentinel=%p insertEntry=%p", sentinel, reinterpret_cast<void*>(insertEntry));
         return false;
     }
 
@@ -325,10 +344,16 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
         }
 
         if (!findAndMark(networkId, id, flag)) {
+            Core::Logger::Error("ApplyExpandedPacketToRoster missing runtime entry networkId=%d flag=%u id=%08X:%08X",
+                                networkId,
+                                flag,
+                                id.hi,
+                                id.lo);
             return false;
         }
     }
 
+    Core::Logger::Info("ApplyExpandedPacketToRoster succeeded totalCount=%d", totalCount);
     return true;
 }
 
@@ -338,8 +363,11 @@ void __fastcall DetouredSendInitialCharacterSyncPacket(void* self, void*, std::u
         return;
     }
 
+    Core::Logger::Info("DetouredSendInitialCharacterSyncPacket self=%p peer=%p", self, peer);
+
     auto* session = *reinterpret_cast<void**>(static_cast<std::uint8_t*>(self) + 0x0C);
     if (!session) {
+        Core::Logger::Error("SendInitialCharacterSyncPacket: session is null");
         SetResult(outResult, 1);
         return;
     }
@@ -349,24 +377,28 @@ void __fastcall DetouredSendInitialCharacterSyncPacket(void* self, void*, std::u
         ? channelForLocalPlayer(session, *reinterpret_cast<std::uint32_t*>(static_cast<std::uint8_t*>(self) + 0x70))
         : nullptr;
     if (!channel) {
+        Core::Logger::Error("SendInitialCharacterSyncPacket: channel is null");
         SetResult(outResult, 1);
         return;
     }
 
     std::vector<std::uint8_t> message = BuildWireMessage();
     if (CallPeerBool(peer, 0x1C)) {
+        Core::Logger::Info("SendInitialCharacterSyncPacket loopback/local peer");
         DetouredHandleIncomingCharacterSyncPacket(self, nullptr, outResult, channel, message.data() + 3);
         return;
     }
 
     auto send = reinterpret_cast<ChannelSendFn>(GetVfunc(channel, 0x64));
     if (!send) {
+        Core::Logger::Error("SendInitialCharacterSyncPacket: send vfunc is null");
         SetResult(outResult, 1);
         return;
     }
 
     std::uint32_t scratch[2] {};
     send(channel, scratch, peer, message.data(), static_cast<std::uint32_t>(message.size()), 1);
+    Core::Logger::Info("Sent HC5 sync message bytes=%u", static_cast<unsigned int>(message.size()));
     SetResult(outResult, 0);
 }
 
@@ -380,8 +412,11 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
         return;
     }
 
+    Core::Logger::Info("DetouredHandleIncomingCharacterSyncPacket self=%p transport=%p payload=%p", self, transport, payload);
+
     ExpandedPacket packet;
     if (!TryReadWirePacket(payload, packet)) {
+        Core::Logger::Warn("Incoming packet is not HC5 expanded packet; forwarding to vanilla handler");
         g_OriginalHandleIncomingCharacterSyncPacket(self, outResult, transport, payload);
         return;
     }
@@ -391,10 +426,12 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
     if (ApplyExpandedPacketToRoster(packet)) {
         *reinterpret_cast<std::uint8_t*>(static_cast<std::uint8_t*>(self) + 0x29A5) = 1;
         SetResult(outResult, 0);
+        Core::Logger::Info("Handled HC5 expanded sync packet successfully");
         return;
     }
 
     *reinterpret_cast<std::uint32_t*>(Core::Memory::Va(kNetworkKickReasonGlobalRva)) = 0x0D;
+    Core::Logger::Error("Failed HC5 expanded sync packet; set kick reason 0x0D");
     SetResult(outResult, 1);
 }
 
@@ -405,6 +442,9 @@ bool InstallNetworkDetours() {
     g_OriginalHandleIncomingCharacterSyncPacket =
         reinterpret_cast<HandleIncomingCharacterSyncPacketFn>(
             NativeDB::NativeAddress(NativeDB::Natives::CC_HandleIncomingCharacterSyncPacket));
+    Core::Logger::Info("Installing network detours send=%p recv=%p",
+                       reinterpret_cast<void*>(g_OriginalSendInitialCharacterSyncPacket),
+                       reinterpret_cast<void*>(g_OriginalHandleIncomingCharacterSyncPacket));
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
@@ -415,10 +455,13 @@ bool InstallNetworkDetours() {
                               DetouredHandleIncomingCharacterSyncPacket);
     }
     if (result != NO_ERROR) {
+        Core::Logger::Error("InstallNetworkDetours failed result=%ld", result);
         DetourTransactionAbort();
         return false;
     }
-    return DetourTransactionCommit() == NO_ERROR;
+    const LONG commit = DetourTransactionCommit();
+    Core::Logger::Info("InstallNetworkDetours commit result=%ld", commit);
+    return commit == NO_ERROR;
 }
 
 } // namespace
@@ -463,6 +506,7 @@ bool CharacterSyncExpansion::NeedsExpandedLayout() {
 
 bool CharacterSyncExpansion::Install() {
     if (!NeedsExpandedLayout()) {
+        Core::Logger::Info("CharacterSyncExpansion skipped: expanded layout not needed");
         return true;
     }
 
@@ -482,6 +526,17 @@ bool CharacterSyncExpansion::Install() {
     // CC_SendInitialCharacterSyncPacket / CC_HandleIncomingCharacterSyncPacket are detoured
     // below so the expanded packet is heap-backed and never written into the vanilla stack
     // buffers. The wire body carries magic/version/addon-count/packet-size before the packet.
+    CharacterSyncPacketLayout layout = ExpandedLayout();
+    Core::Logger::Info("CharacterSyncExpansion install: packetSize=%u baseIds=0x%X playerMask=0x%X selectedWorkshop=0x%X primaryFlags=0x%X secondaryIds=0x%X perPlayerWorkshop=0x%X secondaryFlags=0x%X perPlayerFlags=0x%X",
+                       layout.packetSize,
+                       layout.primaryBaseIds,
+                       layout.playerMask,
+                       layout.selectedWorkshopIds,
+                       layout.primaryBaseFlags,
+                       layout.secondaryBaseIds,
+                       layout.perPlayerWorkshopIds,
+                       layout.secondaryBaseFlags,
+                       layout.perPlayerWorkshopFlags);
     return InstallNetworkDetours();
 }
 
@@ -489,6 +544,7 @@ bool CharacterSyncExpansion::Remove() {
     if (!g_OriginalSendInitialCharacterSyncPacket && !g_OriginalHandleIncomingCharacterSyncPacket) {
         return true;
     }
+    Core::Logger::Info("Removing CharacterSyncExpansion detours");
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
@@ -503,6 +559,7 @@ bool CharacterSyncExpansion::Remove() {
     DetourTransactionCommit();
     g_OriginalSendInitialCharacterSyncPacket = nullptr;
     g_OriginalHandleIncomingCharacterSyncPacket = nullptr;
+    Core::Logger::Info("CharacterSyncExpansion detours removed");
     return true;
 }
 

@@ -1,5 +1,6 @@
 #include "CharacterRegistry.h"
 
+#include "../Core/Logger.h"
 #include "../NativeDB/Classes.h"
 
 namespace HookCrashers::Characters {
@@ -11,13 +12,22 @@ Registry& Registry::Instance() {
 
 bool Registry::RegisterCharacter(const AddonCharacter& character) {
     if (character.name.empty()) {
+        Core::Logger::Error("Rejecting addon character with empty name");
         return false;
     }
     m_Addons.push_back(character);
+    Core::Logger::Info("Character registered: index=%d name='%s' weapon=%u pet=%u initiallyUnlocked=%d freshOnly=%d",
+                       FirstAddonIndex() + AddonCount() - 1,
+                       character.name.c_str(),
+                       character.startingWeapon,
+                       character.startingPet,
+                       character.initiallyUnlocked ? 1 : 0,
+                       character.freshOnly ? 1 : 0);
     return true;
 }
 
 void Registry::Clear() {
+    Core::Logger::Info("Clearing character registry (%d addons)", AddonCount());
     m_Addons.clear();
 }
 

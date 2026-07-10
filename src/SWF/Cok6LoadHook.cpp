@@ -2,6 +2,7 @@
 
 #include "InitSaveSystemBytecode.h"
 #include "SWFStructures.h"
+#include "../Core/Logger.h"
 #include "../NativeDB/Natives.h"
 #include <windows.h>
 #include <detours.h>
@@ -305,8 +306,15 @@ bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
         return false;
     }
 
+    Core::Logger::Info("Trying f_InitSaveSystem SWF patch for path='%s' scene=%p", swfPath.c_str(), scene);
+
     SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
     if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
+        Core::Logger::Warn("SWF patch skipped: invalid/compressed buffer path='%s' valid=%d compressed=%d fileLength=%u",
+                           swfPath.c_str(),
+                           view.valid ? 1 : 0,
+                           view.compressed ? 1 : 0,
+                           view.fileLength);
         return false;
     }
 
@@ -320,6 +328,7 @@ bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
     while (cursor < end) {
         Tag tag;
         if (!ReadTag(cursor, end, tag)) {
+            Core::Logger::Error("SWF tag parse failed while patching path='%s'", swfPath.c_str());
             return false;
         }
 
@@ -349,6 +358,7 @@ bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
     }
 
     if (patchedActions <= 0) {
+        Core::Logger::Warn("f_InitSaveSystem not found in path='%s'", swfPath.c_str());
         return false;
     }
 
@@ -361,12 +371,19 @@ bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
     auto owned = std::make_unique<std::vector<std::uint8_t>>(std::move(patched));
     scene->swfBuffer = owned->data();
     g_OwnedPatchedBuffers.push_back(std::move(owned));
+    Core::Logger::Info("Patched f_InitSaveSystem path='%s' patchedActions=%d newLength=%u",
+                       swfPath.c_str(),
+                       patchedActions,
+                       newLength);
     return true;
 }
 
 char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int pathObject, char flags) {
     const std::string previousPath = g_CurrentCok6Path;
     g_CurrentCok6Path = BestStringGuess(reinterpret_cast<int*>(pathObject));
+    if (!g_CurrentCok6Path.empty()) {
+        Core::Logger::Info("Loading COK6 path guess='%s'", g_CurrentCok6Path.c_str());
+    }
     char* result = g_OriginalSWFNodeCtorLoadCOK6(thisPtr, a2, pathObject, flags);
     g_CurrentCok6Path = previousPath;
     return result;
@@ -374,7 +391,10 @@ char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int p
 
 int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
-    TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
+    const bool patched = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
+    if (patched) {
+        Core::Logger::Info("SWFSceneParseHeader patched current COK6 path='%s'", g_CurrentCok6Path.c_str());
+    }
     return g_OriginalSWFSceneParseHeader(scene);
 }
 
@@ -382,6 +402,7 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 
 bool Cok6LoadHook::Install() {
     if (g_OriginalSWFSceneParseHeader || g_OriginalSWFNodeCtorLoadCOK6) {
+        Core::Logger::Info("Cok6LoadHook already installed");
         return true;
     }
 
@@ -389,6 +410,9 @@ bool Cok6LoadHook::Install() {
         reinterpret_cast<SWFSceneParseHeaderFn>(NativeDB::NativeAddress(NativeDB::Natives::CC_SWFSceneParseHeader));
     g_OriginalSWFNodeCtorLoadCOK6 =
         reinterpret_cast<SWFNodeCtorLoadCOK6Fn>(NativeDB::NativeAddress(NativeDB::Natives::CC_SWFNodeCtorLoadCOK6));
+    Core::Logger::Info("Installing Cok6LoadHook sceneParse=%p nodeCtor=%p",
+                       reinterpret_cast<void*>(g_OriginalSWFSceneParseHeader),
+                       reinterpret_cast<void*>(g_OriginalSWFNodeCtorLoadCOK6));
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
@@ -397,18 +421,22 @@ bool Cok6LoadHook::Install() {
         result = DetourAttach(reinterpret_cast<PVOID*>(&g_OriginalSWFSceneParseHeader), DetouredSWFSceneParseHeader);
     }
     if (result != NO_ERROR) {
+        Core::Logger::Error("Cok6LoadHook DetourAttach failed result=%ld", result);
         DetourTransactionAbort();
         g_OriginalSWFSceneParseHeader = nullptr;
         g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
         return false;
     }
-    return DetourTransactionCommit() == NO_ERROR;
+    const LONG commit = DetourTransactionCommit();
+    Core::Logger::Info("Cok6LoadHook commit result=%ld", commit);
+    return commit == NO_ERROR;
 }
 
 void Cok6LoadHook::Remove() {
     if (!g_OriginalSWFSceneParseHeader && !g_OriginalSWFNodeCtorLoadCOK6) {
         return;
     }
+    Core::Logger::Info("Removing Cok6LoadHook");
 
     DetourTransactionBegin();
     DetourUpdateThread(GetCurrentThread());
@@ -422,6 +450,7 @@ void Cok6LoadHook::Remove() {
     g_OriginalSWFSceneParseHeader = nullptr;
     g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
     g_CurrentCok6Path.clear();
+    Core::Logger::Info("Cok6LoadHook removed");
 }
 
 } // namespace HookCrashers::SWF

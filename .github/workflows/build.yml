@@ -25,6 +25,11 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/microsoft/Detours.git External/detours
 
+      - name: Checkout Dear ImGui
+        shell: pwsh
+        run: |
+          git clone --depth 1 https://github.com/ocornut/imgui.git External/imgui
+
       - name: Build Detours x86
         shell: cmd
         run: |
