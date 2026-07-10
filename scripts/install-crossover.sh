@@ -73,6 +73,7 @@ find "$TARGET_DIR/mods" -name .DS_Store -type f -delete
 
 echo "Ensuring Wine loads local dinput8.dll..."
 /usr/bin/ruby -e 'path=ARGV[0]; text=File.read(path); section="[Software\\\\Wine\\\\DllOverrides]"; line="\"dinput8\"=\"native,builtin\""; if text.include?(line); exit 0; end; index=text.index(section); abort "DllOverrides section not found" unless index; insert_at=text.index("\n", index); abort "DllOverrides section header malformed" unless insert_at; text.insert(insert_at + 1, line + "\n"); File.write(path, text)' "$USER_REG"
+/usr/bin/ruby -e 'path=ARGV[0]; text=File.read(path); section="[Software\\\\Wine\\\\AppDefaults\\\\castle.exe\\\\DllOverrides]"; line="\"dinput8\"=\"native,builtin\""; if text.include?(section); start=text.index(section); following=text[start..]; block=following.lines.take_while.with_index { |value, index| index == 0 || !value.start_with?("[") }; unless block.any? { |value| value.strip == line }; insert_at=text.index("\n", start); text.insert(insert_at + 1, line + "\n"); end; else; marker="[Software\\\\Wine\\\\DllOverrides]"; index=text.index(marker) || text.length; text.insert(index, "#{section} 1783711442\n#time=1dd10a1aa95e999\n#{line}\n\n"); end; File.write(path, text)' "$USER_REG"
 
 echo "Done."
 echo "Log will be written by the game to: $TARGET_DIR/HookCrashers.log"
