@@ -105,7 +105,7 @@ std::vector<std::uint8_t> BuildInitSaveSystemBytecode() {
     EmitSetMemberInt(out, objectName, "num_relics", 8);
     EmitSetMemberInt(out, objectName, "num_items_expansion", 64);
     EmitSetMemberInt(out, objectName, "num_characters_legacy", registry.ClassicVisibleCount());
-    EmitSetMemberInt(out, objectName, "num_characters_noaddons", registry.NetworkBaseCount());
+    EmitSetMemberInt(out, objectName, "num_characters_noaddons", static_cast<int>(NativeDB::kVanillaBaseCharacterCount));
     EmitSetMemberInt(out, objectName, "num_characters_safe", registry.SaveCharacterSlotCount());
     EmitSetMemberInt(out, objectName, "num_character_addons", registry.AddonCount());
     EmitSetMemberInt(out, objectName, "num_characters", registry.NetworkTotalCount());
