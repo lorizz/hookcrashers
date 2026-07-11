@@ -22,7 +22,6 @@ constexpr std::uint32_t kWorkshopEntries = kWorkshopEntriesPerPlayer * kMaxLocal
 constexpr std::uint32_t kCharacterIdBytes = 8;
 constexpr std::uintptr_t kLobbyManagerGlobalRva = 0x3912B8;
 constexpr std::uintptr_t kCharacterRuntimeBaseArrayOffset = 0x11AC;
-constexpr std::uintptr_t kWorkshopRuntimeArrayOffset = 0x122C;
 constexpr std::uintptr_t kNetworkKickReasonGlobalRva = 0x260E94;
 constexpr std::uint8_t kCharacterSyncMessageType = 0x0D;
 constexpr std::uint16_t kHookCrashersSyncVersion = 5;
@@ -190,14 +189,17 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
         NativeDB::NativeAddress(NativeDB::Natives::CC_ResolveCharacterSkinRuntime));
     auto* characterRuntimeArray = reinterpret_cast<void**>(
         static_cast<std::uint8_t*>(lobbyManager) + kCharacterRuntimeBaseArrayOffset);
+    const std::uintptr_t workshopRuntimeArrayOffset =
+        kCharacterRuntimeBaseArrayOffset + static_cast<std::uintptr_t>(registry.NetworkBaseCount()) * sizeof(void*);
     auto* workshopRuntimeArray = reinterpret_cast<void**>(
-        static_cast<std::uint8_t*>(lobbyManager) + kWorkshopRuntimeArrayOffset);
+        static_cast<std::uint8_t*>(lobbyManager) + workshopRuntimeArrayOffset);
 
     const int baseCount = registry.NetworkBaseCount();
-    Core::Logger::Info("Building expanded character sync packet: baseCount=%d totalCount=%d packetSize=%u",
+    Core::Logger::Info("Building expanded character sync packet: baseCount=%d totalCount=%d packetSize=%u workshopRuntimeOffset=0x%X",
                        baseCount,
                        registry.NetworkTotalCount(),
-                       packet.layout.packetSize);
+                       packet.layout.packetSize,
+                       static_cast<unsigned int>(workshopRuntimeArrayOffset));
     for (int baseIndex = 0; baseIndex < baseCount; ++baseIndex) {
         const int networkIndex = baseIndex + 1;
         WriteRuntimeCharacterId(packet.bytes.data(),

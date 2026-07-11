@@ -7,7 +7,7 @@ ASSET="${HOOKCRASHERS_ASSET:-HookCrashers-v5-dropin.zip}"
 PDB_ASSET="${HOOKCRASHERS_PDB_ASSET:-HookCrashers.pdb}"
 TARGET_DIR="${HOOKCRASHERS_TARGET_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers/drive_c/Program Files (x86)/Steam/steamapps/common/CastleCrashers}"
 BOTTLE_DIR="${HOOKCRASHERS_BOTTLE_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers}"
-RESET_SAVE="${HOOKCRASHERS_RESET_SAVE:-1}"
+RESET_SAVE="${HOOKCRASHERS_RESET_SAVE:-0}"
 
 WORK_DIR="$(mktemp -d /tmp/hookcrashers-install.XXXXXX)"
 cleanup() {
