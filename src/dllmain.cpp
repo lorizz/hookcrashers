@@ -4,6 +4,7 @@
 
 #include "Characters/CharacterExpansion.h"
 #include "Characters/CharacterRegistry.h"
+#include "Core/Config.h"
 #include "Core/CrashHandler.h"
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
@@ -11,6 +12,7 @@
 #include "Save/SaveLayoutGuard.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
+#include "Updater/AutoUpdater.h"
 
 namespace {
 
@@ -45,6 +47,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
+    const HookCrashers::Core::Config::RuntimeConfig config =
+        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
+    HookCrashers::Updater::AutoUpdater::CheckForUpdates(HookCrashers::Core::Logger::ModuleDirectory(), config);
     HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));

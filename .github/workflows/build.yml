@@ -3,15 +3,20 @@ name: Build HookCrashers ASI
 on:
   push:
     branches:
-      - v5
-      - main
+      - "**"
   pull_request:
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     name: Windows x86 ASI
     runs-on: windows-2022
+    env:
+      HC_CHANNEL: ${{ github.event_name == 'push' && github.ref_name == 'main' && 'release' || 'dev' }}
+      HC_VERSION: ${{ github.event_name == 'push' && github.ref_name == 'main' && format('5.0.{0}', github.run_number) || format('5.0.{0}-dev', github.run_number) }}
 
     steps:
       - name: Checkout
@@ -41,7 +46,7 @@ jobs:
       - name: Build HookCrashers
         shell: cmd
         run: |
-          msbuild HookCrashers.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143
+          msbuild HookCrashers.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 /p:HookCrashersVersion=%HC_VERSION% /p:HookCrashersChannel=%HC_CHANNEL%
 
       - name: Package v5 drop-in build
         shell: pwsh
@@ -51,6 +56,11 @@ jobs:
           Copy-Item Release/HookCrashers.asi dist/HookCrashers.asi
           Copy-Item Release/HookCrashers.pdb dist/HookCrashers.pdb
           Copy-Item examples/mods/TestAddon dist/mods/TestAddon -Recurse
+          @"
+          updates_enabled: true
+          channel: stable
+          testing_key: ""
+          "@ | Set-Content -Encoding ascii dist/HookCrashers.yaml
 
           gh release download v9.7.2 `
             --repo ThirteenAG/Ultimate-ASI-Loader `
@@ -60,7 +70,7 @@ jobs:
           Expand-Archive External/ultimate-asi-loader/Ultimate-ASI-Loader.zip External/ultimate-asi-loader/x86 -Force
           Copy-Item External/ultimate-asi-loader/x86/dinput8.dll dist/dinput8.dll
 
-          Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
+          Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/HookCrashers.yaml,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
 
       - name: Upload ASI artifact
         uses: actions/upload-artifact@v4
@@ -70,6 +80,98 @@ jobs:
             dist/HookCrashers.asi
             dist/HookCrashers.pdb
             dist/dinput8.dll
+            dist/HookCrashers.yaml
             dist/mods/**
             HookCrashers-v5-dropin.zip
           if-no-files-found: error
+
+  publish-channel:
+    name: Publish update channel
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'push'
+    env:
+      HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
+      HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
+      HC_VERSION: ${{ github.ref_name == 'main' && format('5.0.{0}', github.run_number) || format('5.0.{0}-dev', github.run_number) }}
+      RELEASES_REPO: lorizz/hookcrashers-releases
+    steps:
+      - name: Checkout private source
+        uses: actions/checkout@v4
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: HookCrashers-v5-win32
+          path: artifact
+
+      - name: Prepare release notes
+        shell: bash
+        run: |
+          {
+            echo "HookCrashers ${HC_VERSION}"
+            echo
+            echo "Branch: ${GITHUB_REF_NAME}"
+            echo "Commit: ${GITHUB_SHA}"
+            echo
+            awk '/^## /{ if (seen) exit; seen=1; next } seen { print }' CHANGELOG.md
+          } > release-notes.md
+
+      - name: Publish private channel release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release delete "${HC_CHANNEL}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
+          gh release create "${HC_CHANNEL}" \
+            artifact/HookCrashers-v5-dropin.zip \
+            artifact/dist/HookCrashers.asi \
+            artifact/dist/HookCrashers.pdb \
+            artifact/dist/dinput8.dll \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "HookCrashers ${HC_CHANNEL} ${HC_VERSION}" \
+            --notes-file release-notes.md \
+            --latest=false
+
+      - name: Publish public release mirror
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
+        run: |
+          test -n "${GH_TOKEN}"
+          gh release delete "${HC_CHANNEL}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
+          gh release create "${HC_CHANNEL}" \
+            artifact/HookCrashers-v5-dropin.zip \
+            artifact/dist/HookCrashers.asi \
+            artifact/dist/dinput8.dll \
+            --repo "${RELEASES_REPO}" \
+            --title "HookCrashers ${HC_CHANNEL} ${HC_VERSION}" \
+            --notes-file release-notes.md \
+            --latest=false
+
+      - name: Update public channel manifest
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
+        run: |
+          test -n "${GH_TOKEN}"
+          rm -rf releases-repo
+          gh repo clone "${RELEASES_REPO}" releases-repo
+          cd releases-repo
+          cat > "${HC_MANIFEST}" <<EOF
+          {
+            "name": "HookCrashers",
+            "channel": "${HC_CHANNEL}",
+            "version": "${HC_VERSION}",
+            "commit": "${GITHUB_SHA}",
+            "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers.asi",
+            "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers-v5-dropin.zip",
+            "notes": "See the ${HC_CHANNEL} release page for patch notes."
+          }
+          EOF
+          cp ../release-notes.md "${HC_CHANNEL}-patch-notes.md"
+          git config user.name "HookCrashers Bot"
+          git config user.email "hookcrashers-bot@users.noreply.github.com"
+          git add "${HC_MANIFEST}" "${HC_CHANNEL}-patch-notes.md"
+          git commit -m "Update ${HC_CHANNEL} channel to ${HC_VERSION}" || exit 0
+          git push

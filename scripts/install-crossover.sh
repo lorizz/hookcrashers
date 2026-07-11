@@ -66,7 +66,7 @@ fi
 echo "Extracting..."
 unzip -q "$WORK_DIR/download/$ASSET" -d "$WORK_DIR/extract"
 
-for required in HookCrashers.asi dinput8.dll mods; do
+for required in HookCrashers.asi dinput8.dll HookCrashers.yaml mods; do
     if [[ ! -e "$WORK_DIR/extract/$required" ]]; then
         echo "error: package is missing $required" >&2
         exit 1
@@ -78,6 +78,13 @@ cp "$WORK_DIR/extract/HookCrashers.asi" "$TARGET_DIR/HookCrashers.asi"
 
 echo "Installing dinput8.dll..."
 cp "$WORK_DIR/extract/dinput8.dll" "$TARGET_DIR/dinput8.dll"
+
+if [[ ! -f "$TARGET_DIR/HookCrashers.yaml" ]]; then
+    echo "Installing HookCrashers.yaml..."
+    cp "$WORK_DIR/extract/HookCrashers.yaml" "$TARGET_DIR/HookCrashers.yaml"
+else
+    echo "Keeping existing HookCrashers.yaml..."
+fi
 
 if [[ -f "$WORK_DIR/download/$PDB_ASSET" ]]; then
     echo "Installing HookCrashers.pdb..."

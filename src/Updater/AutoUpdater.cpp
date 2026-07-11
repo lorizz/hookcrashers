@@ -1,0 +1,314 @@
+#include "AutoUpdater.h"
+
+#include "../Core/Logger.h"
+#include "../Core/Version.h"
+
+#include <windows.h>
+#include <bcrypt.h>
+#include <shlwapi.h>
+#include <urlmon.h>
+#include <wininet.h>
+#include <algorithm>
+#include <array>
+#include <cctype>
+#include <cstdio>
+#include <fstream>
+#include <sstream>
+#include <string>
+#include <vector>
+
+#pragma comment(lib, "bcrypt.lib")
+#pragma comment(lib, "shlwapi.lib")
+#pragma comment(lib, "urlmon.lib")
+#pragma comment(lib, "wininet.lib")
+
+namespace HookCrashers::Updater::AutoUpdater {
+namespace {
+
+extern "C" IMAGE_DOS_HEADER __ImageBase;
+
+constexpr const char* kTestingKeySalt = "HookCrashers-v5-testing-channel";
+constexpr const char* kTestingKeySha256 = "59d7ced9b9ee137471369a11dcc86371e9b53acfd5aed1df094ea305038f34d9";
+
+struct UpdateManifest {
+    std::string version;
+    std::string channel;
+    std::string assetUrl;
+    std::string notes;
+};
+
+std::string JoinPath(const std::string& a, const std::string& b) {
+    if (a.empty()) {
+        return b;
+    }
+    if (a.back() == '\\' || a.back() == '/') {
+        return a + b;
+    }
+    return a + "\\" + b;
+}
+
+std::string ToLower(std::string value) {
+    std::transform(value.begin(), value.end(), value.begin(), [](unsigned char ch) {
+        return static_cast<char>(std::tolower(ch));
+    });
+    return value;
+}
+
+std::string BytesToHex(const std::vector<unsigned char>& bytes) {
+    static constexpr char kHex[] = "0123456789abcdef";
+    std::string result;
+    result.reserve(bytes.size() * 2);
+    for (unsigned char byte : bytes) {
+        result.push_back(kHex[byte >> 4]);
+        result.push_back(kHex[byte & 0x0F]);
+    }
+    return result;
+}
+
+bool Sha256Hex(const std::string& text, std::string& out) {
+    BCRYPT_ALG_HANDLE algorithm = nullptr;
+    BCRYPT_HASH_HANDLE hash = nullptr;
+    DWORD objectLength = 0;
+    DWORD dataLength = 0;
+    std::vector<unsigned char> object;
+    std::vector<unsigned char> digest(32);
+
+    if (BCryptOpenAlgorithmProvider(&algorithm, BCRYPT_SHA256_ALGORITHM, nullptr, 0) != 0) {
+        return false;
+    }
+
+    bool ok = false;
+    if (BCryptGetProperty(algorithm,
+                          BCRYPT_OBJECT_LENGTH,
+                          reinterpret_cast<PUCHAR>(&objectLength),
+                          sizeof(objectLength),
+                          &dataLength,
+                          0) == 0) {
+        object.resize(objectLength);
+        if (BCryptCreateHash(algorithm, &hash, object.data(), objectLength, nullptr, 0, 0) == 0) {
+            if (BCryptHashData(hash,
+                               reinterpret_cast<PUCHAR>(const_cast<char*>(text.data())),
+                               static_cast<ULONG>(text.size()),
+                               0) == 0 &&
+                BCryptFinishHash(hash, digest.data(), static_cast<ULONG>(digest.size()), 0) == 0) {
+                out = BytesToHex(digest);
+                ok = true;
+            }
+        }
+    }
+
+    if (hash) {
+        BCryptDestroyHash(hash);
+    }
+    BCryptCloseAlgorithmProvider(algorithm, 0);
+    return ok;
+}
+
+bool IsTestingKeyValid(const std::string& key) {
+    if (key.empty()) {
+        return false;
+    }
+
+    std::string digest;
+    if (!Sha256Hex(std::string(kTestingKeySalt) + key, digest)) {
+        Core::Logger::Warn("Failed to hash testing update key");
+        return false;
+    }
+    return digest == kTestingKeySha256;
+}
+
+std::string HttpGetText(const char* url) {
+    HINTERNET internet = InternetOpenA("HookCrashers/5", INTERNET_OPEN_TYPE_PRECONFIG, nullptr, nullptr, 0);
+    if (!internet) {
+        return {};
+    }
+
+    HINTERNET request = InternetOpenUrlA(internet,
+                                         url,
+                                         nullptr,
+                                         0,
+                                         INTERNET_FLAG_RELOAD | INTERNET_FLAG_NO_CACHE_WRITE,
+                                         0);
+    if (!request) {
+        InternetCloseHandle(internet);
+        return {};
+    }
+
+    std::string result;
+    std::array<char, 4096> buffer {};
+    DWORD bytesRead = 0;
+    while (InternetReadFile(request, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead) && bytesRead != 0) {
+        result.append(buffer.data(), bytesRead);
+    }
+
+    InternetCloseHandle(request);
+    InternetCloseHandle(internet);
+    return result;
+}
+
+std::string JsonStringValue(const std::string& json, const char* key) {
+    const std::string quotedKey = std::string("\"") + key + "\"";
+    std::size_t keyPos = json.find(quotedKey);
+    if (keyPos == std::string::npos) {
+        return {};
+    }
+    std::size_t colon = json.find(':', keyPos + quotedKey.size());
+    if (colon == std::string::npos) {
+        return {};
+    }
+    std::size_t start = json.find('"', colon + 1);
+    if (start == std::string::npos) {
+        return {};
+    }
+
+    std::string value;
+    bool escape = false;
+    for (std::size_t i = start + 1; i < json.size(); ++i) {
+        const char ch = json[i];
+        if (escape) {
+            value.push_back(ch);
+            escape = false;
+            continue;
+        }
+        if (ch == '\\') {
+            escape = true;
+            continue;
+        }
+        if (ch == '"') {
+            return value;
+        }
+        value.push_back(ch);
+    }
+    return {};
+}
+
+bool ParseManifest(const std::string& json, UpdateManifest& manifest) {
+    manifest.version = JsonStringValue(json, "version");
+    manifest.channel = JsonStringValue(json, "channel");
+    manifest.assetUrl = JsonStringValue(json, "asset_url");
+    manifest.notes = JsonStringValue(json, "notes");
+    return !manifest.version.empty() && !manifest.assetUrl.empty();
+}
+
+bool IsNewerVersion(const std::string& current, const std::string& remote) {
+    return !remote.empty() && remote != current;
+}
+
+bool DownloadFile(const std::string& url, const std::string& destination) {
+    HRESULT result = URLDownloadToFileA(nullptr, url.c_str(), destination.c_str(), 0, nullptr);
+    return SUCCEEDED(result);
+}
+
+bool WriteUpdaterScript(const std::string& moduleDirectory,
+                        const std::string& downloadedAsi,
+                        const std::string& currentAsi,
+                        std::string& scriptPath) {
+    scriptPath = JoinPath(moduleDirectory, "HookCrashersApplyUpdate.cmd");
+    std::ofstream script(scriptPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!script) {
+        return false;
+    }
+
+    const DWORD pid = GetCurrentProcessId();
+    script << "@echo off\r\n";
+    script << "setlocal\r\n";
+    script << ":wait\r\n";
+    script << "tasklist /FI \"PID eq " << pid << "\" | find \"" << pid << "\" >NUL\r\n";
+    script << "if not errorlevel 1 (\r\n";
+    script << "  timeout /t 1 /nobreak >NUL\r\n";
+    script << "  goto wait\r\n";
+    script << ")\r\n";
+    script << "copy /Y \"" << downloadedAsi << "\" \"" << currentAsi << "\" >NUL\r\n";
+    script << "del \"" << downloadedAsi << "\" >NUL 2>NUL\r\n";
+    script << "del \"%~f0\" >NUL 2>NUL\r\n";
+    return true;
+}
+
+void PromptAndInstall(const std::string& moduleDirectory, const UpdateManifest& manifest) {
+    char message[1024] {};
+    std::snprintf(message,
+                  sizeof(message),
+                  "A new HookCrashers update has been released.\n\n"
+                  "Current version: %s\n"
+                  "New version: %s\n"
+                  "Channel: %s\n\n"
+                  "%s\n\n"
+                  "Download and install it now?\n"
+                  "Castle Crashers will close so HookCrashers.asi can be replaced.",
+                  Core::Version::kVersion,
+                  manifest.version.c_str(),
+                  manifest.channel.empty() ? "unknown" : manifest.channel.c_str(),
+                  manifest.notes.empty() ? "No patch notes were provided." : manifest.notes.c_str());
+
+    const int choice = MessageBoxA(nullptr, message, "HookCrashers Update", MB_ICONINFORMATION | MB_YESNO);
+    if (choice != IDYES) {
+        Core::Logger::Info("User skipped HookCrashers update version=%s", manifest.version.c_str());
+        return;
+    }
+
+    const std::string downloadedAsi = JoinPath(moduleDirectory, "HookCrashers.asi.update");
+    if (!DownloadFile(manifest.assetUrl, downloadedAsi)) {
+        MessageBoxA(nullptr, "HookCrashers failed to download the update.", "HookCrashers Update", MB_ICONERROR | MB_OK);
+        Core::Logger::Error("Failed to download update asset '%s'", manifest.assetUrl.c_str());
+        return;
+    }
+
+    std::string modulePath(MAX_PATH, '\0');
+    DWORD written = GetModuleFileNameA(reinterpret_cast<HMODULE>(&__ImageBase), &modulePath[0], static_cast<DWORD>(modulePath.size()));
+    if (written == 0) {
+        modulePath = JoinPath(moduleDirectory, "HookCrashers.asi");
+    } else {
+        modulePath.resize(written);
+    }
+
+    std::string scriptPath;
+    if (!WriteUpdaterScript(moduleDirectory, downloadedAsi, modulePath, scriptPath)) {
+        MessageBoxA(nullptr, "HookCrashers downloaded the update but failed to create the updater script.", "HookCrashers Update", MB_ICONERROR | MB_OK);
+        Core::Logger::Error("Failed to write updater script");
+        return;
+    }
+
+    ShellExecuteA(nullptr, "open", scriptPath.c_str(), nullptr, moduleDirectory.c_str(), SW_HIDE);
+    Core::Logger::Info("Update script launched; exiting process for replacement");
+    ExitProcess(0);
+}
+
+} // namespace
+
+void CheckForUpdates(const std::string& moduleDirectory, const Core::Config::RuntimeConfig& config) {
+    if (!config.updatesEnabled) {
+        Core::Logger::Info("AutoUpdater skipped: updates disabled");
+        return;
+    }
+
+    Core::Config::UpdateChannel channel = config.channel;
+    if (channel == Core::Config::UpdateChannel::Testing && !IsTestingKeyValid(config.testingKey)) {
+        Core::Logger::Warn("Testing update channel requested with invalid key; falling back to stable");
+        channel = Core::Config::UpdateChannel::Stable;
+    }
+
+    const char* manifestUrl = channel == Core::Config::UpdateChannel::Testing
+        ? Core::Version::kTestingManifestUrl
+        : Core::Version::kStableManifestUrl;
+
+    Core::Logger::Info("Checking updates: current=%s channel=%s manifest=%s",
+                       Core::Version::kVersion,
+                       Core::Config::ChannelName(channel),
+                       manifestUrl);
+
+    UpdateManifest manifest {};
+    const std::string json = HttpGetText(manifestUrl);
+    if (json.empty() || !ParseManifest(json, manifest)) {
+        Core::Logger::Warn("AutoUpdater could not read update manifest");
+        return;
+    }
+
+    if (!IsNewerVersion(Core::Version::kVersion, manifest.version)) {
+        Core::Logger::Info("HookCrashers is up to date: %s", Core::Version::kVersion);
+        return;
+    }
+
+    PromptAndInstall(moduleDirectory, manifest);
+}
+
+} // namespace HookCrashers::Updater::AutoUpdater
