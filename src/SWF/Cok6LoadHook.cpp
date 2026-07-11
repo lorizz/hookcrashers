@@ -9,14 +9,20 @@
 #include <detours.h>
 #include <algorithm>
 #include <cctype>
+#include <cstdio>
 #include <cstdint>
 #include <cstring>
+#include <fstream>
 #include <memory>
 #include <string>
 #include <vector>
 
 namespace HookCrashers::SWF {
 namespace {
+
+#ifndef HC_ENABLE_LOBBY_COK6_RUNTIME_DUMP
+#define HC_ENABLE_LOBBY_COK6_RUNTIME_DUMP 1
+#endif
 
 constexpr std::uint16_t kTagEnd = 0;
 constexpr std::uint16_t kTagDoAction = 12;
@@ -36,6 +42,7 @@ SWFSceneParseHeaderFn g_OriginalSWFSceneParseHeader = nullptr;
 SWFNodeCtorLoadCOK6Fn g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
 thread_local std::string g_CurrentCok6Path;
 std::vector<std::unique_ptr<std::vector<std::uint8_t>>> g_OwnedPatchedBuffers;
+volatile LONG g_LobbyRuntimeDumpIndex = 0;
 
 struct Tag {
     const std::uint8_t* begin = nullptr;
@@ -208,6 +215,151 @@ bool PathContainsLobby(std::string path) {
     std::transform(path.begin(), path.end(), path.begin(),
         [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
     return path.find("lobby") != std::string::npos;
+}
+
+std::string RuntimeDumpDirectory() {
+    return Core::Logger::ModuleDirectory() + "\\diagnostics\\swf_runtime";
+}
+
+void EnsureDirectoryExists(const std::string& path) {
+    if (path.empty()) {
+        return;
+    }
+
+    std::string partial;
+    partial.reserve(path.size());
+    for (char ch : path) {
+        partial.push_back(ch);
+        if (ch == '\\' || ch == '/') {
+            if (partial.size() > 3) {
+                CreateDirectoryA(partial.c_str(), nullptr);
+            }
+        }
+    }
+    CreateDirectoryA(path.c_str(), nullptr);
+}
+
+void WriteTextFile(const std::string& path, const std::string& text) {
+    std::ofstream file(path, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!file) {
+        Core::Logger::Error("Lobby runtime dump failed to write text '%s'", path.c_str());
+        return;
+    }
+    file.write(text.data(), static_cast<std::streamsize>(text.size()));
+}
+
+std::string BuildTagSummary(const SWFBufferView& view) {
+    char line[256] {};
+    std::string text;
+    std::snprintf(line,
+                  sizeof(line),
+                  "signature=%c%c%c version=%u length=%u headerSize=%u frameCount=%u frameRateRaw=0x%04X compressed=%d\n",
+                  view.header ? view.header->signature[0] : '?',
+                  view.header ? view.header->signature[1] : '?',
+                  view.header ? view.header->signature[2] : '?',
+                  view.header ? static_cast<unsigned>(view.header->version) : 0,
+                  static_cast<unsigned>(view.fileLength),
+                  static_cast<unsigned>(view.headerSize),
+                  static_cast<unsigned>(view.parsedFrameCount),
+                  static_cast<unsigned>(view.parsedFrameRateRaw),
+                  view.compressed ? 1 : 0);
+    text += line;
+
+    if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
+        text += "tags=unavailable\n";
+        return text;
+    }
+
+    const std::uint8_t* cursor = view.tags;
+    const std::uint8_t* end = view.base + view.fileLength;
+    int index = 0;
+    int tag142Count = 0;
+    int tag148Count = 0;
+    while (cursor < end) {
+        Tag tag;
+        if (!ReadTag(cursor, end, tag)) {
+            std::snprintf(line, sizeof(line), "tag[%d]=parse_error offset=0x%08X\n", index, static_cast<unsigned>(cursor - view.base));
+            text += line;
+            break;
+        }
+
+        if (tag.code == 142) {
+            ++tag142Count;
+        } else if (tag.code == 148) {
+            ++tag148Count;
+        }
+
+        if (tag.code == 142 || tag.code == 148 || tag.code == kTagDefineSprite || tag.code == kTagDoAction || tag.code == kTagDoInitAction) {
+            std::snprintf(line,
+                          sizeof(line),
+                          "tag[%d] code=%u offset=0x%08X payload=0x%08X length=%u\n",
+                          index,
+                          static_cast<unsigned>(tag.code),
+                          static_cast<unsigned>(tag.begin - view.base),
+                          static_cast<unsigned>(tag.payload - view.base),
+                          static_cast<unsigned>(tag.length));
+            text += line;
+        }
+
+        cursor = tag.next;
+        ++index;
+        if (tag.code == kTagEnd) {
+            break;
+        }
+    }
+
+    std::snprintf(line, sizeof(line), "tag_count=%d castle_tag142=%d castle_tag148=%d\n", index, tag142Count, tag148Count);
+    text += line;
+    return text;
+}
+
+void DumpLobbyRuntimeCok6(SWFScene* scene, const std::string& swfPath, const char* stage) {
+#if HC_ENABLE_LOBBY_COK6_RUNTIME_DUMP
+    if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath)) {
+        return;
+    }
+
+    SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+    if (!view.valid || view.fileLength == 0 || view.fileLength > 64u * 1024u * 1024u) {
+        Core::Logger::Warn("Lobby runtime dump skipped stage='%s' valid=%d length=%u path='%s'",
+                           stage ? stage : "?",
+                           view.valid ? 1 : 0,
+                           static_cast<unsigned>(view.fileLength),
+                           swfPath.c_str());
+        return;
+    }
+
+    const LONG dumpIndex = InterlockedIncrement(&g_LobbyRuntimeDumpIndex);
+    const std::string directory = RuntimeDumpDirectory();
+    EnsureDirectoryExists(directory);
+
+    char baseName[96] {};
+    std::snprintf(baseName, sizeof(baseName), "lobby_runtime_%03ld_%s", dumpIndex, stage ? stage : "unknown");
+    const std::string swfOutPath = directory + "\\" + baseName + ".swf";
+    const std::string txtOutPath = directory + "\\" + baseName + ".txt";
+
+    std::ofstream swfOut(swfOutPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!swfOut) {
+        Core::Logger::Error("Lobby runtime dump failed to open '%s'", swfOutPath.c_str());
+        return;
+    }
+    swfOut.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(view.fileLength));
+    swfOut.close();
+
+    std::string summary = "path=" + swfPath + "\n";
+    summary += "stage=" + std::string(stage ? stage : "unknown") + "\n";
+    summary += BuildTagSummary(view);
+    WriteTextFile(txtOutPath, summary);
+
+    Core::Logger::Warn("Diagnostic lobby.cok6 runtime dump wrote '%s' bytes=%u summary='%s'",
+                       swfOutPath.c_str(),
+                       static_cast<unsigned>(view.fileLength),
+                       txtOutPath.c_str());
+#else
+    (void)scene;
+    (void)swfPath;
+    (void)stage;
+#endif
 }
 
 std::vector<std::uint8_t> BuildDefineInitSaveSystemAction() {
@@ -589,8 +741,12 @@ char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int p
 
 int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
+    DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "before_patch");
     const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
     const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path);
+    if (patchedLobby) {
+        DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "after_patch");
+    }
     const bool patched = patchedSave || patchedLobby;
     if (patched) {
         Core::Logger::Info("SWFSceneParseHeader patched current COK6 path='%s'", g_CurrentCok6Path.c_str());
