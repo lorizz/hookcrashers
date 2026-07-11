@@ -138,7 +138,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
         run: |
-          test -n "${GH_TOKEN}"
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public release mirror"
+            exit 0
+          fi
           gh release delete "${HC_CHANNEL}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
           gh release create "${HC_CHANNEL}" \
             artifact/HookCrashers-v5-dropin.zip \
@@ -154,7 +157,10 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
         run: |
-          test -n "${GH_TOKEN}"
+          if [ -z "${GH_TOKEN}" ]; then
+            echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public channel manifest"
+            exit 0
+          fi
           rm -rf releases-repo
           gh repo clone "${RELEASES_REPO}" releases-repo
           cd releases-repo
