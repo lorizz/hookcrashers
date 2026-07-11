@@ -164,7 +164,10 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU32(0x13E18B + 3, keybindsOffset) && ok;
     ok = Core::Memory::WriteU32(0x12EDB6, 0x832 + addonBytes) && ok;
     ok = Core::Memory::WriteU32(0x12EDBF, 0x832 + addonBytes) && ok;
-    ok = Core::Memory::WriteU32(0x12ED84, 0x821 + addonBytes) && ok;
+    // CC_SanitizeCharacterSaveSlots stops when its level-offset iterator passes
+    // the keybind area. The limit must be the keybind offset itself: with one
+    // addon the final workshop slot starts at 0x820 and keybinds start at 0x850.
+    ok = Core::Memory::WriteU32(0x12ED84, keybindsOffset) && ok;
     ok = Core::Memory::WriteU8(0x12F1BE, saveSlotCount) && ok;
 
     // Lobby character table and classic/fresh/workshop boundaries.

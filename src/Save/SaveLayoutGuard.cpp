@@ -17,7 +17,7 @@
 namespace HookCrashers::Save::SaveLayoutGuard {
 namespace {
 
-constexpr int kSaveLayoutVersion = 2;
+constexpr int kSaveLayoutVersion = 3;
 
 std::string TrimTrailingSlash(std::string path) {
     while (!path.empty() && (path.back() == '\\' || path.back() == '/')) {
