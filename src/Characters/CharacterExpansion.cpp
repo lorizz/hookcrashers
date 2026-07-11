@@ -199,6 +199,7 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU8(0x8D5F4, pastLastNetworkId) && ok;
     ok = Core::Memory::WriteU8(0x8D5FB, pastLastNetworkId) && ok;
     ok = Core::Memory::WriteU8(0x8D23C, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8D266, -networkBase) && ok;
     ok = Core::Memory::WriteU8(0x8D26C, firstWorkshopId) && ok;
 
     // Addon display names and workshop name fallback ranges.
