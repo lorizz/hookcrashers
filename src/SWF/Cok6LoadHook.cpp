@@ -2,6 +2,7 @@
 
 #include "InitSaveSystemBytecode.h"
 #include "SWFStructures.h"
+#include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
 #include "../NativeDB/Natives.h"
 #include <windows.h>
@@ -20,8 +21,13 @@ namespace {
 constexpr std::uint16_t kTagEnd = 0;
 constexpr std::uint16_t kTagDoAction = 12;
 constexpr std::uint16_t kTagDoInitAction = 59;
+constexpr std::uint16_t kTagShowFrame = 1;
+constexpr std::uint16_t kTagDefineSprite = 39;
 constexpr std::uint8_t kActionEnd = 0x00;
 constexpr std::uint8_t kActionDefineFunction = 0x9B;
+constexpr std::uint16_t kLobbyPortraitSpriteId = 180;
+constexpr int kClassicCloneSourceFrame = 34;
+constexpr int kFreshCloneSourceFrame = 135;
 
 using SWFSceneParseHeaderFn = int(__thiscall*)(int scene);
 using SWFNodeCtorLoadCOK6Fn = char*(__thiscall*)(char* thisPtr, int a2, int pathObject, char flags);
@@ -198,6 +204,12 @@ bool PathContainsMain(std::string path) {
     return path.find("main") != std::string::npos;
 }
 
+bool PathContainsLobby(std::string path) {
+    std::transform(path.begin(), path.end(), path.begin(),
+        [](unsigned char ch) { return static_cast<char>(std::tolower(ch)); });
+    return path.find("lobby") != std::string::npos;
+}
+
 std::vector<std::uint8_t> BuildDefineInitSaveSystemAction() {
     const std::vector<std::uint8_t> body = BuildInitSaveSystemBytecode();
     constexpr const char* kName = "f_InitSaveSystem";
@@ -301,6 +313,192 @@ bool PatchInitSaveSystemActions(const std::uint8_t* actions, std::uint32_t lengt
     return patchedCount > 0;
 }
 
+struct SpriteFrame {
+    std::vector<std::uint8_t> bytes;
+};
+
+bool ReadSpriteFrames(const std::uint8_t* tags, const std::uint8_t* end, std::vector<SpriteFrame>& frames, std::vector<std::uint8_t>& tail) {
+    const std::uint8_t* cursor = tags;
+    SpriteFrame current;
+    while (cursor < end) {
+        Tag tag;
+        if (!ReadTag(cursor, end, tag)) {
+            return false;
+        }
+
+        current.bytes.insert(current.bytes.end(), tag.begin, tag.next);
+        cursor = tag.next;
+
+        if (tag.code == kTagShowFrame) {
+            frames.push_back(std::move(current));
+            current = {};
+            continue;
+        }
+
+        if (tag.code == kTagEnd) {
+            tail = std::move(current.bytes);
+            return true;
+        }
+    }
+
+    if (!current.bytes.empty()) {
+        tail = std::move(current.bytes);
+    }
+    return true;
+}
+
+void AppendFrameClones(std::vector<SpriteFrame>& frames, int sourceFrameNumber, int cloneCount) {
+    if (cloneCount <= 0) {
+        return;
+    }
+
+    const int sourceIndex = sourceFrameNumber - 1;
+    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(frames.size())) {
+        Core::Logger::Warn("Lobby portrait frame clone skipped: sourceFrame=%d cloneCount=%d frameCount=%u",
+                           sourceFrameNumber,
+                           cloneCount,
+                           static_cast<unsigned int>(frames.size()));
+        return;
+    }
+
+    const SpriteFrame templateFrame = frames[static_cast<std::size_t>(sourceIndex)];
+    auto insertAt = frames.begin() + sourceIndex + 1;
+    for (int i = 0; i < cloneCount; ++i) {
+        insertAt = frames.insert(insertAt, templateFrame);
+        ++insertAt;
+    }
+    Core::Logger::Info("Lobby portrait sprite cloned frame %d count=%d", sourceFrameNumber, cloneCount);
+}
+
+bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
+                                     std::uint32_t length,
+                                     int classicCloneCount,
+                                     int freshCloneCount,
+                                     std::vector<std::uint8_t>& out) {
+    if (!payload || length < 4 || classicCloneCount + freshCloneCount <= 0) {
+        return false;
+    }
+
+    const std::uint16_t spriteId = ReadU16(payload);
+    if (spriteId != kLobbyPortraitSpriteId) {
+        return false;
+    }
+
+    const std::uint8_t* cursor = payload + 4;
+    const std::uint8_t* end = payload + length;
+    std::vector<SpriteFrame> frames;
+    std::vector<std::uint8_t> tail;
+    if (!ReadSpriteFrames(cursor, end, frames, tail)) {
+        Core::Logger::Warn("Lobby portrait sprite frame parse failed sprite=%u", spriteId);
+        return false;
+    }
+
+    const int originalFrameCount = static_cast<int>(frames.size());
+    AppendFrameClones(frames, kClassicCloneSourceFrame, classicCloneCount);
+    const int shiftedFreshSourceFrame = kFreshCloneSourceFrame + classicCloneCount;
+    AppendFrameClones(frames, shiftedFreshSourceFrame, freshCloneCount);
+
+    const int newFrameCount = static_cast<int>(frames.size());
+    if (newFrameCount == originalFrameCount) {
+        Core::Logger::Warn("Lobby portrait sprite no frames inserted classic=%d fresh=%d originalFrames=%d",
+                           classicCloneCount,
+                           freshCloneCount,
+                           originalFrameCount);
+        return false;
+    }
+
+    out.clear();
+    out.reserve(length + static_cast<std::size_t>(newFrameCount - originalFrameCount) * 512);
+    WriteU16(out, spriteId);
+    const int clampedFrameCount = newFrameCount > 65535 ? 65535 : newFrameCount;
+    WriteU16(out, static_cast<std::uint16_t>(clampedFrameCount));
+    for (const SpriteFrame& frame : frames) {
+        out.insert(out.end(), frame.bytes.begin(), frame.bytes.end());
+    }
+    out.insert(out.end(), tail.begin(), tail.end());
+
+    Core::Logger::Info("Patched lobby portrait sprite=%u frames old=%d new=%d classicClones=%d freshClones=%d",
+                       spriteId,
+                       originalFrameCount,
+                       newFrameCount,
+                       classicCloneCount,
+                       freshCloneCount);
+    return true;
+}
+
+bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
+    const auto& registry = Characters::Registry::Instance();
+    const int classicCloneCount = registry.ClassicAddonCount();
+    const int freshCloneCount = registry.AddonCount();
+    if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || classicCloneCount + freshCloneCount <= 0) {
+        return false;
+    }
+
+    Core::Logger::Info("Trying lobby portrait frame patch path='%s' classicClones=%d freshClones=%d",
+                       swfPath.c_str(),
+                       classicCloneCount,
+                       freshCloneCount);
+
+    SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+    if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
+        Core::Logger::Warn("Lobby portrait patch skipped: invalid/compressed buffer path='%s' valid=%d compressed=%d fileLength=%u",
+                           swfPath.c_str(),
+                           view.valid ? 1 : 0,
+                           view.compressed ? 1 : 0,
+                           view.fileLength);
+        return false;
+    }
+
+    std::vector<std::uint8_t> patched;
+    patched.reserve(view.fileLength + 2048);
+    patched.insert(patched.end(), view.base, view.tags);
+
+    bool patchedSprite = false;
+    const std::uint8_t* cursor = view.tags;
+    const std::uint8_t* end = view.base + view.fileLength;
+    while (cursor < end) {
+        Tag tag;
+        if (!ReadTag(cursor, end, tag)) {
+            Core::Logger::Error("SWF tag parse failed while patching lobby path='%s'", swfPath.c_str());
+            return false;
+        }
+
+        if (!patchedSprite && tag.code == kTagDefineSprite && tag.length >= 4 && ReadU16(tag.payload) == kLobbyPortraitSpriteId) {
+            std::vector<std::uint8_t> spritePayload;
+            if (PatchLobbyPortraitSpritePayload(tag.payload, tag.length, classicCloneCount, freshCloneCount, spritePayload)) {
+                AppendTag(patched, tag.code, spritePayload);
+                patchedSprite = true;
+            } else {
+                patched.insert(patched.end(), tag.begin, tag.next);
+            }
+        } else {
+            patched.insert(patched.end(), tag.begin, tag.next);
+        }
+
+        cursor = tag.next;
+        if (tag.code == kTagEnd) {
+            break;
+        }
+    }
+
+    if (!patchedSprite) {
+        Core::Logger::Warn("Lobby portrait sprite %u not patched path='%s'", kLobbyPortraitSpriteId, swfPath.c_str());
+        return false;
+    }
+
+    const std::uint32_t newLength = static_cast<std::uint32_t>(patched.size());
+    patched[4] = static_cast<std::uint8_t>(newLength & 0xFF);
+    patched[5] = static_cast<std::uint8_t>((newLength >> 8) & 0xFF);
+    patched[6] = static_cast<std::uint8_t>((newLength >> 16) & 0xFF);
+    patched[7] = static_cast<std::uint8_t>((newLength >> 24) & 0xFF);
+
+    auto owned = std::make_unique<std::vector<std::uint8_t>>(std::move(patched));
+    scene->swfBuffer = owned->data();
+    g_OwnedPatchedBuffers.push_back(std::move(owned));
+    Core::Logger::Info("Patched lobby portraits path='%s' newLength=%u", swfPath.c_str(), newLength);
+    return true;
+}
+
 bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
     if (!scene || !scene->swfBuffer || !PathContainsMain(swfPath)) {
         return false;
@@ -391,7 +589,9 @@ char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int p
 
 int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
-    const bool patched = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
+    const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
+    const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path);
+    const bool patched = patchedSave || patchedLobby;
     if (patched) {
         Core::Logger::Info("SWFSceneParseHeader patched current COK6 path='%s'", g_CurrentCok6Path.c_str());
     }
