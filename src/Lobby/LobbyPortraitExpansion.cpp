@@ -2,17 +2,8 @@
 
 #include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
-#include "../Core/Memory.h"
-#include <cstdint>
 
 namespace HookCrashers::Lobby {
-namespace {
-
-constexpr std::uintptr_t kAttachSkinGraphicFreshPortraitSubtractImmediateRva = 0x8D34C;
-constexpr int kVanillaFreshPortraitFrameStart = 102;
-
-} // namespace
-
 bool LobbyPortraitExpansion::Install() {
     const auto& registry = Characters::Registry::Instance();
     const int classicAddonCount = registry.ClassicAddonCount();
@@ -21,19 +12,12 @@ bool LobbyPortraitExpansion::Install() {
         return true;
     }
 
-    const int freshFrameStart = kVanillaFreshPortraitFrameStart + classicAddonCount;
-    const std::uint16_t subtractImmediate = static_cast<std::uint16_t>(0x10000 - freshFrameStart);
-
-    // CC_LobbySkinManagerAttachSkinGraphic(this, 36 / 0x24) maps fresh portrait frames
-    // by subtracting the hardcoded first fresh frame. Classic/base addons inserted before
-    // fresh shift that frame start, so only this lobby portrait path needs a dynamic fix.
-    Core::Logger::Info("LobbyPortraitExpansion patch: classicAddons=%d freshFrameStart=%d subtractImmediate=0x%04X",
-                       classicAddonCount,
-                       freshFrameStart,
-                       subtractImmediate);
-    const bool ok = Core::Memory::WriteU16(kAttachSkinGraphicFreshPortraitSubtractImmediateRva, subtractImmediate);
-    Core::Logger::Info("LobbyPortraitExpansion result=%d", ok ? 1 : 0);
-    return ok;
+    // Classic addon portraits are written into the vanilla empty gap between classic
+    // and fresh portraits in lobby.cok6, so the native fresh-frame subtract remains
+    // vanilla. Fresh/workshop shifting is handled by the roster/workshop boundary patches.
+    Core::Logger::Info("LobbyPortraitExpansion native subtract unchanged: classicAddons=%d use classic frame gap",
+                       classicAddonCount);
+    return true;
 }
 
 } // namespace HookCrashers::Lobby

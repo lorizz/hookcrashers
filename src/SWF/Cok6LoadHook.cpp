@@ -33,6 +33,7 @@ constexpr std::uint8_t kActionEnd = 0x00;
 constexpr std::uint8_t kActionDefineFunction = 0x9B;
 constexpr std::uint16_t kLobbyPortraitSpriteId = 180;
 constexpr int kClassicCloneSourceFrame = 34;
+constexpr int kFirstFreshPortraitFrame = 104;
 constexpr int kFreshCloneSourceFrame = 135;
 
 using SWFSceneParseHeaderFn = int(__thiscall*)(int scene);
@@ -522,6 +523,43 @@ void AppendFrameClones(std::vector<SpriteFrame>& frames, int sourceFrameNumber, 
     Core::Logger::Info("Lobby portrait sprite cloned frame %d count=%d", sourceFrameNumber, cloneCount);
 }
 
+int FillClassicPortraitGapFrames(std::vector<SpriteFrame>& frames, int sourceFrameNumber, int cloneCount) {
+    if (cloneCount <= 0) {
+        return 0;
+    }
+
+    const int sourceIndex = sourceFrameNumber - 1;
+    const int firstGapIndex = sourceIndex + 1;
+    const int firstFreshIndex = kFirstFreshPortraitFrame - 1;
+    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(frames.size()) ||
+        firstGapIndex >= firstFreshIndex || firstGapIndex >= static_cast<int>(frames.size())) {
+        Core::Logger::Warn("Lobby portrait classic gap fill skipped: sourceFrame=%d cloneCount=%d frameCount=%u",
+                           sourceFrameNumber,
+                           cloneCount,
+                           static_cast<unsigned int>(frames.size()));
+        return 0;
+    }
+
+    const SpriteFrame templateFrame = frames[static_cast<std::size_t>(sourceIndex)];
+    const int writableGapFrames = firstFreshIndex - firstGapIndex;
+    const int filledCount = cloneCount < writableGapFrames ? cloneCount : writableGapFrames;
+    for (int i = 0; i < filledCount; ++i) {
+        frames[static_cast<std::size_t>(firstGapIndex + i)] = templateFrame;
+    }
+
+    if (filledCount < cloneCount) {
+        Core::Logger::Warn("Lobby portrait classic gap exhausted: requested=%d filled=%d firstFreshFrame=%d",
+                           cloneCount,
+                           filledCount,
+                           kFirstFreshPortraitFrame);
+    }
+
+    Core::Logger::Info("Lobby portrait sprite filled classic gap from frame %d count=%d",
+                       sourceFrameNumber + 1,
+                       filledCount);
+    return filledCount;
+}
+
 bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
                                      std::uint32_t length,
                                      int classicCloneCount,
@@ -546,12 +584,11 @@ bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
     }
 
     const int originalFrameCount = static_cast<int>(frames.size());
-    AppendFrameClones(frames, kClassicCloneSourceFrame, classicCloneCount);
-    const int shiftedFreshSourceFrame = kFreshCloneSourceFrame + classicCloneCount;
-    AppendFrameClones(frames, shiftedFreshSourceFrame, freshCloneCount);
+    const int filledClassicFrames = FillClassicPortraitGapFrames(frames, kClassicCloneSourceFrame, classicCloneCount);
+    AppendFrameClones(frames, kFreshCloneSourceFrame, freshCloneCount);
 
     const int newFrameCount = static_cast<int>(frames.size());
-    if (newFrameCount == originalFrameCount) {
+    if (newFrameCount == originalFrameCount && filledClassicFrames <= 0) {
         Core::Logger::Warn("Lobby portrait sprite no frames inserted classic=%d fresh=%d originalFrames=%d",
                            classicCloneCount,
                            freshCloneCount,
@@ -573,7 +610,7 @@ bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
                        spriteId,
                        originalFrameCount,
                        newFrameCount,
-                       classicCloneCount,
+                       filledClassicFrames,
                        freshCloneCount);
     return true;
 }
