@@ -123,19 +123,25 @@ bool PatchSaveAndRosterConstants() {
     const int saveSlotCount = registry.SaveCharacterSlotCount();
     const int characterTableBytes = static_cast<int>(NativeDB::kCharacterTableEntryBytes) * addonCount + 14728;
     const int firstWorkshopId = registry.FirstWorkshopId();
+    const int workshopSlotTableIndex = 1131 + networkBase;
+    const int workshopSlotTableByteOffset = workshopSlotTableIndex * 4;
+    const int workshopSkinEntryIndex = 1130 + firstWorkshopId;
+    const int workshopSkinEntryByteOffset = workshopSkinEntryIndex * 4;
     const int statsClassicCount = registry.ClassicVisibleCount();
     const int statsFreshCount = registry.FreshBaseCount();
     const int statsTotalCount = statsFreshCount + static_cast<int>(NativeDB::kWorkshopSaveSlotCount);
     const int workshopNameBase = 953 - firstWorkshopId;
 
-    Core::Logger::Info("Patching character expansion constants: addons=%d saveSize=0x%X payload=0x%X keybinds=0x%X networkBase=%d totalNetwork=%d firstWorkshopId=%d",
+    Core::Logger::Info("Patching character expansion constants: addons=%d saveSize=0x%X payload=0x%X keybinds=0x%X networkBase=%d totalNetwork=%d firstWorkshopId=%d workshopSlotTable=0x%X workshopSkinEntry=0x%X",
                        addonCount,
                        saveSize,
                        savePayloadSize,
                        keybindsOffset,
                        networkBase,
                        registry.NetworkTotalCount(),
-                       firstWorkshopId);
+                       firstWorkshopId,
+                       workshopSlotTableByteOffset,
+                       workshopSkinEntryByteOffset);
 
     bool ok = true;
 
@@ -228,6 +234,13 @@ bool PatchSaveAndRosterConstants() {
 
     // Ready-state workshop validation.
     ok = Core::Memory::WriteU8(0x87BEC, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x87D0E, static_cast<std::uint32_t>(workshopSkinEntryByteOffset)) && ok;
+    ok = Core::Memory::WriteU8(0x87D6C, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x87E26, static_cast<std::uint32_t>(workshopSlotTableByteOffset)) && ok;
+    ok = Core::Memory::WriteU32(0x87E2B, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
+    ok = Core::Memory::WriteU8(0x87F58, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x87FD7, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x88020, pastLastNetworkId) && ok;
 
     Core::Logger::Info("PatchSaveAndRosterConstants result=%d", ok ? 1 : 0);
     return ok;
