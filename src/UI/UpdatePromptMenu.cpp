@@ -54,6 +54,8 @@ using GetAllocatorFn = void*(__cdecl*)();
 using AllocateFn = void*(__thiscall*)(void* allocator, int size);
 using FreeFn = void(__cdecl*)(void* allocation);
 using MenuCallbackFn = void(__cdecl*)(void* mainMenu);
+using SteamAppsFn = void*(__cdecl*)();
+using SteamAppsGetCurrentGameLanguageFn = const char*(__cdecl*)(void* steamApps);
 
 MainMenuBuilderFn g_originalMainMenuBuilder = nullptr;
 SetMenuStateFn g_setMenuState = nullptr;
@@ -98,20 +100,114 @@ constexpr std::array<std::uint8_t, 11> kProfileLanguageToTextIndex {
     0, 1, 2, 5, 3, 9, 4, 7, 10, 6, 8
 };
 
+constexpr std::array<const char*, 11> kProfileLanguageNames {
+    "English", "German", "French", "Spanish", "Italian", "Japanese",
+    "Korean", "Traditional Chinese", "Portuguese", "Simplified Chinese", "Russian"
+};
+
 template <typename T>
 T& Field(void* object, std::size_t offset) {
     return *reinterpret_cast<T*>(static_cast<std::uint8_t*>(object) + offset);
 }
 
+bool TryMapSteamLanguageName(const char* languageName, std::uint32_t& languageIndex) {
+    if (!languageName || languageName[0] == '\0') {
+        return false;
+    }
+
+    struct SteamLanguageMap {
+        const char* name;
+        std::uint32_t index;
+    };
+    constexpr std::array<SteamLanguageMap, 11> kSteamLanguageMap {{
+        { "english", 0 },
+        { "german", 1 },
+        { "french", 2 },
+        { "spanish", 3 },
+        { "italian", 4 },
+        { "japanese", 5 },
+        { "koreana", 6 },
+        { "tchinese", 7 },
+        { "portuguese", 8 },
+        { "schinese", 9 },
+        { "russian", 10 },
+    }};
+
+    for (const SteamLanguageMap& entry : kSteamLanguageMap) {
+        if (_stricmp(languageName, entry.name) == 0) {
+            languageIndex = entry.index;
+            return true;
+        }
+    }
+    return false;
+}
+
+bool TryReadSteamLanguage(std::uint32_t& languageIndex, const char*& languageName) {
+    HMODULE steamApi = GetModuleHandleA("steam_api.dll");
+    if (!steamApi) {
+        return false;
+    }
+
+    auto steamApps = reinterpret_cast<SteamAppsFn>(
+        GetProcAddress(steamApi, "SteamAPI_SteamApps_v008"));
+    auto getCurrentGameLanguage = reinterpret_cast<SteamAppsGetCurrentGameLanguageFn>(
+        GetProcAddress(steamApi, "SteamAPI_ISteamApps_GetCurrentGameLanguage"));
+    if (!steamApps || !getCurrentGameLanguage) {
+        return false;
+    }
+
+    void* apps = steamApps();
+    if (!apps) {
+        return false;
+    }
+
+    languageName = getCurrentGameLanguage(apps);
+    return TryMapSteamLanguageName(languageName, languageIndex);
+}
+
+bool TryReadProfileLanguage(std::uint32_t& languageIndex,
+                            std::uintptr_t& storageAddress,
+                            void*& profileManager,
+                            std::uint32_t& objectFirstField) {
+    storageAddress = Core::Memory::Va(kProfileManagerPointerRva);
+    auto** profileManagerStorage = reinterpret_cast<void**>(storageAddress);
+    profileManager = profileManagerStorage ? *profileManagerStorage : nullptr;
+    objectFirstField = profileManager
+        ? *reinterpret_cast<const std::uint32_t*>(profileManager)
+        : 0xFFFFFFFFu;
+    if (objectFirstField >= kProfileLanguageToTextIndex.size()) {
+        return false;
+    }
+
+    languageIndex = objectFirstField;
+    return true;
+}
+
 const LocalizedPromptText& CurrentUpdatePromptText() {
-    auto** profileManagerStorage = reinterpret_cast<NativeDB::CC_ProfileManagerLanguageState**>(
-        Core::Memory::Va(kProfileManagerPointerRva));
-    const NativeDB::CC_ProfileManagerLanguageState* profileManager =
-        profileManagerStorage ? *profileManagerStorage : nullptr;
-    if (!profileManager || profileManager->languageIndex >= kProfileLanguageToTextIndex.size()) {
+    std::uint32_t languageIndex = 0xFFFFFFFFu;
+    const char* steamLanguageName = nullptr;
+    const bool steamLanguageValid = TryReadSteamLanguage(languageIndex, steamLanguageName);
+
+    std::uintptr_t storageAddress = 0;
+    void* profileManager = nullptr;
+    std::uint32_t objectFirstField = 0xFFFFFFFFu;
+    if (!steamLanguageValid &&
+        !TryReadProfileLanguage(languageIndex, storageAddress, profileManager, objectFirstField)) {
+        Core::Logger::Warn(
+            "UpdatePromptMenu: language fallback=English steam='%s' storage=%p profileManager=%p firstField=0x%08X",
+            steamLanguageName ? steamLanguageName : "<unavailable>",
+            reinterpret_cast<void*>(storageAddress), profileManager, objectFirstField);
         return kUpdatePromptText[0];
     }
-    return kUpdatePromptText[kProfileLanguageToTextIndex[profileManager->languageIndex]];
+
+    const std::uint8_t textIndex = kProfileLanguageToTextIndex[languageIndex];
+    Core::Logger::Info(
+        "UpdatePromptMenu: language index=%u language='%s' steam='%s' textIndex=%u storage=%p profileManager=%p firstField=0x%08X source=%s",
+        languageIndex, kProfileLanguageNames[languageIndex],
+        steamLanguageName ? steamLanguageName : "<unavailable>", textIndex,
+        reinterpret_cast<void*>(storageAddress), profileManager, objectFirstField,
+        steamLanguageValid ? "steam" : "profile");
+    return kUpdatePromptText[textIndex];
 }
 
 void* AllocateGameMemory(std::size_t size) {
