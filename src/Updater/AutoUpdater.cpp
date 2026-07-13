@@ -202,6 +202,7 @@ bool DownloadFile(const std::string& url, const std::string& destination) {
 bool WriteUpdaterScript(const std::string& moduleDirectory,
                         const std::string& downloadedAsi,
                         const std::string& currentAsi,
+                        const std::string& gameExecutable,
                         std::string& scriptPath) {
     scriptPath = JoinPath(moduleDirectory, "HookCrashersApplyUpdate.cmd");
     std::ofstream script(scriptPath, std::ios::out | std::ios::binary | std::ios::trunc);
@@ -218,8 +219,17 @@ bool WriteUpdaterScript(const std::string& moduleDirectory,
     script << "  timeout /t 1 /nobreak >NUL\r\n";
     script << "  goto wait\r\n";
     script << ")\r\n";
+    script << "set /a copyAttempts=0\r\n";
+    script << ":copyUpdate\r\n";
     script << "copy /Y \"" << downloadedAsi << "\" \"" << currentAsi << "\" >NUL\r\n";
+    script << "if not errorlevel 1 goto updateApplied\r\n";
+    script << "set /a copyAttempts+=1\r\n";
+    script << "if %copyAttempts% GEQ 10 exit /b 1\r\n";
+    script << "timeout /t 1 /nobreak >NUL\r\n";
+    script << "goto copyUpdate\r\n";
+    script << ":updateApplied\r\n";
     script << "del \"" << downloadedAsi << "\" >NUL 2>NUL\r\n";
+    script << "start \"\" /D \"" << moduleDirectory << "\" \"" << gameExecutable << "\"\r\n";
     script << "del \"%~f0\" >NUL 2>NUL\r\n";
     return true;
 }
@@ -234,7 +244,7 @@ void PromptAndInstall(const std::string& moduleDirectory, const UpdateManifest& 
                   "Channel: %s\n\n"
                   "%s\n\n"
                   "Download and install it now?\n"
-                  "Castle Crashers will close so HookCrashers.asi can be replaced.",
+                  "Castle Crashers will restart after HookCrashers.asi has been replaced.",
                   Core::Version::kVersion,
                   manifest.version.c_str(),
                   manifest.channel.empty() ? "unknown" : manifest.channel.c_str(),
@@ -261,14 +271,30 @@ void PromptAndInstall(const std::string& moduleDirectory, const UpdateManifest& 
         modulePath.resize(written);
     }
 
+    std::string gameExecutable(MAX_PATH, '\0');
+    written = GetModuleFileNameA(nullptr, &gameExecutable[0], static_cast<DWORD>(gameExecutable.size()));
+    if (written == 0) {
+        MessageBoxA(nullptr, "HookCrashers could not locate Castle Crashers for restart.", "HookCrashers Update", MB_ICONERROR | MB_OK);
+        Core::Logger::Error("Failed to locate Castle Crashers executable for updater restart");
+        return;
+    }
+    gameExecutable.resize(written);
+
     std::string scriptPath;
-    if (!WriteUpdaterScript(moduleDirectory, downloadedAsi, modulePath, scriptPath)) {
+    if (!WriteUpdaterScript(moduleDirectory, downloadedAsi, modulePath, gameExecutable, scriptPath)) {
         MessageBoxA(nullptr, "HookCrashers downloaded the update but failed to create the updater script.", "HookCrashers Update", MB_ICONERROR | MB_OK);
         Core::Logger::Error("Failed to write updater script");
         return;
     }
 
-    ShellExecuteA(nullptr, "open", scriptPath.c_str(), nullptr, moduleDirectory.c_str(), SW_HIDE);
+    const auto launchResult = reinterpret_cast<INT_PTR>(
+        ShellExecuteA(nullptr, "open", scriptPath.c_str(), nullptr, moduleDirectory.c_str(), SW_HIDE));
+    if (launchResult <= 32) {
+        MessageBoxA(nullptr, "HookCrashers could not start the updater process.", "HookCrashers Update", MB_ICONERROR | MB_OK);
+        Core::Logger::Error("Failed to launch update script result=%lld", static_cast<long long>(launchResult));
+        return;
+    }
+
     Core::Logger::Info("Update script launched; exiting process for replacement");
     ExitProcess(0);
 }
