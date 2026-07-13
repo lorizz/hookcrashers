@@ -160,6 +160,7 @@ jobs:
             echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public channel manifest"
             exit 0
           fi
+          gh auth setup-git
           rm -rf releases-repo
           gh repo clone "${RELEASES_REPO}" releases-repo
           cd releases-repo
