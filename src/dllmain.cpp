@@ -48,9 +48,20 @@ void RunStartupFlow(HMODULE module) {
 
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
-    HookCrashers::Updater::AutoUpdater::CheckForUpdates(
-        HookCrashers::Core::Logger::ModuleDirectory(),
-        config);
+
+    const int updateChoice = MessageBoxA(
+        nullptr,
+        "Check for HookCrashers updates before starting Castle Crashers?",
+        "HookCrashers Auto-Update",
+        MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2);
+    if (updateChoice == IDYES) {
+        HookCrashers::Updater::AutoUpdater::CheckForUpdates(
+            HookCrashers::Core::Logger::ModuleDirectory(),
+            config);
+    } else {
+        HookCrashers::Core::Logger::Info("AutoUpdater skipped by startup selection");
+    }
+
     HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
