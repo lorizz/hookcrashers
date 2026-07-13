@@ -47,14 +47,6 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
 
-    const HookCrashers::Core::Config::RuntimeConfig config =
-        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
-
-    HookCrashers::Updater::AutoUpdater::CheckForUpdates(
-        HookCrashers::Core::Logger::ModuleDirectory(),
-        config);
-
-    HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
 
@@ -118,6 +110,14 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     if (!HookCrashers::UI::DebugOverlay::Install()) {
         HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
     }
+
+    // Save/keybind relocation must be installed before any blocking startup UI.
+    const HookCrashers::Core::Config::RuntimeConfig config =
+        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
+    HookCrashers::Updater::AutoUpdater::CheckForUpdates(
+        HookCrashers::Core::Logger::ModuleDirectory(),
+        config);
+    HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     HookCrashers::Core::Logger::Info("Bootstrap thread finished");
     return 0;
