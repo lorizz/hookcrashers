@@ -54,13 +54,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path dist/mods | Out-Null
           Copy-Item Release/HookCrashers.asi dist/HookCrashers.asi
-          Copy-Item Release/HookCrashers.pdb dist/HookCrashers.pdb
           Copy-Item examples/mods/TestAddon dist/mods/TestAddon -Recurse
-          @"
-          updates_enabled: true
-          channel: stable
-          testing_key: ""
-          "@ | Set-Content -Encoding ascii dist/HookCrashers.yaml
 
           gh release download v9.7.2 `
             --repo ThirteenAG/Ultimate-ASI-Loader `
@@ -70,7 +64,7 @@ jobs:
           Expand-Archive External/ultimate-asi-loader/Ultimate-ASI-Loader.zip External/ultimate-asi-loader/x86 -Force
           Copy-Item External/ultimate-asi-loader/x86/dinput8.dll dist/dinput8.dll
 
-          Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/HookCrashers.yaml,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
+          Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
 
       - name: Upload ASI artifact
         uses: actions/upload-artifact@v4
@@ -78,9 +72,7 @@ jobs:
           name: HookCrashers-v5-win32
           path: |
             dist/HookCrashers.asi
-            dist/HookCrashers.pdb
             dist/dinput8.dll
-            dist/HookCrashers.yaml
             dist/mods/**
             HookCrashers-v5-dropin.zip
           if-no-files-found: error
@@ -126,7 +118,6 @@ jobs:
           gh release create "${HC_CHANNEL}" \
             artifact/HookCrashers-v5-dropin.zip \
             artifact/dist/HookCrashers.asi \
-            artifact/dist/HookCrashers.pdb \
             artifact/dist/dinput8.dll \
             --repo "${GITHUB_REPOSITORY}" \
             --title "HookCrashers ${HC_CHANNEL} ${HC_VERSION}" \

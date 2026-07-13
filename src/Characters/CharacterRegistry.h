@@ -18,6 +18,7 @@ enum class Pet : std::uint8_t {
 
 struct AddonCharacter {
     std::string name;
+    std::string assetDirectory;
     std::uint8_t startingWeapon = static_cast<std::uint8_t>(Weapon::None);
     std::uint8_t startingPet = static_cast<std::uint8_t>(Pet::None);
     bool initiallyUnlocked = false;

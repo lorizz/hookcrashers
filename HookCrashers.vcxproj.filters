@@ -53,13 +53,16 @@
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
-    <ClCompile Include="src\Save\SaveLayoutGuard.cpp">
+    <ClCompile Include="src\Save\SaveFileRedirect.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="src\SWF\ShapeInjection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
     <ClCompile Include="src\UI\DebugOverlay.cpp">
@@ -109,13 +112,16 @@
     <ClInclude Include="src\Network\CharacterSyncExpansion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
-    <ClInclude Include="src\Save\SaveLayoutGuard.h">
+    <ClInclude Include="src\Save\SaveFileRedirect.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\SWF\Cok6LoadHook.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\SWF\InitSaveSystemBytecode.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SWF\ShapeInjection.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\SWF\SWFStructures.h">

@@ -120,6 +120,36 @@ std::string ReadTextFile(const std::string& path) {
     return stream.str();
 }
 
+std::string ReadManifestName(const std::string& manifestPath) {
+    const std::string text = ReadTextFile(manifestPath);
+    std::istringstream lines(text);
+    std::string line;
+    while (std::getline(lines, line)) {
+        if (line.empty() || std::isspace(static_cast<unsigned char>(line[0])) != 0) {
+            continue;
+        }
+
+        const std::size_t colon = line.find(':');
+        if (colon == std::string::npos || Trim(line.substr(0, colon)) != "name") {
+            continue;
+        }
+
+        std::string value = Trim(line.substr(colon + 1));
+        if (value.size() >= 2 &&
+            ((value.front() == '"' && value.back() == '"') ||
+             (value.front() == '\'' && value.back() == '\''))) {
+            value = value.substr(1, value.size() - 2);
+        } else {
+            const std::size_t comment = value.find('#');
+            if (comment != std::string::npos) {
+                value = Trim(value.substr(0, comment));
+            }
+        }
+        return value;
+    }
+    return {};
+}
+
 std::vector<std::string> ReadManifestEntrypoints(const std::string& manifestPath) {
     std::vector<std::string> entrypoints;
     const std::string text = ReadTextFile(manifestPath);
@@ -386,7 +416,10 @@ bool ParseInt(const std::string& value, int& out) {
     return true;
 }
 
-bool ExecuteRegisterCharacter(const std::string& args, const std::string& scriptPath, int& charactersRegistered) {
+bool ExecuteRegisterCharacter(const std::string& args,
+                              const std::string& scriptPath,
+                              const std::string& characterAssetsRoot,
+                              int& charactersRegistered) {
     const std::vector<std::string> parsed = SplitArguments(args);
     if (parsed.size() != 5) {
         Logger::Error("Invalid RegisterCharacter call in %s: expected 5 args, got %u", scriptPath.c_str(), static_cast<unsigned int>(parsed.size()));
@@ -415,6 +448,7 @@ bool ExecuteRegisterCharacter(const std::string& args, const std::string& script
 
     Characters::AddonCharacter character;
     character.name = name;
+    character.assetDirectory = JoinPath(characterAssetsRoot, name);
     character.startingWeapon = static_cast<std::uint8_t>(weapon);
     character.startingPet = static_cast<std::uint8_t>(pet);
     character.initiallyUnlocked = initiallyUnlocked;
@@ -435,7 +469,7 @@ bool ExecuteRegisterCharacter(const std::string& args, const std::string& script
     return true;
 }
 
-int ExecuteScript(const std::string& scriptPath) {
+int ExecuteScript(const std::string& scriptPath, const std::string& modDirectory) {
     Logger::Info("Executing mod script: %s", scriptPath.c_str());
     const std::string rawText = ReadTextFile(scriptPath);
     if (rawText.empty()) {
@@ -480,7 +514,10 @@ int ExecuteScript(const std::string& scriptPath) {
             break;
         }
 
-        ExecuteRegisterCharacter(text.substr(open + 1, close - open - 1), scriptPath, registered);
+        ExecuteRegisterCharacter(text.substr(open + 1, close - open - 1),
+                                 scriptPath,
+                                 JoinPath(modDirectory, "characters"),
+                                 registered);
         cursor = close + 1;
     }
 
@@ -521,6 +558,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
         return result;
     }
 
+    std::vector<std::string> modNames;
     do {
         if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0 ||
             std::strcmp(data.cFileName, ".") == 0 ||
@@ -528,21 +566,48 @@ LoadResult LoadAll(const std::string& rootDirectory) {
             continue;
         }
 
+        modNames.emplace_back(data.cFileName);
+    } while (FindNextFileA(find, &data));
+    FindClose(find);
+
+    std::sort(modNames.begin(), modNames.end(), [](std::string left, std::string right) {
+        std::transform(left.begin(), left.end(), left.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        std::transform(right.begin(), right.end(), right.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return left < right;
+    });
+
+    for (const std::string& modName : modNames) {
+
         ++result.modsFound;
-        const std::string modDirectory = JoinPath(modsDirectory, data.cFileName);
+        const std::string modDirectory = JoinPath(modsDirectory, modName);
         Logger::Info("Found mod: %s", modDirectory.c_str());
 
         std::vector<std::string> entrypoints;
         const std::string manifestPath = JoinPath(modDirectory, "manifest.yaml");
         if (FileExists(manifestPath)) {
             Logger::Info("Reading manifest: %s", manifestPath.c_str());
+            const std::string manifestName = ReadManifestName(manifestPath);
+            if (manifestName.empty()) {
+                Logger::Warn("Manifest has no usable name: %s", manifestPath.c_str());
+            } else if (result.manifestName.empty()) {
+                result.manifestName = manifestName;
+                Logger::Info("Using manifest name for save namespace: %s", manifestName.c_str());
+            } else if (result.manifestName != manifestName) {
+                Logger::Warn("Multiple manifest names found; save namespace remains '%s', ignoring '%s'",
+                             result.manifestName.c_str(),
+                             manifestName.c_str());
+            }
             entrypoints = ReadManifestEntrypoints(manifestPath);
         } else {
             Logger::Warn("Mod has no manifest.yaml: %s", modDirectory.c_str());
         }
 
         if (entrypoints.empty()) {
-            Logger::Warn("No manifest entrypoints found for %s, falling back to scripts/*.lua", data.cFileName);
+            Logger::Warn("No manifest entrypoints found for %s, falling back to scripts/*.lua", modName.c_str());
             entrypoints = EnumerateLuaScripts(JoinPath(modDirectory, "scripts"));
         } else {
             for (std::string& entrypoint : entrypoints) {
@@ -556,15 +621,15 @@ LoadResult LoadAll(const std::string& rootDirectory) {
                 continue;
             }
             ++result.scriptsRun;
-            result.charactersRegistered += ExecuteScript(script);
+            result.charactersRegistered += ExecuteScript(script, modDirectory);
         }
-    } while (FindNextFileA(find, &data));
+    }
 
-    FindClose(find);
-    Logger::Info("Mod scan complete: mods=%d scripts=%d characters=%d",
+    Logger::Info("Mod scan complete: mods=%d scripts=%d characters=%d manifestName='%s'",
                  result.modsFound,
                  result.scriptsRun,
-                 result.charactersRegistered);
+                 result.charactersRegistered,
+                 result.manifestName.c_str());
     return result;
 }
 

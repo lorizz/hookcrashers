@@ -16,9 +16,10 @@ bool Registry::RegisterCharacter(const AddonCharacter& character) {
         return false;
     }
     m_Addons.push_back(character);
-    Core::Logger::Info("Character registered: index=%d name='%s' weapon=%u pet=%u initiallyUnlocked=%d freshOnly=%d",
+    Core::Logger::Info("Character registered: index=%d name='%s' assets='%s' weapon=%u pet=%u initiallyUnlocked=%d freshOnly=%d",
                        FirstAddonIndex() + AddonCount() - 1,
                        character.name.c_str(),
+                       character.assetDirectory.c_str(),
                        character.startingWeapon,
                        character.startingPet,
                        character.initiallyUnlocked ? 1 : 0,

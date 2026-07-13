@@ -9,7 +9,7 @@
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
-#include "Save/SaveLayoutGuard.h"
+#include "Save/SaveFileRedirect.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
 #include "Updater/AutoUpdater.h"
@@ -47,10 +47,6 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
-    const HookCrashers::Core::Config::RuntimeConfig config =
-        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
-    HookCrashers::Updater::AutoUpdater::CheckForUpdates(HookCrashers::Core::Logger::ModuleDirectory(), config);
-    HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));
     const std::uintptr_t targetAddress = ReadTargetAddress(gameBase);
@@ -77,10 +73,6 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::NativeDB::SetGameBase(gameBase);
     HookCrashers::Core::Logger::Info("NativeDB game base set");
 
-    if (!HookCrashers::UI::DebugOverlay::Install()) {
-        HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
-    }
-
     const HookCrashers::Core::ModLoader::LoadResult loadResult =
         HookCrashers::Core::ModLoader::LoadAll(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::Info("ModLoader result: mods=%d scripts=%d characters=%d registryAddons=%d",
@@ -89,9 +81,17 @@ DWORD WINAPI BootstrapThread(void* parameter) {
                                     loadResult.charactersRegistered,
                                     HookCrashers::Characters::Registry::Instance().AddonCount());
 
-    if (HookCrashers::Characters::Registry::Instance().AddonCount() > 0) {
-        HookCrashers::Save::SaveLayoutGuard::InvalidateIfNeeded(HookCrashers::Core::Logger::ModuleDirectory());
+    if (loadResult.modsFound > 0 &&
+        !HookCrashers::Save::SaveFileRedirect::Install(loadResult.manifestName)) {
+        HookCrashers::Core::Logger::Error("Save filename redirect failed; refusing to continue with modded saves");
+        MessageBoxA(nullptr,
+                    "HookCrashers could not isolate the modded save. The vanilla cc_save.dat was not touched.",
+                    "HookCrashers",
+                    MB_ICONERROR | MB_OK);
+        return 1;
+    }
 
+    if (HookCrashers::Characters::Registry::Instance().AddonCount() > 0) {
         const bool installed = HookCrashers::Characters::CharacterExpansion::Install();
         HookCrashers::Core::Logger::Info("Character expansion auto-install result=%d", installed ? 1 : 0);
         if (!installed) {
@@ -104,6 +104,15 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     } else {
         HookCrashers::Core::Logger::Warn("No addon characters registered; character expansion was not installed");
     }
+
+    if (!HookCrashers::UI::DebugOverlay::Install()) {
+        HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
+    }
+
+    const HookCrashers::Core::Config::RuntimeConfig config =
+        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
+    HookCrashers::Updater::AutoUpdater::CheckForUpdates(HookCrashers::Core::Logger::ModuleDirectory(), config);
+    HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     HookCrashers::Core::Logger::Info("Bootstrap thread finished");
     return 0;

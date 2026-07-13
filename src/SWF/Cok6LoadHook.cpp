@@ -1,6 +1,7 @@
 #include "Cok6LoadHook.h"
 
 #include "InitSaveSystemBytecode.h"
+#include "ShapeInjection.h"
 #include "SWFStructures.h"
 #include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
@@ -13,6 +14,7 @@
 #include <cstdint>
 #include <cstring>
 #include <fstream>
+#include <iterator>
 #include <memory>
 #include <string>
 #include <vector>
@@ -33,7 +35,6 @@ constexpr std::uint8_t kActionEnd = 0x00;
 constexpr std::uint8_t kActionDefineFunction = 0x9B;
 constexpr std::uint16_t kLobbyPortraitSpriteId = 180;
 constexpr int kClassicCloneSourceFrame = 34;
-constexpr int kFirstFreshPortraitFrame = 104;
 constexpr int kFreshCloneSourceFrame = 135;
 
 using SWFSceneParseHeaderFn = int(__thiscall*)(int scene);
@@ -470,6 +471,12 @@ struct SpriteFrame {
     std::vector<std::uint8_t> bytes;
 };
 
+struct LobbyPortraitInjection {
+    std::vector<ShapeInjection::ImportedShape> definitions;
+    std::vector<std::uint16_t> classicShapeIds;
+    std::vector<std::uint16_t> freshShapeIds;
+};
+
 bool ReadSpriteFrames(const std::uint8_t* tags, const std::uint8_t* end, std::vector<SpriteFrame>& frames, std::vector<std::uint8_t>& tail) {
     const std::uint8_t* cursor = tags;
     SpriteFrame current;
@@ -482,7 +489,7 @@ bool ReadSpriteFrames(const std::uint8_t* tags, const std::uint8_t* end, std::ve
         current.bytes.insert(current.bytes.end(), tag.begin, tag.next);
         cursor = tag.next;
 
-        if (tag.code == kTagShowFrame) {
+        if (tag.code == kTagShowFrame || tag.code == 142) {
             frames.push_back(std::move(current));
             current = {};
             continue;
@@ -500,72 +507,90 @@ bool ReadSpriteFrames(const std::uint8_t* tags, const std::uint8_t* end, std::ve
     return true;
 }
 
-void AppendFrameClones(std::vector<SpriteFrame>& frames, int sourceFrameNumber, int cloneCount) {
-    if (cloneCount <= 0) {
-        return;
+std::string JoinPath(const std::string& base, const char* child) {
+    if (base.empty()) {
+        return child ? child : "";
     }
-
-    const int sourceIndex = sourceFrameNumber - 1;
-    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(frames.size())) {
-        Core::Logger::Warn("Lobby portrait frame clone skipped: sourceFrame=%d cloneCount=%d frameCount=%u",
-                           sourceFrameNumber,
-                           cloneCount,
-                           static_cast<unsigned int>(frames.size()));
-        return;
+    if (base.back() == '\\' || base.back() == '/') {
+        return base + child;
     }
-
-    const SpriteFrame templateFrame = frames[static_cast<std::size_t>(sourceIndex)];
-    auto insertAt = frames.begin() + sourceIndex + 1;
-    for (int i = 0; i < cloneCount; ++i) {
-        insertAt = frames.insert(insertAt, templateFrame);
-        ++insertAt;
-    }
-    Core::Logger::Info("Lobby portrait sprite cloned frame %d count=%d", sourceFrameNumber, cloneCount);
+    return base + "\\" + child;
 }
 
-int FillClassicPortraitGapFrames(std::vector<SpriteFrame>& frames, int sourceFrameNumber, int cloneCount) {
-    if (cloneCount <= 0) {
-        return 0;
+std::uint16_t ImportPortraitShape(const std::string& path,
+                                  ShapeInjection::ShapeIdAllocator& allocator,
+                                  LobbyPortraitInjection& injection) {
+    for (const ShapeInjection::ImportedShape& existing : injection.definitions) {
+        if (existing.sourcePath == path) {
+            return existing.shapeId;
+        }
     }
 
-    const int sourceIndex = sourceFrameNumber - 1;
-    const int firstGapIndex = sourceIndex + 1;
-    const int firstFreshIndex = kFirstFreshPortraitFrame - 1;
-    if (sourceIndex < 0 || sourceIndex >= static_cast<int>(frames.size()) ||
-        firstGapIndex >= firstFreshIndex || firstGapIndex >= static_cast<int>(frames.size())) {
-        Core::Logger::Warn("Lobby portrait classic gap fill skipped: sourceFrame=%d cloneCount=%d frameCount=%u",
+    const std::uint16_t shapeId = allocator.Allocate();
+    if (!shapeId) {
+        return 0;
+    }
+    ShapeInjection::ImportedShape shape;
+    if (!ShapeInjection::LoadShapeFromSWF(path, shapeId, shape)) {
+        return 0;
+    }
+    injection.definitions.push_back(std::move(shape));
+    return shapeId;
+}
+
+LobbyPortraitInjection BuildLobbyPortraitInjection(const SWFBufferView& view) {
+    LobbyPortraitInjection injection;
+    ShapeInjection::ShapeIdAllocator allocator(view);
+
+    for (const Characters::AddonCharacter& addon : Characters::Registry::Instance().Addons()) {
+        if (addon.assetDirectory.empty()) {
+            Core::Logger::Warn("Portrait shapes not injected for character '%s': no asset directory registered",
+                               addon.name.c_str());
+            continue;
+        }
+
+        if (!addon.freshOnly) {
+            const std::string classicPath = JoinPath(addon.assetDirectory, "portrait_classic.swf");
+            const std::uint16_t classicShapeId = ImportPortraitShape(classicPath, allocator, injection);
+            if (classicShapeId) {
+                injection.classicShapeIds.push_back(classicShapeId);
+            }
+        }
+
+        const std::string freshPath = JoinPath(addon.assetDirectory, "portrait.swf");
+        const std::uint16_t freshShapeId = ImportPortraitShape(freshPath, allocator, injection);
+        if (freshShapeId) {
+            injection.freshShapeIds.push_back(freshShapeId);
+        }
+    }
+    return injection;
+}
+
+bool BuildClonedPortraitFrame(const SpriteFrame& source,
+                              std::uint16_t shapeId,
+                              int sourceFrameNumber,
+                              SpriteFrame& out) {
+    out = source;
+    std::uint16_t oldCharacterId = 0;
+    if (!ShapeInjection::ReplacePlaceObject2CharacterAtDepth(out.bytes, 1, shapeId, &oldCharacterId)) {
+        Core::Logger::Warn("Lobby portrait frame injection failed: sourceFrame=%d has no PlaceObject2 at depth 1 shapeId=%u",
                            sourceFrameNumber,
-                           cloneCount,
-                           static_cast<unsigned int>(frames.size()));
-        return 0;
+                           shapeId);
+        return false;
     }
-
-    const SpriteFrame templateFrame = frames[static_cast<std::size_t>(sourceIndex)];
-    const int writableGapFrames = firstFreshIndex - firstGapIndex;
-    const int filledCount = cloneCount < writableGapFrames ? cloneCount : writableGapFrames;
-    for (int i = 0; i < filledCount; ++i) {
-        frames[static_cast<std::size_t>(firstGapIndex + i)] = templateFrame;
-    }
-
-    if (filledCount < cloneCount) {
-        Core::Logger::Warn("Lobby portrait classic gap exhausted: requested=%d filled=%d firstFreshFrame=%d",
-                           cloneCount,
-                           filledCount,
-                           kFirstFreshPortraitFrame);
-    }
-
-    Core::Logger::Info("Lobby portrait sprite filled classic gap from frame %d count=%d",
-                       sourceFrameNumber + 1,
-                       filledCount);
-    return filledCount;
+    Core::Logger::Info("Lobby portrait frame cloned sourceFrame=%d oldCharacterId=%u newShapeId=%u",
+                       sourceFrameNumber,
+                       oldCharacterId,
+                       shapeId);
+    return true;
 }
 
 bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
                                      std::uint32_t length,
-                                     int classicCloneCount,
-                                     int freshCloneCount,
+                                     const LobbyPortraitInjection& injection,
                                      std::vector<std::uint8_t>& out) {
-    if (!payload || length < 4 || classicCloneCount + freshCloneCount <= 0) {
+    if (!payload || length < 4 ||
+        (injection.classicShapeIds.empty() && injection.freshShapeIds.empty())) {
         return false;
     }
 
@@ -583,50 +608,92 @@ bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
         return false;
     }
 
-    const int originalFrameCount = static_cast<int>(frames.size());
-    const int filledClassicFrames = FillClassicPortraitGapFrames(frames, kClassicCloneSourceFrame, classicCloneCount);
-    AppendFrameClones(frames, kFreshCloneSourceFrame, freshCloneCount);
+    const std::size_t originalFrameCount = frames.size();
+    const std::size_t classicSourceIndex = static_cast<std::size_t>(kClassicCloneSourceFrame - 1);
+    const std::size_t classicFirstTargetIndex = classicSourceIndex + 1;
+    if (!injection.classicShapeIds.empty()) {
+        const std::size_t removeTargetIndex = classicFirstTargetIndex + injection.classicShapeIds.size();
+        if (classicSourceIndex >= frames.size() || removeTargetIndex >= frames.size()) {
+            Core::Logger::Warn("Lobby classic portrait injection failed: frameCount=%u sourceFrame=%d portraits=%u",
+                               static_cast<unsigned int>(frames.size()),
+                               kClassicCloneSourceFrame,
+                               static_cast<unsigned int>(injection.classicShapeIds.size()));
+            return false;
+        }
 
-    const int newFrameCount = static_cast<int>(frames.size());
-    if (newFrameCount == originalFrameCount && filledClassicFrames <= 0) {
-        Core::Logger::Warn("Lobby portrait sprite no frames inserted classic=%d fresh=%d originalFrames=%d",
-                           classicCloneCount,
-                           freshCloneCount,
-                           originalFrameCount);
-        return false;
+        const SpriteFrame removeFrame = frames[classicFirstTargetIndex];
+        std::vector<SpriteFrame> classicFrames;
+        classicFrames.reserve(injection.classicShapeIds.size());
+        for (std::uint16_t shapeId : injection.classicShapeIds) {
+            SpriteFrame cloned;
+            if (!BuildClonedPortraitFrame(frames[classicSourceIndex], shapeId, kClassicCloneSourceFrame, cloned)) {
+                return false;
+            }
+            classicFrames.push_back(std::move(cloned));
+        }
+        for (std::size_t i = 0; i < classicFrames.size(); ++i) {
+            frames[classicFirstTargetIndex + i] = std::move(classicFrames[i]);
+        }
+        frames[removeTargetIndex] = removeFrame;
+        Core::Logger::Info("Lobby classic portraits inserted after frame 34 count=%u frameCountUnchanged=%u",
+                           static_cast<unsigned int>(injection.classicShapeIds.size()),
+                           static_cast<unsigned int>(frames.size()));
+    }
+
+    if (!injection.freshShapeIds.empty()) {
+        const std::size_t freshSourceIndex = static_cast<std::size_t>(kFreshCloneSourceFrame - 1);
+        if (freshSourceIndex >= frames.size()) {
+            Core::Logger::Warn("Lobby fresh portrait injection failed: frameCount=%u sourceFrame=%d portraits=%u",
+                               static_cast<unsigned int>(frames.size()),
+                               kFreshCloneSourceFrame,
+                               static_cast<unsigned int>(injection.freshShapeIds.size()));
+            return false;
+        }
+
+        std::vector<SpriteFrame> freshFrames;
+        freshFrames.reserve(injection.freshShapeIds.size());
+        for (std::uint16_t shapeId : injection.freshShapeIds) {
+            SpriteFrame cloned;
+            if (!BuildClonedPortraitFrame(frames[freshSourceIndex], shapeId, kFreshCloneSourceFrame, cloned)) {
+                return false;
+            }
+            freshFrames.push_back(std::move(cloned));
+        }
+        frames.insert(frames.begin() + static_cast<std::ptrdiff_t>(freshSourceIndex + 1),
+                      std::make_move_iterator(freshFrames.begin()),
+                      std::make_move_iterator(freshFrames.end()));
+        Core::Logger::Info("Lobby fresh portraits inserted after frame 135 count=%u shiftedFrames=%u",
+                           static_cast<unsigned int>(injection.freshShapeIds.size()),
+                           static_cast<unsigned int>(frames.size() - originalFrameCount));
     }
 
     out.clear();
-    out.reserve(length + static_cast<std::size_t>(newFrameCount - originalFrameCount) * 512);
+    out.reserve(length + injection.freshShapeIds.size() * 512);
     WriteU16(out, spriteId);
-    const int clampedFrameCount = newFrameCount > 65535 ? 65535 : newFrameCount;
-    WriteU16(out, static_cast<std::uint16_t>(clampedFrameCount));
+    WriteU16(out, static_cast<std::uint16_t>(std::min<std::size_t>(frames.size(), 65535)));
     for (const SpriteFrame& frame : frames) {
         out.insert(out.end(), frame.bytes.begin(), frame.bytes.end());
     }
     out.insert(out.end(), tail.begin(), tail.end());
 
-    Core::Logger::Info("Patched lobby portrait sprite=%u frames old=%d new=%d classicClones=%d freshClones=%d",
+    Core::Logger::Info("Patched lobby portrait sprite=%u frames old=%u new=%u classicShapes=%u freshShapes=%u",
                        spriteId,
-                       originalFrameCount,
-                       newFrameCount,
-                       filledClassicFrames,
-                       freshCloneCount);
+                       static_cast<unsigned int>(originalFrameCount),
+                       static_cast<unsigned int>(frames.size()),
+                       static_cast<unsigned int>(injection.classicShapeIds.size()),
+                       static_cast<unsigned int>(injection.freshShapeIds.size()));
     return true;
 }
 
 bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
     const auto& registry = Characters::Registry::Instance();
-    const int classicCloneCount = registry.ClassicAddonCount();
-    const int freshCloneCount = registry.AddonCount();
-    if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || classicCloneCount + freshCloneCount <= 0) {
+    if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || registry.AddonCount() <= 0) {
         return false;
     }
 
-    Core::Logger::Info("Trying lobby portrait frame patch path='%s' classicClones=%d freshClones=%d",
+    Core::Logger::Info("Trying lobby portrait shape injection path='%s' addons=%d",
                        swfPath.c_str(),
-                       classicCloneCount,
-                       freshCloneCount);
+                       registry.AddonCount());
 
     SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
     if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
@@ -638,11 +705,18 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
         return false;
     }
 
+    const LobbyPortraitInjection injection = BuildLobbyPortraitInjection(view);
+    if (injection.classicShapeIds.empty() && injection.freshShapeIds.empty()) {
+        Core::Logger::Warn("Lobby portrait patch skipped: no valid portrait SWF shapes were loaded");
+        return false;
+    }
+
     std::vector<std::uint8_t> patched;
-    patched.reserve(view.fileLength + 2048);
+    patched.reserve(view.fileLength + injection.definitions.size() * 4096 + injection.freshShapeIds.size() * 512);
     patched.insert(patched.end(), view.base, view.tags);
 
     bool patchedSprite = false;
+    bool appendedDefinitions = false;
     const std::uint8_t* cursor = view.tags;
     const std::uint8_t* end = view.base + view.fileLength;
     while (cursor < end) {
@@ -652,9 +726,22 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
             return false;
         }
 
+        if (tag.code == kTagEnd) {
+            for (const ShapeInjection::ImportedShape& shape : injection.definitions) {
+                ShapeInjection::AppendShapeDefinition(patched, shape);
+            }
+            AppendTag(patched, kTagEnd, std::vector<std::uint8_t>{});
+            appendedDefinitions = true;
+            cursor = tag.next;
+            if (cursor < end) {
+                patched.insert(patched.end(), cursor, end);
+            }
+            break;
+        }
+
         if (!patchedSprite && tag.code == kTagDefineSprite && tag.length >= 4 && ReadU16(tag.payload) == kLobbyPortraitSpriteId) {
             std::vector<std::uint8_t> spritePayload;
-            if (PatchLobbyPortraitSpritePayload(tag.payload, tag.length, classicCloneCount, freshCloneCount, spritePayload)) {
+            if (PatchLobbyPortraitSpritePayload(tag.payload, tag.length, injection, spritePayload)) {
                 AppendTag(patched, tag.code, spritePayload);
                 patchedSprite = true;
             } else {
@@ -665,13 +752,14 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
         }
 
         cursor = tag.next;
-        if (tag.code == kTagEnd) {
-            break;
-        }
     }
 
-    if (!patchedSprite) {
-        Core::Logger::Warn("Lobby portrait sprite %u not patched path='%s'", kLobbyPortraitSpriteId, swfPath.c_str());
+    if (!patchedSprite || !appendedDefinitions) {
+        Core::Logger::Warn("Lobby portrait patch incomplete sprite=%u patchedSprite=%d appendedDefinitions=%d path='%s'",
+                           kLobbyPortraitSpriteId,
+                           patchedSprite ? 1 : 0,
+                           appendedDefinitions ? 1 : 0,
+                           swfPath.c_str());
         return false;
     }
 
@@ -684,7 +772,12 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
     auto owned = std::make_unique<std::vector<std::uint8_t>>(std::move(patched));
     scene->swfBuffer = owned->data();
     g_OwnedPatchedBuffers.push_back(std::move(owned));
-    Core::Logger::Info("Patched lobby portraits path='%s' newLength=%u", swfPath.c_str(), newLength);
+    Core::Logger::Info("Patched lobby portrait shapes path='%s' definitions=%u classic=%u fresh=%u newLength=%u",
+                       swfPath.c_str(),
+                       static_cast<unsigned int>(injection.definitions.size()),
+                       static_cast<unsigned int>(injection.classicShapeIds.size()),
+                       static_cast<unsigned int>(injection.freshShapeIds.size()),
+                       newLength);
     return true;
 }
 

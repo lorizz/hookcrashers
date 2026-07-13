@@ -1,2 +1,2 @@
 -- RegisterCharacter(name, startingWeapon, startingPet, initiallyUnlocked, freshOnly)
-RegisterCharacter("HookCrashers Test Addon", Enums.Weapon.ThinSword, Enums.Pet.None, true, false)
+RegisterCharacter("test_addon", Enums.Weapon.ThinSword, Enums.Pet.None, true, false)

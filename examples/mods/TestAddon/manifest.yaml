@@ -7,10 +7,3 @@ hookcrashers_version: ">=5.0.0"
 dependencies: []
 entrypoints:
   - scripts/register_character.lua
-characters:
-  - id: test_addon
-    name: HookCrashers Test Addon
-    fresh_only: false
-    initially_unlocked: true
-    starting_weapon: 3
-    starting_pet: 0
