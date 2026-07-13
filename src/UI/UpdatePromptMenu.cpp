@@ -2,12 +2,14 @@
 
 #include "../Core/Logger.h"
 #include "../Core/Memory.h"
+#include "../NativeDB/Classes.h"
 #include "../Updater/AutoUpdater.h"
 
 #include <windows.h>
 #include <detours.h>
 
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <cstddef>
 #include <cstdint>
@@ -44,6 +46,7 @@ constexpr std::size_t kTextMaxWidthOffset = 0x4E;
 
 constexpr std::uint16_t kConfirmationMenuId = 3;
 constexpr std::uint16_t kMainMenuId = 23;
+constexpr std::uintptr_t kProfileManagerPointerRva = 0x391294;
 
 using MainMenuBuilderFn = void*(__thiscall*)(void* self, void* scene, int flags);
 using SetMenuStateFn = void(__thiscall*)(void* self, std::uint16_t menuId, void* menuState);
@@ -70,9 +73,45 @@ std::function<void()> g_apiOnDecline;
 
 bool TryOpenPendingApiPrompt(void* mainMenu);
 
+struct LocalizedPromptText {
+    const wchar_t* title;
+    const wchar_t* message;
+    const wchar_t* yes;
+    const wchar_t* no;
+};
+
+constexpr std::array<LocalizedPromptText, 11> kUpdatePromptText {{
+    { L"HookCrashers has been updated", L"Would you like to update HookCrashers? (Game will restart)", L"Yes", L"No" },
+    { L"HookCrashers wurde aktualisiert", L"M\u00F6chtest du HookCrashers aktualisieren? (Das Spiel wird neu gestartet)", L"Ja", L"Nein" },
+    { L"HookCrashers a \u00E9t\u00E9 mis \u00E0 jour", L"Souhaitez-vous mettre \u00E0 jour HookCrashers ? (Le jeu va red\u00E9marrer)", L"Oui", L"Non" },
+    { L"HookCrashers \u00E8 stato aggiornato", L"Vuoi aggiornare HookCrashers? (Il gioco verr\u00E0 riavviato)", L"S\u00EC", L"No" },
+    { L"HookCrashers\uAC00 \uC5C5\uB370\uC774\uD2B8\uB418\uC5C8\uC2B5\uB2C8\uB2E4", L"HookCrashers\uB97C \uC5C5\uB370\uC774\uD2B8\uD558\uC2DC\uACA0\uC2B5\uB2C8\uAE4C? (\uAC8C\uC784\uC774 \uB2E4\uC2DC \uC2DC\uC791\uB429\uB2C8\uB2E4)", L"\uC608", L"\uC544\uB2C8\uC694" },
+    { L"HookCrashers se ha actualizado", L"\u00BFQuieres actualizar HookCrashers? (El juego se reiniciar\u00E1)", L"S\u00ED", L"No" },
+    { L"HookCrashers \u5DF2\u66F4\u65B0", L"\u662F\u5426\u8981\u66F4\u65B0 HookCrashers\uFF1F\uFF08\u6E38\u620F\u5C06\u91CD\u65B0\u542F\u52A8\uFF09", L"\u662F", L"\u5426" },
+    { L"HookCrashers \u5DF2\u66F4\u65B0", L"\u662F\u5426\u8981\u66F4\u65B0 HookCrashers\uFF1F\uFF08\u904A\u6232\u5C07\u91CD\u65B0\u555F\u52D5\uFF09", L"\u662F", L"\u5426" },
+    { L"HookCrashers \u043E\u0431\u043D\u043E\u0432\u043B\u0451\u043D", L"\u0425\u043E\u0442\u0438\u0442\u0435 \u043E\u0431\u043D\u043E\u0432\u0438\u0442\u044C HookCrashers? (\u0418\u0433\u0440\u0430 \u0431\u0443\u0434\u0435\u0442 \u043F\u0435\u0440\u0435\u0437\u0430\u043F\u0443\u0449\u0435\u043D\u0430)", L"\u0414\u0430", L"\u041D\u0435\u0442" },
+    { L"HookCrashers\u304C\u66F4\u65B0\u3055\u308C\u307E\u3057\u305F", L"HookCrashers\u3092\u66F4\u65B0\u3057\u307E\u3059\u304B\uFF1F\uFF08\u30B2\u30FC\u30E0\u304C\u518D\u8D77\u52D5\u3057\u307E\u3059\uFF09", L"\u306F\u3044", L"\u3044\u3044\u3048" },
+    { L"HookCrashers foi atualizado", L"Deseja atualizar o HookCrashers? (O jogo ser\u00E1 reiniciado)", L"Sim", L"N\u00E3o" },
+}};
+
+constexpr std::array<std::uint8_t, 11> kProfileLanguageToTextIndex {
+    0, 1, 2, 5, 3, 9, 4, 7, 10, 6, 8
+};
+
 template <typename T>
 T& Field(void* object, std::size_t offset) {
     return *reinterpret_cast<T*>(static_cast<std::uint8_t*>(object) + offset);
+}
+
+const LocalizedPromptText& CurrentUpdatePromptText() {
+    auto** profileManagerStorage = reinterpret_cast<NativeDB::CC_ProfileManagerLanguageState**>(
+        Core::Memory::Va(kProfileManagerPointerRva));
+    const NativeDB::CC_ProfileManagerLanguageState* profileManager =
+        profileManagerStorage ? *profileManagerStorage : nullptr;
+    if (!profileManager || profileManager->languageIndex >= kProfileLanguageToTextIndex.size()) {
+        return kUpdatePromptText[0];
+    }
+    return kUpdatePromptText[kProfileLanguageToTextIndex[profileManager->languageIndex]];
 }
 
 void* AllocateGameMemory(std::size_t size) {
@@ -206,11 +245,12 @@ bool ConfigureAndOpenPrompt(void* mainMenu, const wchar_t* title, const wchar_t*
     Field<std::uint16_t>(state, kConfiguredTargetOffset) = kMainMenuId;
     Field<std::uint16_t>(state, kSelectedIndexOffset) = 2;
 
+    const LocalizedPromptText& localized = CurrentUpdatePromptText();
     const bool textReady =
         SetRawText(items[0], title, 64) &&
         SetRawText(items[1], message, 72) &&
-        SetRawText(items[2], L"Yes", 16) &&
-        SetRawText(items[3], L"No", 16) &&
+        SetRawText(items[2], localized.yes, 16) &&
+        SetRawText(items[3], localized.no, 16) &&
         SetRawText(items[4], L"") &&
         SetRawText(items[5], L"") &&
         SetRawText(items[6], L"");
@@ -253,10 +293,8 @@ void* __fastcall HookedMainMenuBuilder(void* self, void*, void* scene, int flags
     if (!g_promptShown) {
         g_promptShown = true;
         if (g_startupUpdateAvailable.load(std::memory_order_relaxed)) {
-            ConfigureAndOpenPrompt(
-                self,
-                L"HookCrashers has been updated",
-                L"Would you like to update HookCrashers? (Game will restart)");
+            const LocalizedPromptText& localized = CurrentUpdatePromptText();
+            ConfigureAndOpenPrompt(self, localized.title, localized.message);
         } else {
             TryOpenPendingApiPrompt(self);
         }

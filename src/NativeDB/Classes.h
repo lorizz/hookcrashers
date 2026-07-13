@@ -163,6 +163,10 @@ struct CC_LobbyManagerPartial {
     CC_CharacterTableEntry* characterArrayCapacityEnd; // +0x0040
 };
 
+struct CC_ProfileManagerLanguageState {
+    u32 languageIndex;                    // +0x00
+};
+
 struct CC_ProfileManagerPartial {
     std::array<u8, 0x118> unknown_000;
     void* dlcEntitlementTable;            // +0x118, entry stride 0x0C
@@ -208,6 +212,7 @@ static_assert(offsetof(CC_CharacterData, weapon) == 0x06);
 static_assert(offsetof(CC_CharacterData, animal) == 0x07);
 static_assert(offsetof(CC_CharacterData, insane_mode) == 0x17);
 static_assert(offsetof(CC_CharacterData, skull) == 0x1B);
+static_assert(offsetof(CC_ProfileManagerLanguageState, languageIndex) == 0x00);
 static_assert(offsetof(CC_ProfileManagerPartial, dlcEntitlementTable) == 0x118);
 static_assert(offsetof(CC_ProfileManagerPartial, dlcEntitlementCount) == 0x120);
 static_assert(offsetof(CC_ProfileManagerPartial, freshModeEnabled) == 0x172);

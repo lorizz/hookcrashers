@@ -4,6 +4,7 @@
 
 ### Added
 
+- Localized updater prompt text for all eleven game languages, selected from the runtime ProfileManager language index.
 - Native book-style confirmation prompts exposed through `CreatePrompt` for Lua and C++.
 - In-game HookCrashers update prompt backed by the configured stable or testing release channel.
 - Runtime `main.cok6` save-system patching. HookCrashers now manages the save initialization bytecode internally; mod authors should not edit `f_InitSaveSystem()` in `main.swf`.
