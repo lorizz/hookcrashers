@@ -308,6 +308,10 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
     const auto& registry = Characters::Registry::Instance();
     const int baseCount = registry.NetworkBaseCount();
     const int totalCount = registry.NetworkTotalCount();
+    int unavailableWorkshopCount = 0;
+    int firstUnavailableWorkshopNetworkId = 0;
+    CharacterNetId firstUnavailableWorkshopId {};
+    std::uint8_t firstUnavailableWorkshopFlag = 0;
     auto findAndMark = [&](int networkId, CharacterNetId id, std::uint8_t flag) -> bool {
         if ((id.lo == 0 && id.hi == 0) && flag == 0) {
             return true;
@@ -348,6 +352,17 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
             return true;
         }
 
+        // Steam Workshop subscriptions are per-user and are not an addon compatibility failure.
+        if (isWorkshopEntry) {
+            if (unavailableWorkshopCount == 0) {
+                firstUnavailableWorkshopNetworkId = networkId;
+                firstUnavailableWorkshopId = id;
+                firstUnavailableWorkshopFlag = flag;
+            }
+            ++unavailableWorkshopCount;
+            return true;
+        }
+
         return flag == 0;
     };
 
@@ -373,7 +388,17 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
         }
     }
 
-    Core::Logger::Info("ApplyExpandedPacketToRoster succeeded totalCount=%d", totalCount);
+    if (unavailableWorkshopCount > 0) {
+        Core::Logger::Warn("ApplyExpandedPacketToRoster ignored unavailable workshop entries count=%d firstNetworkId=%d firstFlag=%u firstId=%08X:%08X",
+                           unavailableWorkshopCount,
+                           firstUnavailableWorkshopNetworkId,
+                           firstUnavailableWorkshopFlag,
+                           firstUnavailableWorkshopId.hi,
+                           firstUnavailableWorkshopId.lo);
+    }
+    Core::Logger::Info("ApplyExpandedPacketToRoster succeeded totalCount=%d unavailableWorkshop=%d",
+                       totalCount,
+                       unavailableWorkshopCount);
     return true;
 }
 
