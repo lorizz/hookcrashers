@@ -42,9 +42,10 @@ bool IsSupportedTarget(std::uintptr_t targetAddress) {
     return targetAddress == kSteam32TargetAddress;
 }
 
-void RunStartupFlow(HMODULE module) {
+DWORD WINAPI BootstrapThread(void* parameter) {
+    auto module = static_cast<HMODULE>(parameter);
     HookCrashers::Core::Logger::Initialize(module);
-    HookCrashers::Core::Logger::Info("Synchronous DLL_PROCESS_ATTACH startup entered");
+    HookCrashers::Core::Logger::Info("Bootstrap thread started");
 
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
@@ -85,7 +86,7 @@ void RunStartupFlow(HMODULE module) {
                       static_cast<unsigned int>(kSteam32TargetAddress),
                       static_cast<unsigned int>(targetAddress));
         MessageBoxA(nullptr, message, "HookCrashers", MB_ICONERROR | MB_OK);
-        return;
+        return 1;
     }
 
     HookCrashers::NativeDB::SetGameBase(gameBase);
@@ -106,7 +107,7 @@ void RunStartupFlow(HMODULE module) {
                     "HookCrashers could not isolate the modded save. The vanilla cc_save.dat was not touched.",
                     "HookCrashers",
                     MB_ICONERROR | MB_OK);
-        return;
+        return 1;
     }
 
     if (HookCrashers::Characters::Registry::Instance().AddonCount() > 0) {
@@ -117,7 +118,7 @@ void RunStartupFlow(HMODULE module) {
                         "HookCrashers failed to install character expansion. Check HookCrashers.log.",
                         "HookCrashers",
                         MB_ICONERROR | MB_OK);
-            return;
+            return 1;
         }
     } else {
         HookCrashers::Core::Logger::Warn("No addon characters registered; character expansion was not installed");
@@ -127,7 +128,8 @@ void RunStartupFlow(HMODULE module) {
         HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
     }
 
-    HookCrashers::Core::Logger::Info("Synchronous DLL_PROCESS_ATTACH startup finished; entering Castle Crashers");
+    HookCrashers::Core::Logger::Info("Bootstrap thread finished");
+    return 0;
 }
 } // namespace
 
@@ -136,8 +138,12 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
-        RunStartupFlow(module);
-
+        HANDLE thread = CreateThread(nullptr, 0, BootstrapThread, module, 0, nullptr);
+        if (thread) {
+            CloseHandle(thread);
+        } else {
+            return FALSE;
+        }
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
         HookCrashers::UI::DebugOverlay::Shutdown();
