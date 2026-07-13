@@ -12,5 +12,6 @@ struct LoadResult {
 };
 
 LoadResult LoadAll(const std::string& rootDirectory);
+void Shutdown();
 
 } // namespace HookCrashers::Core::ModLoader

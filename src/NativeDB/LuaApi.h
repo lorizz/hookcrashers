@@ -1,5 +1,7 @@
 #pragma once
 
+#include <string>
+
 struct lua_State;
 
 namespace HookCrashers::NativeDB::Lua {
@@ -10,5 +12,6 @@ namespace HookCrashers::NativeDB::Lua {
 // Arguments are passed as integer-sized raw values. This is intended for
 // exploratory glue; stable mod code should wrap each native with typed C++.
 bool Register(lua_State* state);
+void SetCurrentModDirectory(const std::string& directory);
 
 } // namespace HookCrashers::NativeDB::Lua

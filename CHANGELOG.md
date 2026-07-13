@@ -4,6 +4,8 @@
 
 ### Added
 
+- Native book-style confirmation prompts exposed through `CreatePrompt` for Lua and C++.
+- In-game HookCrashers update prompt backed by the configured stable or testing release channel.
 - Runtime `main.cok6` save-system patching. HookCrashers now manages the save initialization bytecode internally; mod authors should not edit `f_InitSaveSystem()` in `main.swf`.
 - Runtime `lobby.cok6` portrait injection from per-character `portrait.swf` files.
 - `portrait_fresh.swf` support. When present, `portrait.swf` is used for classic mode and `portrait_fresh.swf` is used for fresh/custom mode.
@@ -18,6 +20,8 @@
 
 ### Changed
 
+- Update checks now run before the main menu and only open the update prompt when a newer release exists. Confirming downloads the ASI, replaces it after shutdown, and restarts the game.
+- Lua mods now run on the embedded Lua 5.4 runtime.
 - The intended workflow is now modular and folder-based: Lua registration, localization, save expansion, and lobby portraits are handled at runtime by HookCrashers.
 - Runtime portrait injection now appends imported definitions immediately before the root `End` tag instead of inserting them in the middle of existing SWF character definitions.
 - Lobby portrait frame cloning no longer uses broad fallback sprite detection; it targets the configured lobby portrait sprite only.

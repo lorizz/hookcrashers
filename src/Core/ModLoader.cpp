@@ -2,6 +2,13 @@
 
 #include "Logger.h"
 #include "../Characters/CharacterRegistry.h"
+#include "../NativeDB/LuaApi.h"
+
+extern "C" {
+#include <lua.h>
+#include <lauxlib.h>
+#include <lualib.h>
+}
 
 #include <windows.h>
 #include <algorithm>
@@ -17,6 +24,8 @@
 
 namespace HookCrashers::Core::ModLoader {
 namespace {
+
+std::vector<lua_State*> g_luaStates;
 
 std::string JoinPath(const std::string& a, const std::string& b) {
     if (a.empty()) {
@@ -469,59 +478,75 @@ bool ExecuteRegisterCharacter(const std::string& args,
     return true;
 }
 
+std::string ReplaceEnumReferences(std::string text,
+                                  const std::string& prefix,
+                                  const std::unordered_map<std::string, int>& values) {
+    std::size_t cursor = 0;
+    while ((cursor = text.find(prefix, cursor)) != std::string::npos) {
+        const std::size_t tokenStart = cursor + prefix.size();
+        std::size_t tokenEnd = tokenStart;
+        while (tokenEnd < text.size()) {
+            const unsigned char ch = static_cast<unsigned char>(text[tokenEnd]);
+            if (std::isalnum(ch) == 0 && ch != '_') break;
+            ++tokenEnd;
+        }
+
+        const std::string token = text.substr(tokenStart, tokenEnd - tokenStart);
+        const auto found = values.find(NormalizeEnumToken(token));
+        if (found == values.end()) {
+            cursor = tokenEnd;
+            continue;
+        }
+
+        const std::string number = std::to_string(found->second);
+        text.replace(cursor, tokenEnd - cursor, number);
+        cursor += number.size();
+    }
+    return text;
+}
+
+std::string PrepareLuaSource(const std::string& source) {
+    std::string text = StripLuaLineComments(source);
+    text = ReplaceEnumReferences(std::move(text), "HC.Enums.Weapon.", WeaponEnumMap());
+    text = ReplaceEnumReferences(std::move(text), "HC.Enums.Pet.", PetEnumMap());
+    text = ReplaceEnumReferences(std::move(text), "Enums.Weapon.", WeaponEnumMap());
+    text = ReplaceEnumReferences(std::move(text), "Enums.Pet.", PetEnumMap());
+    return text;
+}
+
 int ExecuteScript(const std::string& scriptPath, const std::string& modDirectory) {
-    Logger::Info("Executing mod script: %s", scriptPath.c_str());
+    Logger::Info("Executing Lua mod script: %s", scriptPath.c_str());
     const std::string rawText = ReadTextFile(scriptPath);
     if (rawText.empty()) {
         Logger::Warn("Script is empty or unreadable: %s", scriptPath.c_str());
         return 0;
     }
 
-    const std::string text = StripLuaLineComments(rawText);
-    int registered = 0;
-    std::size_t cursor = 0;
-    constexpr const char* callName = "RegisterCharacter";
-    while ((cursor = text.find(callName, cursor)) != std::string::npos) {
-        const std::size_t open = text.find('(', cursor);
-        if (open == std::string::npos) {
-            break;
-        }
-
-        bool inString = false;
-        int depth = 0;
-        std::size_t close = std::string::npos;
-        for (std::size_t i = open; i < text.size(); ++i) {
-            const char ch = text[i];
-            if (ch == '"' && (i == 0 || text[i - 1] != '\\')) {
-                inString = !inString;
-            }
-            if (inString) {
-                continue;
-            }
-            if (ch == '(') {
-                ++depth;
-            } else if (ch == ')') {
-                --depth;
-                if (depth == 0) {
-                    close = i;
-                    break;
-                }
-            }
-        }
-
-        if (close == std::string::npos) {
-            Logger::Error("Unclosed RegisterCharacter call in %s", scriptPath.c_str());
-            break;
-        }
-
-        ExecuteRegisterCharacter(text.substr(open + 1, close - open - 1),
-                                 scriptPath,
-                                 JoinPath(modDirectory, "characters"),
-                                 registered);
-        cursor = close + 1;
+    lua_State* state = luaL_newstate();
+    if (!state) {
+        Logger::Error("Could not create Lua state for %s", scriptPath.c_str());
+        return 0;
     }
 
-    return registered;
+    luaL_openlibs(state);
+    HookCrashers::NativeDB::Lua::SetCurrentModDirectory(modDirectory);
+    HookCrashers::NativeDB::Lua::Register(state);
+
+    const int before = Characters::Registry::Instance().AddonCount();
+    const std::string source = PrepareLuaSource(rawText);
+    if (luaL_loadbuffer(state, source.data(), source.size(), scriptPath.c_str()) != LUA_OK ||
+        lua_pcall(state, 0, 0, 0) != LUA_OK) {
+        const char* error = lua_tostring(state, -1);
+        Logger::Error("Lua script failed in %s: %s",
+                      scriptPath.c_str(),
+                      error ? error : "<unknown>");
+        lua_close(state);
+        return 0;
+    }
+
+    g_luaStates.push_back(state);
+    const int after = Characters::Registry::Instance().AddonCount();
+    return (std::max)(0, after - before);
 }
 
 std::vector<std::string> EnumerateLuaScripts(const std::string& scriptsDirectory) {
@@ -545,7 +570,15 @@ std::vector<std::string> EnumerateLuaScripts(const std::string& scriptsDirectory
 
 } // namespace
 
+void Shutdown() {
+    for (lua_State* state : g_luaStates) {
+        if (state) lua_close(state);
+    }
+    g_luaStates.clear();
+}
+
 LoadResult LoadAll(const std::string& rootDirectory) {
+    Shutdown();
     LoadResult result;
     const std::string modsDirectory = JoinPath(rootDirectory, "mods");
     Logger::Info("Scanning mods directory: %s", modsDirectory.c_str());

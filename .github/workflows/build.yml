@@ -35,6 +35,13 @@ jobs:
         run: |
           git clone --depth 1 https://github.com/ocornut/imgui.git External/imgui
 
+      - name: Download Lua 5.4.7
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path ..\External\lua54 | Out-Null
+          Invoke-WebRequest https://www.lua.org/ftp/lua-5.4.7.tar.gz -OutFile lua-5.4.7.tar.gz
+          tar -xzf lua-5.4.7.tar.gz -C ..\External\lua54
+
       - name: Build Detours x86
         shell: cmd
         run: |

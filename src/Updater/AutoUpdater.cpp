@@ -13,8 +13,10 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <limits>
 #include <sstream>
 #include <string>
+#include <utility>
 #include <vector>
 
 #pragma comment(lib, "bcrypt.lib")
@@ -36,6 +38,10 @@ struct UpdateManifest {
     std::string assetUrl;
     std::string notes;
 };
+
+UpdateManifest g_availableManifest;
+std::string g_moduleDirectory;
+bool g_hasAvailableUpdate = false;
 
 std::string JoinPath(const std::string& a, const std::string& b) {
     if (a.empty()) {
@@ -123,6 +129,11 @@ std::string HttpGetText(const char* url) {
         return {};
     }
 
+    constexpr DWORD kTimeoutMs = 5000;
+    InternetSetOptionA(internet, INTERNET_OPTION_CONNECT_TIMEOUT, (LPVOID)&kTimeoutMs, sizeof(kTimeoutMs));
+    InternetSetOptionA(internet, INTERNET_OPTION_SEND_TIMEOUT, (LPVOID)&kTimeoutMs, sizeof(kTimeoutMs));
+    InternetSetOptionA(internet, INTERNET_OPTION_RECEIVE_TIMEOUT, (LPVOID)&kTimeoutMs, sizeof(kTimeoutMs));
+
     HINTERNET request = InternetOpenUrlA(internet,
                                          url,
                                          nullptr,
@@ -191,7 +202,44 @@ bool ParseManifest(const std::string& json, UpdateManifest& manifest) {
 }
 
 bool IsNewerVersion(const std::string& current, const std::string& remote) {
-    return !remote.empty() && remote != current;
+    auto parse = [](const std::string& version) {
+        std::vector<unsigned long> components;
+        std::size_t cursor = 0;
+        while (cursor < version.size() && components.size() < 4) {
+            while (cursor < version.size() && !std::isdigit(static_cast<unsigned char>(version[cursor]))) {
+                ++cursor;
+            }
+            if (cursor == version.size()) break;
+
+            unsigned long value = 0;
+            while (cursor < version.size() && std::isdigit(static_cast<unsigned char>(version[cursor]))) {
+                const unsigned digit = static_cast<unsigned>(version[cursor] - '0');
+                if (value > ((std::numeric_limits<unsigned long>::max)() - digit) / 10) {
+                    value = (std::numeric_limits<unsigned long>::max)();
+                } else {
+                    value = value * 10 + digit;
+                }
+                ++cursor;
+            }
+            components.push_back(value);
+        }
+        return components;
+    };
+
+    const std::vector<unsigned long> currentParts = parse(current);
+    const std::vector<unsigned long> remoteParts = parse(remote);
+    if (remoteParts.empty()) return false;
+
+    const std::size_t count = (std::max)(currentParts.size(), remoteParts.size());
+    for (std::size_t i = 0; i < count; ++i) {
+        const unsigned long currentPart = i < currentParts.size() ? currentParts[i] : 0;
+        const unsigned long remotePart = i < remoteParts.size() ? remoteParts[i] : 0;
+        if (remotePart != currentPart) return remotePart > currentPart;
+    }
+
+    const bool currentIsPrerelease = current.find('-') != std::string::npos;
+    const bool remoteIsPrerelease = remote.find('-') != std::string::npos;
+    return currentIsPrerelease && !remoteIsPrerelease;
 }
 
 bool DownloadFile(const std::string& url, const std::string& destination) {
@@ -234,37 +282,18 @@ bool WriteUpdaterScript(const std::string& moduleDirectory,
     return true;
 }
 
-void PromptAndInstall(const std::string& moduleDirectory, const UpdateManifest& manifest) {
-    char message[1024] {};
-    std::snprintf(message,
-                  sizeof(message),
-                  "A new HookCrashers update has been released.\n\n"
-                  "Current version: %s\n"
-                  "New version: %s\n"
-                  "Channel: %s\n\n"
-                  "%s\n\n"
-                  "Download and install it now?\n"
-                  "Castle Crashers will restart after HookCrashers.asi has been replaced.",
-                  Core::Version::kVersion,
-                  manifest.version.c_str(),
-                  manifest.channel.empty() ? "unknown" : manifest.channel.c_str(),
-                  manifest.notes.empty() ? "No patch notes were provided." : manifest.notes.c_str());
-
-    const int choice = MessageBoxA(nullptr, message, "HookCrashers Update", MB_ICONINFORMATION | MB_YESNO);
-    if (choice != IDYES) {
-        Core::Logger::Info("User skipped HookCrashers update version=%s", manifest.version.c_str());
-        return;
-    }
-
+bool InstallUpdate(const std::string& moduleDirectory, const UpdateManifest& manifest) {
     const std::string downloadedAsi = JoinPath(moduleDirectory, "HookCrashers.asi.update");
     if (!DownloadFile(manifest.assetUrl, downloadedAsi)) {
-        MessageBoxA(nullptr, "HookCrashers failed to download the update.", "HookCrashers Update", MB_ICONERROR | MB_OK);
         Core::Logger::Error("Failed to download update asset '%s'", manifest.assetUrl.c_str());
-        return;
+        return false;
     }
 
     std::string modulePath(MAX_PATH, '\0');
-    DWORD written = GetModuleFileNameA(reinterpret_cast<HMODULE>(&__ImageBase), &modulePath[0], static_cast<DWORD>(modulePath.size()));
+    DWORD written = GetModuleFileNameA(
+        reinterpret_cast<HMODULE>(&__ImageBase),
+        modulePath.data(),
+        static_cast<DWORD>(modulePath.size()));
     if (written == 0) {
         modulePath = JoinPath(moduleDirectory, "HookCrashers.asi");
     } else {
@@ -272,44 +301,58 @@ void PromptAndInstall(const std::string& moduleDirectory, const UpdateManifest& 
     }
 
     std::string gameExecutable(MAX_PATH, '\0');
-    written = GetModuleFileNameA(nullptr, &gameExecutable[0], static_cast<DWORD>(gameExecutable.size()));
+    written = GetModuleFileNameA(
+        nullptr, gameExecutable.data(), static_cast<DWORD>(gameExecutable.size()));
     if (written == 0) {
-        MessageBoxA(nullptr, "HookCrashers could not locate Castle Crashers for restart.", "HookCrashers Update", MB_ICONERROR | MB_OK);
         Core::Logger::Error("Failed to locate Castle Crashers executable for updater restart");
-        return;
+        DeleteFileA(downloadedAsi.c_str());
+        return false;
     }
     gameExecutable.resize(written);
 
     std::string scriptPath;
-    if (!WriteUpdaterScript(moduleDirectory, downloadedAsi, modulePath, gameExecutable, scriptPath)) {
-        MessageBoxA(nullptr, "HookCrashers downloaded the update but failed to create the updater script.", "HookCrashers Update", MB_ICONERROR | MB_OK);
+    if (!WriteUpdaterScript(
+            moduleDirectory, downloadedAsi, modulePath, gameExecutable, scriptPath)) {
         Core::Logger::Error("Failed to write updater script");
-        return;
+        DeleteFileA(downloadedAsi.c_str());
+        return false;
     }
 
     const auto launchResult = reinterpret_cast<INT_PTR>(
         ShellExecuteA(nullptr, "open", scriptPath.c_str(), nullptr, moduleDirectory.c_str(), SW_HIDE));
     if (launchResult <= 32) {
-        MessageBoxA(nullptr, "HookCrashers could not start the updater process.", "HookCrashers Update", MB_ICONERROR | MB_OK);
-        Core::Logger::Error("Failed to launch update script result=%lld", static_cast<long long>(launchResult));
-        return;
+        Core::Logger::Error(
+            "Failed to launch update script result=%lld", static_cast<long long>(launchResult));
+        DeleteFileA(downloadedAsi.c_str());
+        DeleteFileA(scriptPath.c_str());
+        return false;
     }
 
-    Core::Logger::Info("Update script launched; exiting process for replacement");
+    Core::Logger::Info(
+        "Update %s downloaded; helper launched, exiting for replacement",
+        manifest.version.c_str());
     ExitProcess(0);
+    return true;
 }
 
 } // namespace
 
-void CheckForUpdates(const std::string& moduleDirectory, const Core::Config::RuntimeConfig& config) {
+bool CheckForUpdates(const std::string& moduleDirectory,
+                     const Core::Config::RuntimeConfig& config) {
+    g_hasAvailableUpdate = false;
+    g_availableManifest = {};
+    g_moduleDirectory = moduleDirectory;
+
     if (!config.updatesEnabled) {
         Core::Logger::Info("AutoUpdater skipped: updates disabled");
-        return;
+        return false;
     }
 
     Core::Config::UpdateChannel channel = config.channel;
-    if (channel == Core::Config::UpdateChannel::Testing && !IsTestingKeyValid(config.testingKey)) {
-        Core::Logger::Warn("Testing update channel requested with invalid key; falling back to stable");
+    if (channel == Core::Config::UpdateChannel::Testing &&
+        !IsTestingKeyValid(config.testingKey)) {
+        Core::Logger::Warn(
+            "Testing update channel requested with invalid key; falling back to stable");
         channel = Core::Config::UpdateChannel::Stable;
     }
 
@@ -326,15 +369,32 @@ void CheckForUpdates(const std::string& moduleDirectory, const Core::Config::Run
     const std::string json = HttpGetText(manifestUrl);
     if (json.empty() || !ParseManifest(json, manifest)) {
         Core::Logger::Warn("AutoUpdater could not read update manifest");
-        return;
+        return false;
     }
 
     if (!IsNewerVersion(Core::Version::kVersion, manifest.version)) {
         Core::Logger::Info("HookCrashers is up to date: %s", Core::Version::kVersion);
-        return;
+        return false;
     }
 
-    PromptAndInstall(moduleDirectory, manifest);
+    g_availableManifest = std::move(manifest);
+    g_hasAvailableUpdate = true;
+    Core::Logger::Info("HookCrashers update available: current=%s remote=%s",
+                       Core::Version::kVersion,
+                       g_availableManifest.version.c_str());
+    return true;
+}
+
+bool HasAvailableUpdate() {
+    return g_hasAvailableUpdate;
+}
+
+bool InstallAvailableUpdate() {
+    if (!g_hasAvailableUpdate || g_moduleDirectory.empty()) {
+        Core::Logger::Warn("InstallAvailableUpdate called without an available update");
+        return false;
+    }
+    return InstallUpdate(g_moduleDirectory, g_availableManifest);
 }
 
 } // namespace HookCrashers::Updater::AutoUpdater

@@ -20,7 +20,7 @@ constexpr std::uint32_t kWorkshopEntriesPerPlayer = 10;
 constexpr std::uint32_t kMaxLocalPlayers = 4;
 constexpr std::uint32_t kWorkshopEntries = kWorkshopEntriesPerPlayer * kMaxLocalPlayers;
 constexpr std::uint32_t kCharacterIdBytes = 8;
-constexpr std::uintptr_t kLobbyManagerGlobalRva = 0x3912B8;
+constexpr std::uintptr_t kLobbyManagerGlobalRva = 0x3912B0;
 constexpr std::uintptr_t kCharacterRuntimeBaseArrayOffset = 0x11AC;
 constexpr std::uintptr_t kNetworkKickReasonGlobalRva = 0x260E94;
 constexpr std::uint8_t kCharacterSyncMessageType = 0x0D;
@@ -298,7 +298,7 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
         return false;
     }
 
-    auto insertEntry = reinterpret_cast<InsertCharacterSyncEntryFn>(Core::Memory::Va(0x12B030));
+    auto insertEntry = reinterpret_cast<InsertCharacterSyncEntryFn>(Core::Memory::Va(0x12B0E0));
     auto* sentinel = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(lobbyManager) + 0x1C);
     if (!sentinel || !insertEntry) {
         Core::Logger::Error("ApplyExpandedPacketToRoster missing sentinel/insertEntry sentinel=%p insertEntry=%p", sentinel, reinterpret_cast<void*>(insertEntry));

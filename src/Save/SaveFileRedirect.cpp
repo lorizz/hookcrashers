@@ -14,11 +14,11 @@ namespace HookCrashers::Save::SaveFileRedirect {
 namespace {
 
 constexpr std::array<std::uintptr_t, 8> kMainFilenameReferences = {
-    0xE8E8B, 0xE8EA7, 0xE8EDA, 0xE9097,
-    0xE90C8, 0xE912C, 0xE9345, 0x1C46EC
+    0xE8EFB, 0xE8F17, 0xE8F4A, 0xE9107,
+    0xE9138, 0xE919C, 0xE93B5, 0x1C46F0
 };
 constexpr std::array<std::uintptr_t, 3> kBackupFilenameReferences = {
-    0xE9160, 0xE9177, 0x1C46F0
+    0xE91D0, 0xE91E7, 0x1C46F4
 };
 
 std::string g_SaveFileName = "hc_mod.dat";

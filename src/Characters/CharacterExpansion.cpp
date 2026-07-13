@@ -15,8 +15,11 @@
 namespace HookCrashers::Characters {
 namespace {
 
-using CreateDefaultSaveFn = void(__fastcall*)(void* saveBuffer);
+using CreateDefaultSaveFn = void(__fastcall*)(void* saveManager);
 CreateDefaultSaveFn g_OriginalCreateDefaultSave = nullptr;
+
+using SanitizeCharacterSaveSlotsFn = std::uintptr_t(__fastcall*)(void* saveManager);
+SanitizeCharacterSaveSlotsFn g_OriginalSanitizeCharacterSaveSlots = nullptr;
 
 std::uint8_t VanillaStartingWeapon(std::uint32_t index) {
     switch (index) {
@@ -99,11 +102,70 @@ void InitializeExpandedDefaultCharacterData(void* saveBuffer) {
     }
 }
 
-void __fastcall DetouredCreateDefaultSave(void* saveBuffer) {
-    Core::Logger::Info("CC_CreateDefaultSave detour entered saveBuffer=%p", saveBuffer);
-    g_OriginalCreateDefaultSave(saveBuffer);
+void RepairExpandedCharacterStatBaselines(void* saveManager) {
+    if (!saveManager) {
+        Core::Logger::Warn("Cannot repair addon stat baselines: save manager is null");
+        return;
+    }
+
+    auto* saveBuffer = reinterpret_cast<std::uint8_t**>(saveManager)[1];
+    if (!saveBuffer) {
+        Core::Logger::Warn("Cannot repair addon stat baselines: save buffer is null");
+        return;
+    }
+
+    const Registry& registry = Registry::Instance();
+    int repairedSlots = 0;
+    for (int addon = 0; addon < registry.AddonCount(); ++addon) {
+        const int slot = registry.FirstAddonIndex() + addon;
+        auto* character = reinterpret_cast<NativeDB::CC_CharacterData*>(
+            saveBuffer + NativeDB::kGlobalDataSize + NativeDB::kCharacterDataSize * slot);
+
+        bool repaired = false;
+        if (character->strength == 0) {
+            character->strength = 1;
+            repaired = true;
+        }
+        if (character->defense == 0) {
+            character->defense = 1;
+            repaired = true;
+        }
+        if (character->magic == 0) {
+            character->magic = 1;
+            repaired = true;
+        }
+        if (character->agility == 0) {
+            character->agility = 1;
+            repaired = true;
+        }
+
+        if (repaired) {
+            ++repairedSlots;
+            Core::Logger::Warn("Repaired zero stat baseline for addon save slot=%d", slot);
+        }
+    }
+
+    Core::Logger::Info("Addon stat baseline repair finished repairedSlots=%d", repairedSlots);
+}
+
+void __fastcall DetouredCreateDefaultSave(void* saveManager) {
+    Core::Logger::Info("CC_CreateDefaultSave detour entered saveManager=%p", saveManager);
+    g_OriginalCreateDefaultSave(saveManager);
+
+    // CC_CreateDefaultSave receives the save manager. Its second pointer is the
+    // actual save buffer, matching the per-character initializer used by v4.
+    void* saveBuffer = saveManager
+        ? reinterpret_cast<void**>(saveManager)[1]
+        : nullptr;
+    Core::Logger::Info("CC_CreateDefaultSave initializing expanded slots saveBuffer=%p", saveBuffer);
     InitializeExpandedDefaultCharacterData(saveBuffer);
     Core::Logger::Info("CC_CreateDefaultSave detour finished");
+}
+
+std::uintptr_t __fastcall DetouredSanitizeCharacterSaveSlots(void* saveManager) {
+    const std::uintptr_t result = g_OriginalSanitizeCharacterSaveSlots(saveManager);
+    RepairExpandedCharacterStatBaselines(saveManager);
+    return result;
 }
 
 bool PatchSaveAndRosterConstants() {
@@ -121,7 +183,7 @@ bool PatchSaveAndRosterConstants() {
     const int networkBase = registry.NetworkBaseCount();
     const int pastLastNetworkId = registry.PastLastNetworkId();
     const int saveSlotCount = registry.SaveCharacterSlotCount();
-    const int characterTableBytes = static_cast<int>(NativeDB::kCharacterTableEntryBytes) * addonCount + 14728;
+    const int characterTableBytes = static_cast<int>(NativeDB::kCharacterTableEntryBytes) * addonCount + 14736;
     const int firstWorkshopId = registry.FirstWorkshopId();
     const int workshopSlotTableIndex = 1131 + networkBase;
     const int workshopSlotTableByteOffset = workshopSlotTableIndex * 4;
@@ -146,104 +208,104 @@ bool PatchSaveAndRosterConstants() {
     bool ok = true;
 
     // Save allocation/checksum/keybind constants from NativeDB save flow.
-    ok = Core::Memory::WriteU32(0xFD2E6, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0xFD310, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0xFD31A, savePayloadSize) && ok;
-    ok = Core::Memory::WriteBytes(0x130F10, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 }) && ok;
-    ok = Core::Memory::WriteBytes(0xE90D3, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 }) && ok;
-    ok = Core::Memory::WriteU32(0x130F68, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0x12F4A7, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12F4B0, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EE3D, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EE46, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D200 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D209 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D6EB + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D6F4 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13E182 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13E18B + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EDB6, 0x832 + addonBytes) && ok;
-    ok = Core::Memory::WriteU32(0x12EDBF, 0x832 + addonBytes) && ok;
+    ok = Core::Memory::WriteU32(0xFD366, saveSize) && ok;
+    ok = Core::Memory::WriteU32(0xFD390, saveSize) && ok;
+    ok = Core::Memory::WriteU32(0xFD39A, savePayloadSize) && ok;
+    ok = Core::Memory::WriteBytes(0x130FC0, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 }) && ok;
+    ok = Core::Memory::WriteBytes(0xE9143, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 }) && ok;
+    ok = Core::Memory::WriteU32(0x131018, saveSize) && ok;
+    ok = Core::Memory::WriteU32(0x12F557, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x12F560, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x12EEED, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x12EEF6, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D280 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D289 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D76B + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13D774 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13E202 + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x13E20B + 3, keybindsOffset) && ok;
+    ok = Core::Memory::WriteU32(0x12EE66, 0x832 + addonBytes) && ok;
+    ok = Core::Memory::WriteU32(0x12EE6F, 0x832 + addonBytes) && ok;
     // Match v4's level-offset iterator boundary exactly: one byte past the
     // relocated keybind start.
-    ok = Core::Memory::WriteU32(0x12ED84, 0x821 + addonBytes) && ok;
-    ok = Core::Memory::WriteU8(0x12F1BE, saveSlotCount) && ok;
+    ok = Core::Memory::WriteU32(0x12EE34, 0x821 + addonBytes) && ok;
+    ok = Core::Memory::WriteU8(0x12F26E, saveSlotCount) && ok;
 
     // Lobby character table and classic/fresh/workshop boundaries.
-    ok = Core::Memory::WriteU8(0x830A0, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x830A4, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU16(0x830E0, pastLastNetworkId * 4) && ok;
-    ok = Core::Memory::WriteU32(0x10C805, characterTableBytes) && ok;
-    ok = Core::Memory::WriteU16(0x84701, pastLastNetworkId * 4) && ok;
-    ok = Core::Memory::WriteU8(0x847BD, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x847D2, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x84A2C, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8E9A0 + 2, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8E9C2 + 2, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x873F1, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x83110, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x83114, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU16(0x83150, pastLastNetworkId * 4) && ok;
+    ok = Core::Memory::WriteU32(0x10C895, characterTableBytes) && ok;
+    ok = Core::Memory::WriteU16(0x84771, pastLastNetworkId * 4) && ok;
+    ok = Core::Memory::WriteU8(0x8482D, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x84842, -networkBase) && ok;
+    ok = Core::Memory::WriteU8(0x84A9C, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8EA30 + 2, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8EA52 + 2, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x87461, pastLastNetworkId) && ok;
 
     // DLC/fresh gates and 0x1F/0x20/0x21 style base roster comparisons.
-    ok = Core::Memory::WriteU8(0x1055CA + 2, networkBase - 1) && ok;
-    ok = Core::Memory::WriteU8(0x1055F3 + 2, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x105629 + 2, networkBase + 1) && ok;
-    ok = Core::Memory::WriteU8(0x105637 + 2, networkBase + 11) && ok;
-    ok = Core::Memory::WriteU8(0x10562E + 2, networkBase + 11) && ok;
-    ok = Core::Memory::WriteU8(0x105645 + 2, networkBase + 21) && ok;
-    ok = Core::Memory::WriteU8(0x10563C + 2, networkBase + 21) && ok;
-    ok = Core::Memory::WriteU8(0x105653 + 2, networkBase + 31) && ok;
-    ok = Core::Memory::WriteU8(0x10564A + 2, networkBase + 31) && ok;
-    ok = Core::Memory::WriteU8(0x10565C + 2, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x10564A + 2, networkBase - 1) && ok;
+    ok = Core::Memory::WriteU8(0x105673 + 2, -networkBase) && ok;
+    ok = Core::Memory::WriteU8(0x1056A9 + 2, networkBase + 1) && ok;
+    ok = Core::Memory::WriteU8(0x1056B7 + 2, networkBase + 11) && ok;
+    ok = Core::Memory::WriteU8(0x1056AE + 2, networkBase + 11) && ok;
+    ok = Core::Memory::WriteU8(0x1056C5 + 2, networkBase + 21) && ok;
+    ok = Core::Memory::WriteU8(0x1056BC + 2, networkBase + 21) && ok;
+    ok = Core::Memory::WriteU8(0x1056D3 + 2, networkBase + 31) && ok;
+    ok = Core::Memory::WriteU8(0x1056CA + 2, networkBase + 31) && ok;
+    ok = Core::Memory::WriteU8(0x1056DC + 2, pastLastNetworkId) && ok;
 
     // Selection/portrait/workshop start.
-    ok = Core::Memory::WriteU8(0x14CF2E + 2, networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x14CF4B + 2, networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x8D625, networkBase + 1) && ok;
-    ok = Core::Memory::WriteU8(0x8D5F4, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8D5FB, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8D23C, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8D266, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x8D26C, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x14CFCE + 2, networkBase) && ok;
+    ok = Core::Memory::WriteU8(0x14CFEB + 2, networkBase) && ok;
+    ok = Core::Memory::WriteU8(0x8D695, networkBase + 1) && ok;
+    ok = Core::Memory::WriteU8(0x8D664, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8D66B, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8D2AC, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8D2D6, -networkBase) && ok;
+    ok = Core::Memory::WriteU8(0x8D2DC, firstWorkshopId) && ok;
 
     // Addon display names and workshop name fallback ranges.
-    ok = Core::Memory::WriteU8(0x8A5C9, -firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8A5D5, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8A5E4, firstWorkshopId - 2) && ok;
-    ok = Core::Memory::WriteU8(0x8A678, -firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x8A68A, static_cast<std::uint32_t>(workshopNameBase)) && ok;
-    ok = Core::Memory::WriteU8(0x8A6BB, firstWorkshopId - 2) && ok;
-    ok = Core::Memory::WriteU8(0x8FC6C, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8FD12, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8A730, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8A639, -firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8A645, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8A654, firstWorkshopId - 2) && ok;
+    ok = Core::Memory::WriteU8(0x8A6E8, -firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x8A6FA, static_cast<std::uint32_t>(workshopNameBase)) && ok;
+    ok = Core::Memory::WriteU8(0x8A72B, firstWorkshopId - 2) && ok;
+    ok = Core::Memory::WriteU8(0x8FCFC, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8FDA2, firstWorkshopId - 1) && ok;
+    ok = Core::Memory::WriteU8(0x8A7A0, pastLastNetworkId) && ok;
 
     // Lobby workshop/addon behavior.
-    ok = Core::Memory::WriteU8(0x83FFD, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8EB14, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8EB56, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU32(0x106097, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
-    ok = Core::Memory::WriteU8(0x105EAA, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8FBF1, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8FC05, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x105D76, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x16080A, -firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8406D, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8EBA4, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8EBE6, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU32(0x106117, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
+    ok = Core::Memory::WriteU8(0x105F2A, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x8FC81, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x8FC95, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x105DF6, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x1608AA, -firstWorkshopId) && ok;
 
     // Stats menu character iterator. Classic addons use classic frames; fresh addons move
     // the workshop block after the expanded fresh roster.
-    ok = Core::Memory::WriteU32(0x14CEC4, static_cast<std::uint32_t>(statsTotalCount)) && ok;
-    ok = Core::Memory::WriteU8(0x14CF1F, statsTotalCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CED6, statsClassicCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CF04, statsClassicCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CF30, statsFreshCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CF4D, statsFreshCount) && ok;
+    ok = Core::Memory::WriteU32(0x14CF64, static_cast<std::uint32_t>(statsTotalCount)) && ok;
+    ok = Core::Memory::WriteU8(0x14CFBF, statsTotalCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CF76, statsClassicCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CFA4, statsClassicCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CFD0, statsFreshCount) && ok;
+    ok = Core::Memory::WriteU8(0x14CFED, statsFreshCount) && ok;
 
     // Ready-state workshop validation.
-    ok = Core::Memory::WriteU8(0x87BEC, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x87D0E, static_cast<std::uint32_t>(workshopSkinEntryByteOffset)) && ok;
-    ok = Core::Memory::WriteU8(0x87D6C, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x87E26, static_cast<std::uint32_t>(workshopSlotTableByteOffset)) && ok;
-    ok = Core::Memory::WriteU32(0x87E2B, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
-    ok = Core::Memory::WriteU8(0x87F58, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x87FD7, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x88020, pastLastNetworkId) && ok;
+    ok = Core::Memory::WriteU8(0x87C5C, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x87D7E, static_cast<std::uint32_t>(workshopSkinEntryByteOffset)) && ok;
+    ok = Core::Memory::WriteU8(0x87DDC, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU32(0x87E96, static_cast<std::uint32_t>(workshopSlotTableByteOffset)) && ok;
+    ok = Core::Memory::WriteU32(0x87E9B, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
+    ok = Core::Memory::WriteU8(0x87FC8, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x88047, firstWorkshopId) && ok;
+    ok = Core::Memory::WriteU8(0x88090, pastLastNetworkId) && ok;
 
     Core::Logger::Info("PatchSaveAndRosterConstants result=%d", ok ? 1 : 0);
     return ok;
@@ -267,6 +329,28 @@ bool InstallDefaultSaveHook() {
     return commit == NO_ERROR;
 }
 
+bool InstallSanitizeSaveHook() {
+    g_OriginalSanitizeCharacterSaveSlots =
+        reinterpret_cast<SanitizeCharacterSaveSlotsFn>(
+            NativeDB::NativeAddress(NativeDB::Natives::CC_SanitizeCharacterSaveSlots));
+
+    Core::Logger::Info("Installing CC_SanitizeCharacterSaveSlots detour at %p",
+                       reinterpret_cast<void*>(g_OriginalSanitizeCharacterSaveSlots));
+    DetourTransactionBegin();
+    DetourUpdateThread(GetCurrentThread());
+    const LONG attach = DetourAttach(
+        reinterpret_cast<PVOID*>(&g_OriginalSanitizeCharacterSaveSlots),
+        DetouredSanitizeCharacterSaveSlots);
+    if (attach != NO_ERROR) {
+        Core::Logger::Error("DetourAttach CC_SanitizeCharacterSaveSlots failed: %ld", attach);
+        DetourTransactionAbort();
+        return false;
+    }
+    const LONG commit = DetourTransactionCommit();
+    Core::Logger::Info("CC_SanitizeCharacterSaveSlots detour commit result=%ld", commit);
+    return commit == NO_ERROR;
+}
+
 } // namespace
 
 bool CharacterExpansion::Install() {
@@ -280,6 +364,8 @@ bool CharacterExpansion::Install() {
     ok = Network::CharacterSyncExpansion::Install() && ok;
     Core::Logger::Info("Installing default save hook");
     ok = InstallDefaultSaveHook() && ok;
+    Core::Logger::Info("Installing save sanitization hook");
+    ok = InstallSanitizeSaveHook() && ok;
     Core::Logger::Info("CharacterExpansion::Install result=%d", ok ? 1 : 0);
     return ok;
 }
@@ -288,6 +374,15 @@ void CharacterExpansion::Remove() {
     Core::Logger::Info("CharacterExpansion::Remove begin");
     Network::CharacterSyncExpansion::Remove();
     SWF::Cok6LoadHook::Remove();
+    if (g_OriginalSanitizeCharacterSaveSlots) {
+        DetourTransactionBegin();
+        DetourUpdateThread(GetCurrentThread());
+        DetourDetach(
+            reinterpret_cast<PVOID*>(&g_OriginalSanitizeCharacterSaveSlots),
+            DetouredSanitizeCharacterSaveSlots);
+        DetourTransactionCommit();
+        g_OriginalSanitizeCharacterSaveSlots = nullptr;
+    }
     if (!g_OriginalCreateDefaultSave) {
         Core::Logger::Info("CharacterExpansion::Remove no default save hook installed");
         return;

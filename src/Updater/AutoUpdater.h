@@ -6,7 +6,9 @@
 
 namespace HookCrashers::Updater::AutoUpdater {
 
-void CheckForUpdates(const std::string& moduleDirectory, const Core::Config::RuntimeConfig& config);
+bool CheckForUpdates(const std::string& moduleDirectory, const Core::Config::RuntimeConfig& config);
+bool HasAvailableUpdate();
+bool InstallAvailableUpdate();
 
 } // namespace HookCrashers::Updater::AutoUpdater
 

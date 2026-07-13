@@ -12,6 +12,7 @@
 #include "Save/SaveFileRedirect.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
+#include "UI/UpdatePromptMenu.h"
 #include "Updater/AutoUpdater.h"
 
 namespace {
@@ -75,6 +76,16 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::NativeDB::SetGameBase(gameBase);
     HookCrashers::Core::Logger::Info("NativeDB game base set");
 
+    if (!HookCrashers::UI::UpdatePromptMenu::Install()) {
+        HookCrashers::Core::Logger::Warn("Update prompt menu hook failed to install");
+    }
+
+    const HookCrashers::Core::Config::RuntimeConfig config =
+        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
+    const bool updateAvailable = HookCrashers::Updater::AutoUpdater::CheckForUpdates(
+        HookCrashers::Core::Logger::ModuleDirectory(), config);
+    HookCrashers::UI::UpdatePromptMenu::SetStartupUpdateAvailable(updateAvailable);
+
     const HookCrashers::Core::ModLoader::LoadResult loadResult =
         HookCrashers::Core::ModLoader::LoadAll(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::Info("ModLoader result: mods=%d scripts=%d characters=%d registryAddons=%d",
@@ -111,12 +122,6 @@ DWORD WINAPI BootstrapThread(void* parameter) {
         HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
     }
 
-    // Save/keybind relocation must be installed before any blocking startup UI.
-    const HookCrashers::Core::Config::RuntimeConfig config =
-        HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
-    HookCrashers::Updater::AutoUpdater::CheckForUpdates(
-        HookCrashers::Core::Logger::ModuleDirectory(),
-        config);
     HookCrashers::UI::SplashScreen::Show(module, 1000);
 
     HookCrashers::Core::Logger::Info("Bootstrap thread finished");
@@ -138,6 +143,8 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
         HookCrashers::UI::DebugOverlay::Shutdown();
+        HookCrashers::UI::UpdatePromptMenu::Remove();
+        HookCrashers::Core::ModLoader::Shutdown();
         HookCrashers::Characters::CharacterExpansion::Remove();
         HookCrashers::Core::CrashHandler::Uninstall();
         HookCrashers::Core::Logger::Shutdown();
