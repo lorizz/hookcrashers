@@ -50,18 +50,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
 
-    const int updateChoice = MessageBoxA(
-        nullptr,
-        "Check for HookCrashers updates before starting Castle Crashers?",
-        "HookCrashers Auto-Update",
-        MB_ICONQUESTION | MB_YESNO | MB_DEFBUTTON2);
-    if (updateChoice == IDYES) {
-        HookCrashers::Updater::AutoUpdater::CheckForUpdates(
-            HookCrashers::Core::Logger::ModuleDirectory(),
-            config);
-    } else {
-        HookCrashers::Core::Logger::Info("AutoUpdater skipped by startup selection");
-    }
+    HookCrashers::Updater::AutoUpdater::CheckForUpdates(
+        HookCrashers::Core::Logger::ModuleDirectory(),
+        config);
 
     HookCrashers::UI::SplashScreen::Show(module, 1000);
 
