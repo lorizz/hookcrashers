@@ -38,6 +38,7 @@ jobs:
       - name: Checkout Lua 5.4.7
         shell: pwsh
         run: |
+          New-Item -ItemType Directory -Force -Path ..\External\lua54\lua-5.4.7 | Out-Null
           git clone --depth 1 --branch v5.4.7 https://github.com/lua/lua.git ..\External\lua54\lua-5.4.7\src
 
       - name: Build Detours x86
