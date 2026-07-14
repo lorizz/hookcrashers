@@ -367,8 +367,8 @@ void PatchMainMenuVersionText(void* mainMenu) {
         replacement += WidenAscii(Core::Version::kVersion);
 
         if (SetRawText(item, replacement.c_str(), 120, false)) {
-            Field<float>(item, kItemXOffset) -= 28.0f;
-            Field<float>(item, kItemYOffset) -= 18.0f;
+            Field<float>(item, kItemXOffset) -= 43.0f;
+            Field<float>(item, kItemYOffset) -= 13.0f;
             Field<float>(item, kTextFontScaleOffset) = 0.5f;
             Field<std::uint16_t>(item, kTextAlignmentOffset) = 2;
             g_versionTextItem = item;
