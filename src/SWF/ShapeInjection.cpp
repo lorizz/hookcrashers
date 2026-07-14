@@ -195,7 +195,7 @@ std::uint16_t ShapeIdAllocator::Allocate() {
 bool LoadShapeFromSWF(const std::string& path, std::uint16_t shapeId, ImportedShape& out) {
     out = {};
     if (!FileExists(path)) {
-        Core::Logger::Warn("Portrait shape not injected: file does not exist '%s'", path.c_str());
+        Core::Logger::Info("Portrait shape not injected: loose SWF missing, assuming packed/legacy asset '%s'", path.c_str());
         return false;
     }
     if (!shapeId) {

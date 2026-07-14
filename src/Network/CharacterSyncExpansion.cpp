@@ -26,6 +26,8 @@ constexpr std::uintptr_t kNetworkKickReasonGlobalRva = 0x260E94;
 constexpr std::uint8_t kCharacterSyncMessageType = 0x0D;
 constexpr std::uint16_t kHookCrashersSyncVersion = 5;
 constexpr std::array<std::uint8_t, 4> kHookCrashersSyncMagic { 'H', 'C', '5', 'C' };
+constexpr std::uint32_t kAddonSkinIdHi = 0x48433541; // HC5A
+
 
 using ResolveCharacterSkinRuntimeFn = void*(__thiscall*)(void* lobbyManager, void* characterRuntimeKey);
 using SendInitialCharacterSyncPacketFn = void(__thiscall*)(void* self, std::uint32_t* outResult, void* peer);
@@ -154,13 +156,44 @@ bool SameNetId(CharacterNetId a, CharacterNetId b) {
     return a.lo == b.lo && a.hi == b.hi;
 }
 
+bool IsAddonNetworkId(int networkId) {
+    const auto& registry = Characters::Registry::Instance();
+    return networkId >= registry.FirstAddonId() &&
+           networkId < registry.FirstAddonId() + registry.AddonCount();
+}
+
+CharacterNetId AddonSyntheticSkinId(int networkId) {
+    const auto& registry = Characters::Registry::Instance();
+    if (!IsAddonNetworkId(networkId)) {
+        return {};
+    }
+    return {
+        static_cast<std::uint32_t>(networkId - registry.FirstAddonId() + 1),
+        kAddonSkinIdHi
+    };
+}
+
+void WriteCharacterSkinIdRaw(void* destination, CharacterNetId id) {
+    auto* bytes = static_cast<std::uint8_t*>(destination);
+    std::memcpy(bytes, &id.lo, sizeof(id.lo));
+    std::memcpy(bytes + sizeof(id.lo), &id.hi, sizeof(id.hi));
+}
+
 void WriteRuntimeCharacterId(std::uint8_t* packet,
                              std::uint32_t idOffset,
                              std::uint32_t flagOffset,
                              int networkIndex,
                              void* characterRuntime,
                              void* lobbyManager,
-                             ResolveCharacterSkinRuntimeFn resolveSkin) {
+                             ResolveCharacterSkinRuntimeFn resolveSkin,
+                             bool allowAddonSyntheticId) {
+    if (allowAddonSyntheticId && IsAddonNetworkId(networkIndex)) {
+        const CharacterNetId id = AddonSyntheticSkinId(networkIndex);
+        WriteCharacterSkinIdRaw(packet + idOffset + networkIndex * kCharacterIdBytes, id);
+        packet[flagOffset + networkIndex] = 1;
+        return;
+    }
+
     void* skinRuntime = nullptr;
     if (characterRuntime) {
         skinRuntime = resolveSkin(lobbyManager, static_cast<std::uint8_t*>(characterRuntime) + 0x08);
@@ -208,14 +241,16 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
                                 networkIndex,
                                 characterRuntimeArray[baseIndex],
                                 lobbyManager,
-                                resolveSkin);
+                                resolveSkin,
+                                true);
         WriteRuntimeCharacterId(packet.bytes.data(),
                                 packet.layout.secondaryBaseIds,
                                 packet.layout.secondaryBaseFlags,
                                 networkIndex,
                                 characterRuntimeArray[baseIndex],
                                 lobbyManager,
-                                resolveSkin);
+                                resolveSkin,
+                                true);
     }
 
     for (int workshopIndex = 0; workshopIndex < static_cast<int>(kWorkshopEntries); ++workshopIndex) {
@@ -225,7 +260,8 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
                                 workshopIndex,
                                 workshopRuntimeArray[workshopIndex],
                                 lobbyManager,
-                                resolveSkin);
+                                resolveSkin,
+                                false);
     }
 
     return packet;
@@ -308,11 +344,39 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
     const auto& registry = Characters::Registry::Instance();
     const int baseCount = registry.NetworkBaseCount();
     const int totalCount = registry.NetworkTotalCount();
+    auto* characterRuntimeArray = reinterpret_cast<void**>(
+        static_cast<std::uint8_t*>(lobbyManager) + kCharacterRuntimeBaseArrayOffset);
     int unavailableWorkshopCount = 0;
     int firstUnavailableWorkshopNetworkId = 0;
     CharacterNetId firstUnavailableWorkshopId {};
     std::uint8_t firstUnavailableWorkshopFlag = 0;
+    auto insertBaseOrAddon = [&](int networkId, void* node, CharacterNetId id, std::uint8_t flag) -> bool {
+        if (!node) {
+            return false;
+        }
+        if (static_cast<std::uint8_t*>(node)[0x10] == 0) {
+            static_cast<std::uint8_t*>(node)[0x10] = 1;
+        }
+
+        int key = networkId;
+        InsertResult result {};
+        Core::Logger::Info("ApplyExpandedPacketToRoster inserting base/addon networkId=%d node=%p map=%p flag=%u id=%08X:%08X",
+                           networkId,
+                           node,
+                           static_cast<std::uint8_t*>(node) + 0x38,
+                           flag,
+                           id.hi,
+                           id.lo);
+        insertEntry(static_cast<std::uint8_t*>(node) + 0x38, &result, &key, &key, const_cast<std::uint8_t*>(packet.bytes.data()));
+        return true;
+    };
+
     auto findAndMark = [&](int networkId, CharacterNetId id, std::uint8_t flag) -> bool {
+        const bool isAddonEntry = IsAddonNetworkId(networkId);
+        if (isAddonEntry && (SameNetId(id, AddonSyntheticSkinId(networkId)) || ((id.lo == 0 && id.hi == 0) && flag == 0))) {
+            return insertBaseOrAddon(networkId, characterRuntimeArray[networkId - 1], id, flag);
+        }
+
         if ((id.lo == 0 && id.hi == 0) && flag == 0) {
             return true;
         }
@@ -339,17 +403,7 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
                 return true;
             }
 
-            int key = networkId;
-            InsertResult result {};
-            Core::Logger::Info("ApplyExpandedPacketToRoster inserting base/addon networkId=%d node=%p map=%p flag=%u id=%08X:%08X",
-                               networkId,
-                               node,
-                               node + 0x38,
-                               flag,
-                               id.hi,
-                               id.lo);
-            insertEntry(node + 0x38, &result, &key, &key, const_cast<std::uint8_t*>(packet.bytes.data()));
-            return true;
+            return insertBaseOrAddon(networkId, node, id, flag);
         }
 
         // Steam Workshop subscriptions are per-user and are not an addon compatibility failure.
