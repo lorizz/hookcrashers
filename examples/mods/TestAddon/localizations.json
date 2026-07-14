@@ -1,10 +1,39 @@
 {
   "en": {
     "characters.test_addon.name": "HookCrashers Test Addon",
-    "characters.test_addon.unlock": "Unlocked by the HookCrashers v5 test mod."
+    "characters.test_addon.unlock": "Unlocked by the HookCrashers v5 test mod.",
+    "ui.version_text": "HookCrashers Test Addon Development Ver.: [[MOD_VERSION]]\nBuilt on HookCrashers Version: [[API_VERSION]]\nExample Mod, Game Version: [[GAME_VERSION]]"
+  },
+  "de": {
+    "ui.version_text": "HookCrashers Test-Addon Entwicklungsversion: [[MOD_VERSION]]\nErstellt mit HookCrashers Version: [[API_VERSION]]\nBeispiel-Mod, Spielversion: [[GAME_VERSION]]"
+  },
+  "fr": {
+    "ui.version_text": "Module de test HookCrashers version de développement : [[MOD_VERSION]]\nConçu avec HookCrashers version : [[API_VERSION]]\nMod d’exemple, version du jeu : [[GAME_VERSION]]"
   },
   "it": {
     "characters.test_addon.name": "HookCrashers Test Addon",
-    "characters.test_addon.unlock": "Sbloccato dalla mod di test HookCrashers v5."
+    "characters.test_addon.unlock": "Sbloccato dalla mod di test HookCrashers v5.",
+    "ui.version_text": "Addon di test HookCrashers versione di sviluppo: [[MOD_VERSION]]\nCreato con HookCrashers versione: [[API_VERSION]]\nMod di esempio, versione gioco: [[GAME_VERSION]]"
+  },
+  "ko": {
+    "ui.version_text": "HookCrashers 테스트 애드온 개발 버전: [[MOD_VERSION]]\nHookCrashers 버전 [[API_VERSION]] 기반\n예제 모드, 게임 버전: [[GAME_VERSION]]"
+  },
+  "es": {
+    "ui.version_text": "Addon de prueba de HookCrashers versión de desarrollo: [[MOD_VERSION]]\nCreado con HookCrashers versión: [[API_VERSION]]\nMod de ejemplo, versión del juego: [[GAME_VERSION]]"
+  },
+  "zh_cn": {
+    "ui.version_text": "HookCrashers 测试附加包开发版：[[MOD_VERSION]]\n基于 HookCrashers 版本：[[API_VERSION]]\n示例模组，游戏版本：[[GAME_VERSION]]"
+  },
+  "zh_tw": {
+    "ui.version_text": "HookCrashers 測試附加包開發版：[[MOD_VERSION]]\n基於 HookCrashers 版本：[[API_VERSION]]\n範例模組，遊戲版本：[[GAME_VERSION]]"
+  },
+  "ru": {
+    "ui.version_text": "Тестовое дополнение HookCrashers, версия разработки: [[MOD_VERSION]]\nСоздано на HookCrashers версии: [[API_VERSION]]\nПример мода, версия игры: [[GAME_VERSION]]"
+  },
+  "ja": {
+    "ui.version_text": "HookCrashers テストアドオン 開発版: [[MOD_VERSION]]\nHookCrashers バージョン [[API_VERSION]] を使用\nサンプルMod、ゲームバージョン: [[GAME_VERSION]]"
+  },
+  "pt": {
+    "ui.version_text": "Addon de teste do HookCrashers versão de desenvolvimento: [[MOD_VERSION]]\nCriado com HookCrashers versão: [[API_VERSION]]\nMod de exemplo, versão do jogo: [[GAME_VERSION]]"
   }
 }

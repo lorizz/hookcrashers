@@ -129,7 +129,7 @@ std::string ReadTextFile(const std::string& path) {
     return stream.str();
 }
 
-std::string ReadManifestName(const std::string& manifestPath) {
+std::string ReadManifestField(const std::string& manifestPath, const char* fieldName) {
     const std::string text = ReadTextFile(manifestPath);
     std::istringstream lines(text);
     std::string line;
@@ -139,7 +139,7 @@ std::string ReadManifestName(const std::string& manifestPath) {
         }
 
         const std::size_t colon = line.find(':');
-        if (colon == std::string::npos || Trim(line.substr(0, colon)) != "name") {
+        if (colon == std::string::npos || Trim(line.substr(0, colon)) != fieldName) {
             continue;
         }
 
@@ -157,6 +157,14 @@ std::string ReadManifestName(const std::string& manifestPath) {
         return value;
     }
     return {};
+}
+
+std::string ReadManifestName(const std::string& manifestPath) {
+    return ReadManifestField(manifestPath, "name");
+}
+
+std::string ReadManifestVersion(const std::string& manifestPath) {
+    return ReadManifestField(manifestPath, "version");
 }
 
 std::vector<std::string> ReadManifestEntrypoints(const std::string& manifestPath) {
@@ -514,7 +522,7 @@ std::string PrepareLuaSource(const std::string& source) {
     return text;
 }
 
-int ExecuteScript(const std::string& scriptPath, const std::string& modDirectory) {
+int ExecuteScript(const std::string& scriptPath, const std::string& modDirectory, const std::string& modVersion) {
     Logger::Info("Executing Lua mod script: %s", scriptPath.c_str());
     const std::string rawText = ReadTextFile(scriptPath);
     if (rawText.empty()) {
@@ -529,7 +537,7 @@ int ExecuteScript(const std::string& scriptPath, const std::string& modDirectory
     }
 
     luaL_openlibs(state);
-    HookCrashers::NativeDB::Lua::SetCurrentModDirectory(modDirectory);
+    HookCrashers::NativeDB::Lua::SetCurrentModContext(modDirectory, modVersion);
     HookCrashers::NativeDB::Lua::Register(state);
 
     const int before = Characters::Registry::Instance().AddonCount();
@@ -620,6 +628,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
         Logger::Info("Found mod: %s", modDirectory.c_str());
 
         std::vector<std::string> entrypoints;
+        std::string modVersion;
         const std::string manifestPath = JoinPath(modDirectory, "manifest.yaml");
         if (FileExists(manifestPath)) {
             Logger::Info("Reading manifest: %s", manifestPath.c_str());
@@ -634,6 +643,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
                              result.manifestName.c_str(),
                              manifestName.c_str());
             }
+            modVersion = ReadManifestVersion(manifestPath);
             entrypoints = ReadManifestEntrypoints(manifestPath);
         } else {
             Logger::Warn("Mod has no manifest.yaml: %s", modDirectory.c_str());
@@ -654,7 +664,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
                 continue;
             }
             ++result.scriptsRun;
-            result.charactersRegistered += ExecuteScript(script, modDirectory);
+            result.charactersRegistered += ExecuteScript(script, modDirectory, modVersion);
         }
     }
 

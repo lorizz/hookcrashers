@@ -79,6 +79,8 @@ std::wstring g_apiPromptMessage;
 std::function<void()> g_apiOnConfirm;
 std::function<void()> g_apiOnDecline;
 void* g_versionTextItem = nullptr;
+std::string g_versionTextTemplate;
+std::string g_versionTextModVersion;
 
 bool TryOpenPendingApiPrompt(void* mainMenu);
 
@@ -233,11 +235,18 @@ void* AllocateGameMemory(std::size_t size) {
 }
 
 std::uint16_t VisualWidth(const wchar_t* text) {
-    unsigned widthUnits = 0;
+    unsigned lineUnits = 0;
+    unsigned maxLineUnits = 0;
     for (const wchar_t* cursor = text; *cursor; ++cursor) {
-        widthUnits += *cursor < 0x80 ? 8u : 11u;
+        if (*cursor == L'\n' || *cursor == L'\r') {
+            maxLineUnits = (std::max)(maxLineUnits, lineUnits);
+            lineUnits = 0;
+            continue;
+        }
+        lineUnits += *cursor < 0x80 ? 8u : 11u;
     }
-    return static_cast<std::uint16_t>((std::min)(widthUnits >> 3, 0xFFFFu));
+    maxLineUnits = (std::max)(maxLineUnits, lineUnits);
+    return static_cast<std::uint16_t>((std::min)(maxLineUnits >> 3, 0xFFFFu));
 }
 
 bool SetRawText(void* item, const wchar_t* text, std::uint16_t maxWidth = 0, bool releaseOldText = true) {
@@ -303,6 +312,92 @@ std::wstring WidenAscii(const char* text) {
     return wide;
 }
 
+std::wstring WidenUtf8(const std::string& text) {
+    if (text.empty()) {
+        return {};
+    }
+    const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
+    if (size <= 0) {
+        return WidenAscii(text.c_str());
+    }
+    std::wstring wide(static_cast<std::size_t>(size), L'\0');
+    MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), wide.data(), size);
+    return wide;
+}
+
+void ReplaceAll(std::wstring& text, const std::wstring& token, const std::wstring& value) {
+    std::size_t cursor = 0;
+    while ((cursor = text.find(token, cursor)) != std::wstring::npos) {
+        text.replace(cursor, token.size(), value);
+        cursor += value.size();
+    }
+}
+
+std::wstring BuildVersionText(const std::wstring& ccVersion) {
+    if (g_versionTextTemplate.empty()) {
+        std::wstring replacement = L"CC Ver.: ";
+        replacement += ccVersion;
+        replacement += L"\nHC Ver.: ";
+        replacement += WidenAscii(Core::Version::kVersion);
+        return replacement;
+    }
+
+    std::wstring replacement = WidenUtf8(g_versionTextTemplate);
+    ReplaceAll(replacement, L"[[GAME_VERSION]]", ccVersion);
+    ReplaceAll(replacement, L"[[API_VERSION]]", WidenAscii(Core::Version::kVersion));
+    ReplaceAll(replacement, L"[[MOD_VERSION]]", WidenUtf8(g_versionTextModVersion));
+    return replacement;
+}
+
+float EstimatedTextWidthPixels(const std::wstring& text, float fontScale) {
+    float lineWidth = 0.0f;
+    float maxLineWidth = 0.0f;
+    for (const wchar_t ch : text) {
+        if (ch == L'\n' || ch == L'\r') {
+            maxLineWidth = (std::max)(maxLineWidth, lineWidth);
+            lineWidth = 0.0f;
+            continue;
+        }
+        lineWidth += (ch < 0x80 ? 8.0f : 11.0f) * fontScale;
+    }
+    return (std::max)(maxLineWidth, lineWidth);
+}
+
+int TextLineCount(const std::wstring& text) {
+    int lines = 1;
+    for (const wchar_t ch : text) {
+        if (ch == L'\n') {
+            ++lines;
+        }
+    }
+    return lines;
+}
+
+void PlaceVersionTextInBottomRight(void* item, const std::wstring& text) {
+    constexpr float kRightMargin = 18.0f;
+    constexpr float kBottomMargin = 8.0f;
+    constexpr float kFontScale = 0.42f;
+    constexpr float kLineHeight = 18.0f;
+    constexpr float kMaxTextWidth = 430.0f;
+
+    const float originalRightEdge = Field<float>(item, kItemXOffset);
+    const float originalBottomEdge = Field<float>(item, kItemYOffset);
+    float textWidth = EstimatedTextWidthPixels(text, kFontScale);
+    float scale = 1.0f;
+    if (textWidth > kMaxTextWidth && textWidth > 0.0f) {
+        scale = kMaxTextWidth / textWidth;
+        textWidth = kMaxTextWidth;
+    }
+
+    const float textHeight = static_cast<float>(TextLineCount(text)) * kLineHeight * kFontScale * scale;
+    Field<float>(item, kItemXOffset) = originalRightEdge - textWidth - kRightMargin;
+    Field<float>(item, kItemYOffset) = originalBottomEdge - textHeight - kBottomMargin;
+    Field<float>(item, kTextFontScaleOffset) = kFontScale * scale;
+    Field<float>(item, kTextScaleOffset) = 1.0f;
+    Field<std::uint16_t>(item, kTextMaxWidthOffset) = 0;
+    Field<std::uint16_t>(item, kTextAlignmentOffset) = 0;
+}
+
 bool LooksLikeCastleVersionText(const wchar_t* text, std::uint16_t length) {
     if (!text || length < 3 || length > 12) {
         return false;
@@ -361,16 +456,10 @@ void PatchMainMenuVersionText(void* mainMenu) {
             ccVersion.pop_back();
         }
 
-        std::wstring replacement = L"CC Ver.: ";
-        replacement += ccVersion;
-        replacement += L"\nHC Ver.: ";
-        replacement += WidenAscii(Core::Version::kVersion);
+        const std::wstring replacement = BuildVersionText(ccVersion);
 
-        if (SetRawText(item, replacement.c_str(), 120, false)) {
-            Field<float>(item, kItemXOffset) -= 43.0f;
-            Field<float>(item, kItemYOffset) -= 13.0f;
-            Field<float>(item, kTextFontScaleOffset) = 0.5f;
-            Field<std::uint16_t>(item, kTextAlignmentOffset) = 2;
+        if (SetRawText(item, replacement.c_str(), 0, false)) {
+            PlaceVersionTextInBottomRight(item, replacement);
             g_versionTextItem = item;
             Core::Logger::Info("UpdatePromptMenu: patched main-menu version text item=%u cc='%ls' hc='%s'",
                                i,
@@ -563,6 +652,13 @@ bool CreatePrompt(const std::string& message,
     return true;
 }
 
+void SetVersionTextTemplate(const std::string& text, const std::string& modVersion) {
+    g_versionTextTemplate = text;
+    g_versionTextModVersion = modVersion;
+    g_versionTextItem = nullptr;
+    Core::Logger::Info("UpdatePromptMenu: custom version text template installed modVersion='%s'", g_versionTextModVersion.c_str());
+}
+
 void Remove() {
     if (g_installed && g_originalMainMenuBuilder) {
         DetourTransactionBegin();
@@ -584,6 +680,8 @@ void Remove() {
     g_apiPromptMessage.clear();
     g_apiOnConfirm = {};
     g_apiOnDecline = {};
+    g_versionTextTemplate.clear();
+    g_versionTextModVersion.clear();
     g_versionTextItem = nullptr;
 }
 

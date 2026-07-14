@@ -6,6 +6,8 @@
 #include "../Core/Logger.h"
 #include "../UI/UpdatePromptMenu.h"
 
+#include <windows.h>
+
 #if defined(HOOKCRASHERS_ENABLE_LUA_API)
 extern "C" {
 #include <lua.h>
@@ -13,14 +15,161 @@ extern "C" {
 #include <lualib.h>
 }
 
+#include <cctype>
+#include <fstream>
 #include <memory>
+#include <sstream>
 #include <string>
+#include <unordered_map>
 #include <utility>
 
 namespace HookCrashers::NativeDB::Lua {
 namespace {
 
 thread_local std::string g_currentModDirectory;
+thread_local std::string g_currentModVersion;
+
+
+std::string JoinPath(const std::string& a, const std::string& b) {
+    if (a.empty()) return b;
+    if (a.back() == '\\' || a.back() == '/') return a + b;
+    return a + "\\" + b;
+}
+
+std::string ReadTextFile(const std::string& path) {
+    std::ifstream file(path, std::ios::binary);
+    if (!file) return {};
+    std::ostringstream stream;
+    stream << file.rdbuf();
+    return stream.str();
+}
+
+void SkipJsonWhitespace(const std::string& text, std::size_t& cursor) {
+    while (cursor < text.size() && std::isspace(static_cast<unsigned char>(text[cursor])) != 0) {
+        ++cursor;
+    }
+}
+
+bool ParseJsonString(const std::string& text, std::size_t& cursor, std::string& out) {
+    SkipJsonWhitespace(text, cursor);
+    if (cursor >= text.size() || text[cursor] != '"') return false;
+    ++cursor;
+    out.clear();
+    while (cursor < text.size()) {
+        const char ch = text[cursor++];
+        if (ch == '"') return true;
+        if (ch != '\\') {
+            out.push_back(ch);
+            continue;
+        }
+        if (cursor >= text.size()) return false;
+        const char escape = text[cursor++];
+        switch (escape) {
+        case 'n': out.push_back('\n'); break;
+        case 'r': out.push_back('\r'); break;
+        case 't': out.push_back('\t'); break;
+        case '"': out.push_back('"'); break;
+        case '\\': out.push_back('\\'); break;
+        case '/': out.push_back('/'); break;
+        default: out.push_back(escape); break;
+        }
+    }
+    return false;
+}
+
+bool ConsumeJsonChar(const std::string& text, std::size_t& cursor, char expected) {
+    SkipJsonWhitespace(text, cursor);
+    if (cursor >= text.size() || text[cursor] != expected) return false;
+    ++cursor;
+    return true;
+}
+
+std::unordered_map<std::string, std::string> ParseLocalizationJson(const std::string& text) {
+    std::unordered_map<std::string, std::string> values;
+    std::size_t cursor = 0;
+    if (!ConsumeJsonChar(text, cursor, '{')) return values;
+
+    while (cursor < text.size()) {
+        SkipJsonWhitespace(text, cursor);
+        if (cursor < text.size() && text[cursor] == '}') break;
+
+        std::string language;
+        if (!ParseJsonString(text, cursor, language) ||
+            !ConsumeJsonChar(text, cursor, ':') ||
+            !ConsumeJsonChar(text, cursor, '{')) {
+            break;
+        }
+
+        while (cursor < text.size()) {
+            SkipJsonWhitespace(text, cursor);
+            if (cursor < text.size() && text[cursor] == '}') {
+                ++cursor;
+                break;
+            }
+
+            std::string key;
+            std::string value;
+            if (!ParseJsonString(text, cursor, key) ||
+                !ConsumeJsonChar(text, cursor, ':') ||
+                !ParseJsonString(text, cursor, value)) {
+                return values;
+            }
+            values[language + "\x1F" + key] = value;
+
+            SkipJsonWhitespace(text, cursor);
+            if (cursor < text.size() && text[cursor] == ',') ++cursor;
+        }
+
+        SkipJsonWhitespace(text, cursor);
+        if (cursor < text.size() && text[cursor] == ',') ++cursor;
+    }
+    return values;
+}
+
+std::string CurrentLocalizationLanguage() {
+    HMODULE steamApi = GetModuleHandleA("steam_api.dll");
+    if (!steamApi) return "en";
+
+    using SteamAppsFn = void*(__cdecl*)();
+    using GetLanguageFn = const char*(__cdecl*)(void*);
+    auto steamApps = reinterpret_cast<SteamAppsFn>(GetProcAddress(steamApi, "SteamAPI_SteamApps_v008"));
+    auto getLanguage = reinterpret_cast<GetLanguageFn>(GetProcAddress(steamApi, "SteamAPI_ISteamApps_GetCurrentGameLanguage"));
+    if (!steamApps || !getLanguage) return "en";
+
+    const char* language = getLanguage(steamApps());
+    if (!language) return "en";
+    if (_stricmp(language, "german") == 0) return "de";
+    if (_stricmp(language, "french") == 0) return "fr";
+    if (_stricmp(language, "italian") == 0) return "it";
+    if (_stricmp(language, "koreana") == 0) return "ko";
+    if (_stricmp(language, "spanish") == 0) return "es";
+    if (_stricmp(language, "schinese") == 0) return "zh_cn";
+    if (_stricmp(language, "tchinese") == 0) return "zh_tw";
+    if (_stricmp(language, "russian") == 0) return "ru";
+    if (_stricmp(language, "japanese") == 0) return "ja";
+    if (_stricmp(language, "portuguese") == 0) return "pt";
+    return "en";
+}
+
+bool ResolveCurrentModLocalization(const std::string& id, std::string& out) {
+    const std::string json = ReadTextFile(JoinPath(g_currentModDirectory, "localizations.json"));
+    if (json.empty()) return false;
+
+    const auto values = ParseLocalizationJson(json);
+    const std::string language = CurrentLocalizationLanguage();
+    const auto localized = values.find(language + "\x1F" + id);
+    if (localized != values.end()) {
+        out = localized->second;
+        return true;
+    }
+
+    const auto english = values.find(std::string("en\x1F") + id);
+    if (english != values.end()) {
+        out = english->second;
+        return true;
+    }
+    return false;
+}
 
 Natives ReadNative(lua_State* L, int index) {
     if (lua_isstring(L, index)) {
@@ -135,6 +284,21 @@ int Lua_CreatePrompt(lua_State* L) {
     return 1;
 }
 
+
+int Lua_SetVersionText(lua_State* L) {
+    const char* id = luaL_checkstring(L, 1);
+    std::string text;
+    if (!id || !ResolveCurrentModLocalization(id, text)) {
+        HookCrashers::Core::Logger::Warn("SetVersionText could not resolve localization id '%s'", id ? id : "<null>");
+        lua_pushboolean(L, 0);
+        return 1;
+    }
+
+    HookCrashers::UI::UpdatePromptMenu::SetVersionTextTemplate(text, g_currentModVersion);
+    lua_pushboolean(L, 1);
+    return 1;
+}
+
 int Lua_OpenHookCrashers(lua_State* L) {
     lua_getglobal(L, "HookCrashers");
     return 1;
@@ -166,10 +330,14 @@ void RegisterHookCrashersModule(lua_State* L) {
     lua_setfield(L, -2, "RegisterCharacter");
     lua_pushcfunction(L, Lua_CreatePrompt);
     lua_setfield(L, -2, "CreatePrompt");
+    lua_pushcfunction(L, Lua_SetVersionText);
+    lua_setfield(L, -2, "SetVersionText");
 
     lua_newtable(L);
     lua_pushcfunction(L, Lua_CreatePrompt);
     lua_setfield(L, -2, "CreatePrompt");
+    lua_pushcfunction(L, Lua_SetVersionText);
+    lua_setfield(L, -2, "SetVersionText");
     lua_setfield(L, -2, "UI");
 
     lua_newtable(L);
@@ -198,6 +366,11 @@ void SetCurrentModDirectory(const std::string& directory) {
     g_currentModDirectory = directory;
 }
 
+void SetCurrentModContext(const std::string& directory, const std::string& version) {
+    g_currentModDirectory = directory;
+    g_currentModVersion = version;
+}
+
 bool Register(lua_State* L) {
     if (!L) return false;
     RegisterNativeTable(L);
@@ -208,6 +381,7 @@ bool Register(lua_State* L) {
     SetFunction(L, "RegisterCharacter", Lua_RegisterCharacter);
     SetFunction(L, "InstallCharacterExpansion", Lua_InstallCharacterExpansion);
     SetFunction(L, "CreatePrompt", Lua_CreatePrompt);
+    SetFunction(L, "SetVersionText", Lua_SetVersionText);
     RegisterHookCrashersModule(L);
     return true;
 }
@@ -217,6 +391,7 @@ bool Register(lua_State* L) {
 namespace HookCrashers::NativeDB::Lua {
 
 void SetCurrentModDirectory(const std::string&) {}
+void SetCurrentModContext(const std::string&, const std::string&) {}
 
 bool Register(lua_State*) {
     return false;

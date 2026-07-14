@@ -13,5 +13,6 @@ namespace HookCrashers::NativeDB::Lua {
 // exploratory glue; stable mod code should wrap each native with typed C++.
 bool Register(lua_State* state);
 void SetCurrentModDirectory(const std::string& directory);
+void SetCurrentModContext(const std::string& directory, const std::string& version);
 
 } // namespace HookCrashers::NativeDB::Lua
