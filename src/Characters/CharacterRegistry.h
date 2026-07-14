@@ -37,7 +37,9 @@ public:
 
     int AddonCount() const;
     int ClassicAddonCount() const;
+    int ClassicUnlockedAddonCount() const;
     int ClassicVisibleCount() const;
+    int FreshVisibleCount() const;
     int FreshBaseCount() const;
     int NetworkBaseCount() const;
     int NetworkTotalCount() const;

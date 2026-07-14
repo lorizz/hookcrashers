@@ -61,8 +61,28 @@ int Registry::ClassicAddonCount() const {
     return count;
 }
 
+int Registry::ClassicUnlockedAddonCount() const {
+    int count = 0;
+    for (const AddonCharacter& addon : m_Addons) {
+        if (!addon.freshOnly && addon.initiallyUnlocked) {
+            ++count;
+        }
+    }
+    return count;
+}
+
 int Registry::ClassicVisibleCount() const {
-    return static_cast<int>(NativeDB::kClassicVisibleCharacterCount) + ClassicAddonCount();
+    return static_cast<int>(NativeDB::kClassicVisibleCharacterCount) + ClassicUnlockedAddonCount();
+}
+
+int Registry::FreshVisibleCount() const {
+    int count = static_cast<int>(NativeDB::kVanillaBaseCharacterCount);
+    for (const AddonCharacter& addon : m_Addons) {
+        if (addon.initiallyUnlocked) {
+            ++count;
+        }
+    }
+    return count;
 }
 
 int Registry::FreshBaseCount() const {

@@ -188,9 +188,14 @@ void WriteRuntimeCharacterId(std::uint8_t* packet,
                              ResolveCharacterSkinRuntimeFn resolveSkin,
                              bool allowAddonSyntheticId) {
     if (allowAddonSyntheticId && IsAddonNetworkId(networkIndex)) {
-        const CharacterNetId id = AddonSyntheticSkinId(networkIndex);
-        WriteCharacterSkinIdRaw(packet + idOffset + networkIndex * kCharacterIdBytes, id);
-        packet[flagOffset + networkIndex] = 1;
+        if (characterRuntime) {
+            const CharacterNetId id = AddonSyntheticSkinId(networkIndex);
+            WriteCharacterSkinIdRaw(packet + idOffset + networkIndex * kCharacterIdBytes, id);
+            packet[flagOffset + networkIndex] = 1;
+        } else {
+            WriteCharacterSkinIdRaw(packet + idOffset + networkIndex * kCharacterIdBytes, {});
+            packet[flagOffset + networkIndex] = 0;
+        }
         return;
     }
 
@@ -373,8 +378,16 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
 
     auto findAndMark = [&](int networkId, CharacterNetId id, std::uint8_t flag) -> bool {
         const bool isAddonEntry = IsAddonNetworkId(networkId);
-        if (isAddonEntry && (SameNetId(id, AddonSyntheticSkinId(networkId)) || ((id.lo == 0 && id.hi == 0) && flag == 0))) {
-            return insertBaseOrAddon(networkId, characterRuntimeArray[networkId - 1], id, flag);
+        if (isAddonEntry && SameNetId(id, AddonSyntheticSkinId(networkId))) {
+            void* addonNode = characterRuntimeArray[networkId - 1];
+            if (!addonNode) {
+                Core::Logger::Warn("ApplyExpandedPacketToRoster addon runtime missing networkId=%d; deferring synthetic id=%08X:%08X",
+                                   networkId,
+                                   id.hi,
+                                   id.lo);
+                return true;
+            }
+            return insertBaseOrAddon(networkId, addonNode, id, flag);
         }
 
         if ((id.lo == 0 && id.hi == 0) && flag == 0) {

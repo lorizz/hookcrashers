@@ -102,6 +102,36 @@ void InitializeExpandedDefaultCharacterData(void* saveBuffer) {
     }
 }
 
+template <typename T, std::size_t N>
+bool AnyNonZero(const std::array<T, N>& values) {
+    for (const auto value : values) {
+        if (value != 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool HasAddonProgress(const NativeDB::CC_CharacterData& character) {
+    if (character.level != 0) {
+        return true;
+    }
+    if (AnyNonZero(character.experience)) {
+        return true;
+    }
+    return character.skull != 0 ||
+           character.insane_mode != 0 ||
+           character.potions != 0 ||
+           character.bombs != 0 ||
+           character.beefies != 0 ||
+           AnyNonZero(character.gold) ||
+           AnyNonZero(character.normal_levels_bitflags) ||
+           AnyNonZero(character.insane_levels_bitflags) ||
+           AnyNonZero(character.arena_wins) ||
+           character.arena_losses != 0 ||
+           character.arena_points != 0;
+}
+
 void RepairExpandedCharacterStatBaselines(void* saveManager) {
     if (!saveManager) {
         Core::Logger::Warn("Cannot repair addon stat baselines: save manager is null");
@@ -116,10 +146,22 @@ void RepairExpandedCharacterStatBaselines(void* saveManager) {
 
     const Registry& registry = Registry::Instance();
     int repairedSlots = 0;
+    int repairedUnlocks = 0;
     for (int addon = 0; addon < registry.AddonCount(); ++addon) {
         const int slot = registry.FirstAddonIndex() + addon;
         auto* character = reinterpret_cast<NativeDB::CC_CharacterData*>(
             saveBuffer + NativeDB::kGlobalDataSize + NativeDB::kCharacterDataSize * slot);
+        const auto& addonConfig = registry.Addons()[addon];
+
+        if (!addonConfig.initiallyUnlocked &&
+            (character->unlocked & NativeDB::kCharacterUnlockedFlag) != 0 &&
+            !HasAddonProgress(*character)) {
+            character->unlocked &= ~NativeDB::kCharacterUnlockedFlag;
+            ++repairedUnlocks;
+            Core::Logger::Warn("Cleared stale addon unlock bit for slot=%d name='%s'",
+                               slot,
+                               addonConfig.name.c_str());
+        }
 
         bool repaired = false;
         if (character->strength == 0) {
@@ -145,7 +187,7 @@ void RepairExpandedCharacterStatBaselines(void* saveManager) {
         }
     }
 
-    Core::Logger::Info("Addon stat baseline repair finished repairedSlots=%d", repairedSlots);
+    Core::Logger::Info("Addon save repair finished statSlots=%d unlockSlots=%d", repairedSlots, repairedUnlocks);
 }
 
 void __fastcall DetouredCreateDefaultSave(void* saveManager) {
@@ -190,8 +232,8 @@ bool PatchSaveAndRosterConstants() {
     const int workshopSkinEntryIndex = 1130 + firstWorkshopId;
     const int workshopSkinEntryByteOffset = workshopSkinEntryIndex * 4;
     const int statsClassicCount = registry.ClassicVisibleCount();
-    const int statsFreshCount = registry.FreshBaseCount();
-    const int statsTotalCount = statsFreshCount + static_cast<int>(NativeDB::kWorkshopSaveSlotCount);
+    const int statsFreshCount = registry.FreshVisibleCount();
+    const int statsTotalCount = statsFreshCount;
     const int workshopNameBase = 953 - firstWorkshopId;
 
     Core::Logger::Info("Patching character expansion constants: addons=%d saveSize=0x%X payload=0x%X keybinds=0x%X networkBase=%d totalNetwork=%d firstWorkshopId=%d workshopSlotTable=0x%X workshopSkinEntry=0x%X",

@@ -2,6 +2,7 @@
 
 #include "../Core/Logger.h"
 #include "../Core/Memory.h"
+#include "../Core/Version.h"
 #include "../NativeDB/Classes.h"
 #include "../Updater/AutoUpdater.h"
 
@@ -15,6 +16,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cwchar>
+#include <string>
 
 namespace HookCrashers::UI::UpdatePromptMenu {
 namespace {
@@ -37,9 +39,13 @@ constexpr std::size_t kMenuItemsOffset = 0x44;
 constexpr std::size_t kBackCallbackOffset = 0x1B4;
 constexpr std::size_t kConfiguredTargetOffset = 0x1DA;
 
+constexpr std::size_t kItemXOffset = 0x04;
+constexpr std::size_t kItemYOffset = 0x08;
 constexpr std::size_t kTextCallbackOffset = 0x38;
 constexpr std::size_t kTextBufferOffset = 0x3C;
+constexpr std::size_t kTextFontScaleOffset = 0x40;
 constexpr std::size_t kTextScaleOffset = 0x44;
+constexpr std::size_t kTextAlignmentOffset = 0x48;
 constexpr std::size_t kTextLengthOffset = 0x4A;
 constexpr std::size_t kTextVisualWidthOffset = 0x4C;
 constexpr std::size_t kTextMaxWidthOffset = 0x4E;
@@ -72,6 +78,7 @@ bool g_apiPromptActive = false;
 std::wstring g_apiPromptMessage;
 std::function<void()> g_apiOnConfirm;
 std::function<void()> g_apiOnDecline;
+void* g_versionTextItem = nullptr;
 
 bool TryOpenPendingApiPrompt(void* mainMenu);
 
@@ -233,7 +240,7 @@ std::uint16_t VisualWidth(const wchar_t* text) {
     return static_cast<std::uint16_t>((std::min)(widthUnits >> 3, 0xFFFFu));
 }
 
-bool SetRawText(void* item, const wchar_t* text, std::uint16_t maxWidth = 0) {
+bool SetRawText(void* item, const wchar_t* text, std::uint16_t maxWidth = 0, bool releaseOldText = true) {
     if (!item || !text) {
         return false;
     }
@@ -251,7 +258,7 @@ bool SetRawText(void* item, const wchar_t* text, std::uint16_t maxWidth = 0) {
     std::memcpy(replacement, text, bytes);
 
     void*& oldText = Field<void*>(item, kTextBufferOffset);
-    if (oldText && g_free) {
+    if (releaseOldText && oldText && g_free) {
         g_free(oldText);
     }
     oldText = replacement;
@@ -283,6 +290,97 @@ void OpenMainMenu(void* mainMenu) {
     }
     void* state = static_cast<std::uint8_t*>(table) + kMainMenuId * kMenuStateSize;
     g_setMenuState(mainMenu, kMainMenuId, state);
+}
+
+std::wstring WidenAscii(const char* text) {
+    std::wstring wide;
+    if (!text) {
+        return wide;
+    }
+    for (const unsigned char ch : std::string(text)) {
+        wide.push_back(static_cast<wchar_t>(ch));
+    }
+    return wide;
+}
+
+bool LooksLikeCastleVersionText(const wchar_t* text, std::uint16_t length) {
+    if (!text || length < 3 || length > 12) {
+        return false;
+    }
+
+    bool sawDigit = false;
+    bool sawDot = false;
+    for (std::uint16_t i = 0; i < length; ++i) {
+        const wchar_t ch = text[i];
+        if (ch >= L'0' && ch <= L'9') {
+            sawDigit = true;
+            continue;
+        }
+        if (ch == L'.') {
+            sawDot = true;
+            continue;
+        }
+        if (ch == L' ' || ch == L'\t') {
+            continue;
+        }
+        return false;
+    }
+    return sawDigit && sawDot;
+}
+
+void PatchMainMenuVersionText(void* mainMenu) {
+    if (!mainMenu) {
+        return;
+    }
+
+    void* table = Field<void*>(mainMenu, kMenuTableOffset);
+    if (!table) {
+        return;
+    }
+    void* state = static_cast<std::uint8_t*>(table) + kMainMenuId * kMenuStateSize;
+    const std::uint16_t itemCount = Field<std::uint16_t>(state, kMenuItemCountOffset);
+    if (itemCount == 0 || itemCount > 128) {
+        return;
+    }
+
+    auto** items = reinterpret_cast<void**>(static_cast<std::uint8_t*>(state) + kMenuItemsOffset);
+    for (std::uint16_t i = 0; i < itemCount; ++i) {
+        void* item = items[i];
+        if (!item || item == g_versionTextItem) {
+            continue;
+        }
+
+        const auto* text = Field<const wchar_t*>(item, kTextBufferOffset);
+        const std::uint16_t length = Field<std::uint16_t>(item, kTextLengthOffset);
+        if (!LooksLikeCastleVersionText(text, length)) {
+            continue;
+        }
+
+        std::wstring ccVersion(text, text + length);
+        while (!ccVersion.empty() && (ccVersion.back() == L' ' || ccVersion.back() == L'\t')) {
+            ccVersion.pop_back();
+        }
+
+        std::wstring replacement = L"CC Ver.: ";
+        replacement += ccVersion;
+        replacement += L"\nHC Ver.: ";
+        replacement += WidenAscii(Core::Version::kVersion);
+
+        if (SetRawText(item, replacement.c_str(), 120, false)) {
+            Field<float>(item, kItemXOffset) -= 28.0f;
+            Field<float>(item, kItemYOffset) -= 18.0f;
+            Field<float>(item, kTextFontScaleOffset) = 0.5f;
+            Field<std::uint16_t>(item, kTextAlignmentOffset) = 2;
+            g_versionTextItem = item;
+            Core::Logger::Info("UpdatePromptMenu: patched main-menu version text item=%u cc='%ls' hc='%s'",
+                               i,
+                               ccVersion.c_str(),
+                               Core::Version::kVersion);
+        }
+        return;
+    }
+
+    Core::Logger::Warn("UpdatePromptMenu: main-menu version text item not found");
 }
 
 void __cdecl OnYes(void* mainMenu) {
@@ -385,6 +483,7 @@ void* __fastcall HookedMainMenuBuilder(void* self, void*, void* scene, int flags
 
     void* result = g_originalMainMenuBuilder(self, scene, flags);
     g_mainMenu = self;
+    PatchMainMenuVersionText(self);
 
     if (!g_promptShown) {
         g_promptShown = true;
@@ -485,6 +584,7 @@ void Remove() {
     g_apiPromptMessage.clear();
     g_apiOnConfirm = {};
     g_apiOnDecline = {};
+    g_versionTextItem = nullptr;
 }
 
 } // namespace HookCrashers::UI::UpdatePromptMenu
