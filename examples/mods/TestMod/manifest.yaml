@@ -1,0 +1,9 @@
+id: hookcrashers.test_mod
+name: HookCrashers Test Mod
+description: Minimal v5 smoke-test mod with one addon character.
+author: HookCrashers
+version: 0.1.0
+hookcrashers_version: ">=5.0.0"
+dependencies: []
+entrypoints:
+  - scripts/register_character.lua

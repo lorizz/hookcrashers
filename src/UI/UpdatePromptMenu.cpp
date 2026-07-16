@@ -374,28 +374,29 @@ int TextLineCount(const std::wstring& text) {
 }
 
 void PlaceVersionTextInBottomRight(void* item, const std::wstring& text) {
-    constexpr float kRightMargin = 18.0f;
-    constexpr float kBottomMargin = 8.0f;
-    constexpr float kFontScale = 0.42f;
+    constexpr float kRightAnchorOffset = -43.0f;
+    constexpr float kBottomAnchorOffset = 5.0f;
+    constexpr float kFontScale = 0.50f;
     constexpr float kLineHeight = 18.0f;
-    constexpr float kMaxTextWidth = 430.0f;
+    constexpr float kMaxTextWidthPixels = 430.0f;
+    constexpr std::uint16_t kMaxTextWidthUnits = 120;
+    constexpr std::uint16_t kTextAlignRight = 2;
 
-    const float originalRightEdge = Field<float>(item, kItemXOffset);
-    const float originalBottomEdge = Field<float>(item, kItemYOffset);
+    const float rightEdge = Field<float>(item, kItemXOffset) + kRightAnchorOffset;
+    const float bottomEdge = Field<float>(item, kItemYOffset) + kBottomAnchorOffset;
     float textWidth = EstimatedTextWidthPixels(text, kFontScale);
     float scale = 1.0f;
-    if (textWidth > kMaxTextWidth && textWidth > 0.0f) {
-        scale = kMaxTextWidth / textWidth;
-        textWidth = kMaxTextWidth;
+    if (textWidth > kMaxTextWidthPixels && textWidth > 0.0f) {
+        scale = kMaxTextWidthPixels / textWidth;
     }
 
     const float textHeight = static_cast<float>(TextLineCount(text)) * kLineHeight * kFontScale * scale;
-    Field<float>(item, kItemXOffset) = originalRightEdge - textWidth - kRightMargin;
-    Field<float>(item, kItemYOffset) = originalBottomEdge - textHeight - kBottomMargin;
+    Field<float>(item, kItemXOffset) = rightEdge;
+    Field<float>(item, kItemYOffset) = bottomEdge - textHeight;
     Field<float>(item, kTextFontScaleOffset) = kFontScale * scale;
     Field<float>(item, kTextScaleOffset) = 1.0f;
-    Field<std::uint16_t>(item, kTextMaxWidthOffset) = 0;
-    Field<std::uint16_t>(item, kTextAlignmentOffset) = 0;
+    Field<std::uint16_t>(item, kTextMaxWidthOffset) = kMaxTextWidthUnits;
+    Field<std::uint16_t>(item, kTextAlignmentOffset) = kTextAlignRight;
 }
 
 bool LooksLikeCastleVersionText(const wchar_t* text, std::uint16_t length) {
@@ -458,7 +459,7 @@ void PatchMainMenuVersionText(void* mainMenu) {
 
         const std::wstring replacement = BuildVersionText(ccVersion);
 
-        if (SetRawText(item, replacement.c_str(), 0, false)) {
+        if (SetRawText(item, replacement.c_str(), 120, false)) {
             PlaceVersionTextInBottomRight(item, replacement);
             g_versionTextItem = item;
             Core::Logger::Info("UpdatePromptMenu: patched main-menu version text item=%u cc='%ls' hc='%s'",

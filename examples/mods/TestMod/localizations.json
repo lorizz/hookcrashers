@@ -1,0 +1,12 @@
+{
+  "en": {
+    "characters.test_character.name": "Test Character",
+    "characters.test_character.unlock": "Unlocked by HookCrashers Test Mod.",
+    "ui.version_text": "HookCrashers Test Mod: [[MOD_VERSION]]\nHookCrashers: [[API_VERSION]]\nCastle Crashers: [[GAME_VERSION]]"
+  },
+  "it": {
+    "characters.test_character.name": "Personaggio Test",
+    "characters.test_character.unlock": "Sbloccato dalla Test Mod di HookCrashers.",
+    "ui.version_text": "HookCrashers Test Mod: [[MOD_VERSION]]\nHookCrashers: [[API_VERSION]]\nCastle Crashers: [[GAME_VERSION]]"
+  }
+}

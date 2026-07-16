@@ -62,7 +62,7 @@ jobs:
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path dist/mods | Out-Null
           Copy-Item Release/HookCrashers.asi dist/HookCrashers.asi
-          Copy-Item examples/mods/TestAddon dist/mods/TestAddon -Recurse
+          Copy-Item examples/mods/TestMod dist/mods/TestMod -Recurse
 
           gh release download v9.7.2 `
             --repo ThirteenAG/Ultimate-ASI-Loader `
