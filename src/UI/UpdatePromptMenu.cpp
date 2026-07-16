@@ -363,20 +363,6 @@ float EstimatedTextWidthPixels(const std::wstring& text, float fontScale) {
     return (std::max)(maxLineWidth, lineWidth);
 }
 
-float EstimatedMenuTextWidthPixels(const std::wstring& text, float fontScale) {
-    float lineWidth = 0.0f;
-    float maxLineWidth = 0.0f;
-    for (const wchar_t ch : text) {
-        if (ch == L'\n' || ch == L'\r') {
-            maxLineWidth = (std::max)(maxLineWidth, lineWidth);
-            lineWidth = 0.0f;
-            continue;
-        }
-        lineWidth += (ch < 0x80 ? 34.0f : 42.0f) * fontScale;
-    }
-    return (std::max)(maxLineWidth, lineWidth);
-}
-
 int TextLineCount(const std::wstring& text) {
     int lines = 1;
     for (const wchar_t ch : text) {
@@ -388,30 +374,19 @@ int TextLineCount(const std::wstring& text) {
 }
 
 void PlaceVersionTextInBottomRight(void* item, const std::wstring& text) {
-    constexpr float kRightAnchorOffset = 535.0f;
-    constexpr float kBottomAnchorOffset = 5.0f;
-    constexpr float kFontScale = 0.32f;
-    constexpr float kLineHeight = 18.0f;
-    constexpr float kMaxTextWidthPixels = 500.0f;
-    constexpr std::uint16_t kMaxTextWidthUnits = 48;
-    constexpr std::uint16_t kTextAlignRight = 2;
+    constexpr float kRightAnchorOffset = -43.0f;
+    constexpr float kBottomAnchorOffset = -13.0f;
+    constexpr float kFontScale = 0.50f;
+    constexpr std::uint16_t kMaxTextWidthUnits = 120;
+    constexpr std::uint16_t kTextAlignCandidate = 1;
 
-    const float rightEdge = Field<float>(item, kItemXOffset) + kRightAnchorOffset;
-    const float bottomEdge = Field<float>(item, kItemYOffset) + kBottomAnchorOffset;
-    float textWidth = EstimatedMenuTextWidthPixels(text, kFontScale);
-    float scale = 1.0f;
-    if (textWidth > kMaxTextWidthPixels && textWidth > 0.0f) {
-        scale = kMaxTextWidthPixels / textWidth;
-        textWidth = kMaxTextWidthPixels;
-    }
-
-    const float textHeight = static_cast<float>(TextLineCount(text)) * kLineHeight * kFontScale * scale;
-    Field<float>(item, kItemXOffset) = rightEdge - textWidth;
-    Field<float>(item, kItemYOffset) = bottomEdge - textHeight;
-    Field<float>(item, kTextFontScaleOffset) = kFontScale * scale;
+    (void)text;
+    Field<float>(item, kItemXOffset) += kRightAnchorOffset;
+    Field<float>(item, kItemYOffset) += kBottomAnchorOffset;
+    Field<float>(item, kTextFontScaleOffset) = kFontScale;
     Field<float>(item, kTextScaleOffset) = 1.0f;
     Field<std::uint16_t>(item, kTextMaxWidthOffset) = kMaxTextWidthUnits;
-    Field<std::uint16_t>(item, kTextAlignmentOffset) = kTextAlignRight;
+    Field<std::uint16_t>(item, kTextAlignmentOffset) = kTextAlignCandidate;
 }
 
 bool LooksLikeCastleVersionText(const wchar_t* text, std::uint16_t length) {
