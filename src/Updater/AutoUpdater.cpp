@@ -30,7 +30,7 @@ namespace {
 extern "C" IMAGE_DOS_HEADER __ImageBase;
 
 constexpr const char* kTestingKeySalt = "HookCrashers-v5-testing-channel";
-constexpr const char* kTestingKeySha256 = "59d7ced9b9ee137471369a11dcc86371e9b53acfd5aed1df094ea305038f34d9";
+constexpr const char* kTestingKeySha256 = "0c5cf2d507179fded9e68d25f894bf75ff348a471fa42a3a73c32c2b5c5b33e2";
 
 struct UpdateManifest {
     std::string version;
@@ -121,6 +121,55 @@ bool IsTestingKeyValid(const std::string& key) {
         return false;
     }
     return digest == kTestingKeySha256;
+}
+
+bool RewriteInvalidTestingConfigToStable(const std::string& moduleDirectory) {
+    const std::string configPath = JoinPath(moduleDirectory, "HookCrashers.yaml");
+    std::ifstream input(configPath, std::ios::in | std::ios::binary);
+    if (!input) {
+        Core::Logger::Warn("Could not open HookCrashers.yaml to reset invalid testing channel");
+        return false;
+    }
+
+    std::vector<std::string> lines;
+    std::string line;
+    bool wroteChannel = false;
+    bool wroteTestingKey = false;
+    while (std::getline(input, line)) {
+        std::string trimmed = line;
+        trimmed.erase(trimmed.begin(), std::find_if(trimmed.begin(), trimmed.end(), [](unsigned char ch) {
+            return std::isspace(ch) == 0;
+        }));
+        const std::string lower = ToLower(trimmed);
+        if (lower.rfind("channel:", 0) == 0) {
+            lines.emplace_back("channel: stable");
+            wroteChannel = true;
+        } else if (lower.rfind("testing_key:", 0) == 0) {
+            lines.emplace_back("testing_key: \"\"");
+            wroteTestingKey = true;
+        } else {
+            lines.push_back(std::move(line));
+        }
+    }
+
+    if (!wroteChannel) {
+        lines.emplace_back("channel: stable");
+    }
+    if (!wroteTestingKey) {
+        lines.emplace_back("testing_key: \"\"");
+    }
+
+    std::ofstream output(configPath, std::ios::out | std::ios::binary | std::ios::trunc);
+    if (!output) {
+        Core::Logger::Warn("Could not write HookCrashers.yaml to reset invalid testing channel");
+        return false;
+    }
+
+    for (const std::string& outLine : lines) {
+        output << outLine << "\n";
+    }
+    Core::Logger::Warn("Invalid testing channel key; HookCrashers.yaml was reset to stable");
+    return true;
 }
 
 std::string HttpGetText(const char* url) {
@@ -353,6 +402,7 @@ bool CheckForUpdates(const std::string& moduleDirectory,
         !IsTestingKeyValid(config.testingKey)) {
         Core::Logger::Warn(
             "Testing update channel requested with invalid key; falling back to stable");
+        RewriteInvalidTestingConfigToStable(moduleDirectory);
         channel = Core::Config::UpdateChannel::Stable;
     }
 
