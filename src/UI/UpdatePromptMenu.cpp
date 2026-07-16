@@ -378,7 +378,7 @@ void PlaceVersionTextInBottomRight(void* item, const std::wstring& text) {
     constexpr float kBottomAnchorOffset = -13.0f;
     constexpr float kFontScale = 0.50f;
     constexpr std::uint16_t kMaxTextWidthUnits = 120;
-    constexpr std::uint16_t kTextAlignCandidate = 1;
+    constexpr std::uint16_t kTextAlignCandidate = 0;
 
     (void)text;
     Field<float>(item, kItemXOffset) += kRightAnchorOffset;
