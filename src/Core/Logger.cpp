@@ -10,6 +10,7 @@ namespace {
 
 CRITICAL_SECTION g_Lock;
 bool g_Initialized = false;
+bool g_ExternalConsoleOwned = false;
 FILE* g_File = nullptr;
 std::string g_LogPath;
 std::string g_ModuleDirectory;
@@ -55,6 +56,10 @@ void WriteUnlocked(const char* level, const char* message) {
         std::fprintf(g_File, "%s\n", line);
         std::fflush(g_File);
     }
+    if (g_ExternalConsoleOwned) {
+        std::fprintf(stdout, "%s\n", line);
+        std::fflush(stdout);
+    }
 }
 
 void LogVa(const char* level, const char* format, va_list args) {
@@ -94,6 +99,22 @@ void Initialize(void* moduleHandle) {
     Info("Log path: %s", g_LogPath.c_str());
 }
 
+void SetExternalConsoleEnabled(bool enabled) {
+    if (enabled == g_ExternalConsoleOwned) return;
+    if (enabled) {
+        if (!AllocConsole()) return;
+        FILE* stream = nullptr;
+        freopen_s(&stream, "CONOUT$", "w", stdout);
+        freopen_s(&stream, "CONOUT$", "w", stderr);
+        SetConsoleTitleA("HookCrashers Log");
+        g_ExternalConsoleOwned = true;
+        Info("External console enabled");
+    } else if (g_ExternalConsoleOwned) {
+        FreeConsole();
+        g_ExternalConsoleOwned = false;
+    }
+}
+
 void Shutdown() {
     if (!g_Initialized) {
         return;
@@ -107,6 +128,10 @@ void Shutdown() {
     }
     LeaveCriticalSection(&g_Lock);
     DeleteCriticalSection(&g_Lock);
+    if (g_ExternalConsoleOwned) {
+        FreeConsole();
+        g_ExternalConsoleOwned = false;
+    }
     g_Initialized = false;
 }
 

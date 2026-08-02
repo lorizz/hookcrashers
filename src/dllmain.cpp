@@ -82,6 +82,8 @@ DWORD WINAPI BootstrapThread(void* parameter) {
 
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
+    HookCrashers::Core::Logger::SetExternalConsoleEnabled(config.showExternalConsole);
+
     const bool updateAvailable = HookCrashers::Updater::AutoUpdater::CheckForUpdates(
         HookCrashers::Core::Logger::ModuleDirectory(), config);
     HookCrashers::UI::UpdatePromptMenu::SetStartupUpdateAvailable(updateAvailable);
@@ -118,8 +120,12 @@ DWORD WINAPI BootstrapThread(void* parameter) {
         HookCrashers::Core::Logger::Warn("No addon characters registered; character expansion was not installed");
     }
 
-    if (!HookCrashers::UI::DebugOverlay::Install()) {
-        HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
+    if (config.enableOverlay) {
+        if (!HookCrashers::UI::DebugOverlay::Install(false, config.overlayToggleKey)) {
+            HookCrashers::Core::Logger::Warn("Debug overlay failed to install; continuing without ImGui console");
+        }
+    } else {
+        HookCrashers::Core::Logger::Info("Debug overlay disabled by HookCrashers.yaml");
     }
 
     HookCrashers::UI::SplashScreen::Show(module, 1000);

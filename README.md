@@ -49,7 +49,12 @@ Back up your save data before testing character mods. Addon character order is p
 updates_enabled: true
 channel: stable
 testing_key: ""
+show_external_console: false
+enable_overlay: true
+overlay_toggle_key: Home
 ```
+
+The ImGui log overlay starts closed. Press the configured `overlay_toggle_key` (`Home` by default) to show or hide it. `show_external_console` controls the separate Windows console window.
 
 Save expansion, localization, and runtime SWF patching are driven by the loaded folder mods. Custom localization ids start at the fixed base id `5000`.
 

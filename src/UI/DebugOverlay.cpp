@@ -26,8 +26,9 @@ HWND g_GameWindow = nullptr;
 WNDPROC g_OriginalWndProc = nullptr;
 bool g_Installed = false;
 bool g_ImGuiReady = false;
-bool g_Visible = true;
+bool g_Visible = false;
 bool g_LastToggleDown = false;
+unsigned int g_ToggleKey = VK_HOME;
 DWORD g_LastFrameTick = 0;
 
 LRESULT CALLBACK OverlayWndProc(HWND hwnd, UINT msg, WPARAM wparam, LPARAM lparam) {
@@ -108,7 +109,7 @@ void RunFrame(IDirect3DDevice9* device) {
         return;
     }
 
-    const bool toggleDown = (GetAsyncKeyState(VK_F10) & 0x8000) != 0;
+    const bool toggleDown = (GetAsyncKeyState(static_cast<int>(g_ToggleKey)) & 0x8000) != 0;
     if (toggleDown && !g_LastToggleDown) {
         g_Visible = !g_Visible;
     }
@@ -226,10 +227,13 @@ bool ResolveD3D9VTable(void** endScene, void** present, void** reset) {
 
 } // namespace
 
-bool Install() {
+bool Install(bool initiallyVisible, unsigned int toggleKey) {
     if (g_Installed) {
         return true;
     }
+
+    g_Visible = initiallyVisible;
+    g_ToggleKey = toggleKey;
 
     void* endScene = nullptr;
     void* present = nullptr;
@@ -255,7 +259,7 @@ bool Install() {
     }
 
     g_Installed = true;
-    Core::Logger::Info("DebugOverlay: D3D9 hooks installed; press F10 to toggle log console");
+    Core::Logger::Info("DebugOverlay: D3D9 hooks installed hidden; toggle key=0x%02X", g_ToggleKey);
     return true;
 }
 

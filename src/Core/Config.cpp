@@ -64,6 +64,9 @@ void WriteDefaultConfig(const std::string& path) {
     file << "updates_enabled: true\n";
     file << "channel: stable\n";
     file << "testing_key: \"\"\n";
+    file << "show_external_console: false\n";
+    file << "enable_overlay: true\n";
+    file << "overlay_toggle_key: Home\n";
 }
 
 void ApplyKeyValue(RuntimeConfig& config, const std::string& key, const std::string& rawValue) {
@@ -79,6 +82,15 @@ void ApplyKeyValue(RuntimeConfig& config, const std::string& key, const std::str
             : UpdateChannel::Stable;
     } else if (normalizedKey == "testing_key") {
         config.testingKey = value;
+    } else if (normalizedKey == "show_external_console" || normalizedKey == "showexternalconsole") {
+        config.showExternalConsole = normalizedValue == "true" || normalizedValue == "1" || normalizedValue == "yes";
+    } else if (normalizedKey == "enable_overlay" || normalizedKey == "enableoverlay") {
+        config.enableOverlay = normalizedValue != "false" && normalizedValue != "0" && normalizedValue != "no";
+    } else if (normalizedKey == "overlay_toggle_key" || normalizedKey == "overlaytogglekey") {
+        if (normalizedValue == "home") config.overlayToggleKey = VK_HOME;
+        else if (normalizedValue == "f10") config.overlayToggleKey = VK_F10;
+        else if (normalizedValue == "f11") config.overlayToggleKey = VK_F11;
+        else if (normalizedValue == "f12") config.overlayToggleKey = VK_F12;
     }
 }
 
@@ -117,10 +129,13 @@ RuntimeConfig LoadOrCreate(const std::string& moduleDirectory) {
         ApplyKeyValue(config, line.substr(0, colon), line.substr(colon + 1));
     }
 
-    Logger::Info("Config loaded: updates=%d channel=%s testingKeyPresent=%d",
+    Logger::Info("Config loaded: updates=%d channel=%s testingKeyPresent=%d externalConsole=%d overlay=%d overlayKey=0x%02X",
                  config.updatesEnabled ? 1 : 0,
                  ChannelName(config.channel),
-                 config.testingKey.empty() ? 0 : 1);
+                 config.testingKey.empty() ? 0 : 1,
+                 config.showExternalConsole ? 1 : 0,
+                 config.enableOverlay ? 1 : 0,
+                 config.overlayToggleKey);
     return config;
 }
 

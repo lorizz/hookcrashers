@@ -8,6 +8,7 @@ namespace HookCrashers::Core::Logger {
 
 void Initialize(void* moduleHandle);
 void Shutdown();
+void SetExternalConsoleEnabled(bool enabled);
 void Info(const char* format, ...);
 void Warn(const char* format, ...);
 void Error(const char* format, ...);
