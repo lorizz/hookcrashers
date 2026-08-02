@@ -18,7 +18,7 @@ HookCrashers currently provides:
 ## Installation
 
 1. Copy `HookCrashers.asi` and its required runtime files into the Castle Crashers Remastered game folder.
-2. Start the game once. HookCrashers will create `HookCrashers.ini` and `mods` if they do not already exist.
+2. Start the game once. HookCrashers will create `HookCrashers.yaml` and `mods` if they do not already exist.
 3. Place folder mods under `mods/<mod>/`.
 
 Example layout:
@@ -43,13 +43,12 @@ Back up your save data before testing character mods. Addon character order is p
 
 ## Configuration
 
-`HookCrashers.ini` is created in the game folder.
+`HookCrashers.yaml` is created in the game folder.
 
-```ini
-[HookCrashers]
-ShowExternalConsole=false
-EnableOverlay=true
-OverlayToggleKey=Home
+```yaml
+updates_enabled: true
+channel: stable
+testing_key: ""
 ```
 
 Save expansion, localization, and runtime SWF patching are driven by the loaded folder mods. Custom localization ids start at the fixed base id `5000`.
