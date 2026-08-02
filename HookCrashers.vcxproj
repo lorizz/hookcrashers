@@ -42,7 +42,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.0</HookCrashersVersion>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.1</HookCrashersVersion>
     <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">release</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -139,6 +139,8 @@
     <ClCompile Include="src\Core\Memory.cpp" />
     <ClCompile Include="src\Core\ModLoader.cpp" />
     <ClCompile Include="src\Lobby\LobbyPortraitExpansion.cpp" />
+    <ClCompile Include="src\Localization\LocalizationManager.cpp" />
+    <ClCompile Include="src\Localization\LocalizationSystem.cpp" />
     <ClCompile Include="src\NativeDB\LuaApi.cpp" />
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp" />
     <ClCompile Include="src\Save\SaveFileRedirect.cpp" />
@@ -162,6 +164,8 @@
     <ClInclude Include="src\Core\Memory.h" />
     <ClInclude Include="src\Core\ModLoader.h" />
     <ClInclude Include="src\Lobby\LobbyPortraitExpansion.h" />
+    <ClInclude Include="src\Localization\LocalizationManager.h" />
+    <ClInclude Include="src\Localization\LocalizationSystem.h" />
     <ClInclude Include="src\NativeDB\Classes.h" />
     <ClInclude Include="src\NativeDB\LuaApi.h" />
     <ClInclude Include="src\NativeDB\Natives.h" />

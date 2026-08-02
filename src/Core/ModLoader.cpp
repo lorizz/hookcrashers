@@ -3,6 +3,7 @@
 #include "Logger.h"
 #include "../Characters/CharacterRegistry.h"
 #include "../NativeDB/LuaApi.h"
+#include "../Localization/LocalizationSystem.h"
 
 extern "C" {
 #include <lua.h>
@@ -647,6 +648,11 @@ LoadResult LoadAll(const std::string& rootDirectory) {
             entrypoints = ReadManifestEntrypoints(manifestPath);
         } else {
             Logger::Warn("Mod has no manifest.yaml: %s", modDirectory.c_str());
+        }
+
+        const std::string localizationPath = JoinPath(modDirectory, "localizations.json");
+        if (FileExists(localizationPath)) {
+            HookCrashers::Localization::LoadFile(localizationPath, modName);
         }
 
         if (entrypoints.empty()) {

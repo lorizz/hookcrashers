@@ -198,6 +198,15 @@ For in-game sprites and animation assets, keep using `main.swf`/game asset autho
 
 Character localization ids follow `characters.<registered id>.name` and `characters.<registered id>.unlock`. Missing translations fall back to English.
 
+Use a custom localization from ActionScript exactly like the v4 API:
+
+```actionscript
+nameText.ntext = GetLocalization("characters.troll.name");
+unlockText.ntext = GetLocalization("characters.troll.unlock");
+```
+
+`GetLocalization` returns the numeric localization id assigned by HookCrashers (starting at `5000`). Assign that value to `ntext`; use `text` only for literal strings.
+
 ## Multiplayer Notes
 
 Expanded multiplayer character sync currently keeps the original packet replacement disabled. The stable path is to let the game use its original sync packet while HookCrashers patches the roster split/loop limits and rebuilt lobby character tables.

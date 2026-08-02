@@ -4,6 +4,7 @@
 #include "../Characters/CharacterRegistry.h"
 #include "../Characters/CharacterExpansion.h"
 #include "../Core/Logger.h"
+#include "../Localization/LocalizationSystem.h"
 #include "../UI/UpdatePromptMenu.h"
 
 #include <windows.h>
@@ -152,23 +153,7 @@ std::string CurrentLocalizationLanguage() {
 }
 
 bool ResolveCurrentModLocalization(const std::string& id, std::string& out) {
-    const std::string json = ReadTextFile(JoinPath(g_currentModDirectory, "localizations.json"));
-    if (json.empty()) return false;
-
-    const auto values = ParseLocalizationJson(json);
-    const std::string language = CurrentLocalizationLanguage();
-    const auto localized = values.find(language + "\x1F" + id);
-    if (localized != values.end()) {
-        out = localized->second;
-        return true;
-    }
-
-    const auto english = values.find(std::string("en\x1F") + id);
-    if (english != values.end()) {
-        out = english->second;
-        return true;
-    }
-    return false;
+    return HookCrashers::Localization::Resolve(id, out);
 }
 
 Natives ReadNative(lua_State* L, int index) {

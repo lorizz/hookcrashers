@@ -9,6 +9,7 @@
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
+#include "Localization/LocalizationSystem.h"
 #include "Save/SaveFileRedirect.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
@@ -75,6 +76,12 @@ DWORD WINAPI BootstrapThread(void* parameter) {
 
     HookCrashers::NativeDB::SetGameBase(gameBase);
     HookCrashers::Core::Logger::Info("NativeDB game base set");
+
+    HookCrashers::Localization::Reset();
+    if (!HookCrashers::Localization::Install()) {
+        HookCrashers::Core::Logger::Error("Localization system failed to install");
+        return 1;
+    }
 
     if (!HookCrashers::UI::UpdatePromptMenu::Install()) {
         HookCrashers::Core::Logger::Warn("Update prompt menu hook failed to install");
@@ -150,6 +157,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::UI::UpdatePromptMenu::Remove();
+        HookCrashers::Localization::Remove();
         HookCrashers::Core::ModLoader::Shutdown();
         HookCrashers::Characters::CharacterExpansion::Remove();
         HookCrashers::Core::CrashHandler::Uninstall();
