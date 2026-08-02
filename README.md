@@ -11,7 +11,7 @@ HookCrashers currently provides:
 - runtime save layout expansion
 - runtime `main.cok6` ActionScript patching for the save system
 - runtime `lobby.cok6` portrait injection from per-character `portrait.swf` files
-- custom localization from `locs.json`
+- custom localization from `localizations.json`
 - multiplayer roster table patches for expanded addon slots
 - a C++ API for advanced ASI mods and custom SWF native calls
 
@@ -29,9 +29,10 @@ CastleCrashers/
   HookCrashers.ini
   mods/
     example_mod/
-      manifest.json
-      main.lua
-      locs.json
+      manifest.yaml
+      localizations.json
+      scripts/
+        register_character.lua
       characters/
         troll/
           portrait.swf
@@ -55,37 +56,37 @@ Save expansion, localization, and runtime SWF patching are driven by the loaded 
 
 ## Folder Mods
 
-Each folder inside `mods` is scanned independently. A folder is considered a mod when it contains at least one supported file: `manifest.json`, `main.lua`, `locs.json`, or `icon.png`.
+Each folder inside `mods` is scanned independently. A mod uses `manifest.yaml` to declare its metadata and Lua entrypoints.
 
-### manifest.json
+### manifest.yaml
 
-```json
-{
-  "name": "Example Character Pack",
-  "author": "YourName",
-  "version": "1.0.0"
-}
+```yaml
+id: example.character_pack
+name: Example Character Pack
+description: Example HookCrashers character mod.
+author: YourName
+version: 1.0.0
+hookcrashers_version: ">=5.0.0"
+dependencies: []
+entrypoints:
+  - scripts/register_character.lua
 ```
 
-### main.lua
+### Character registration
 
-`main.lua` is executed with the `HookCrashers` Lua module available.
+Every file listed under `entrypoints` is executed as Lua. Register characters in a stable order:
 
 ```lua
-local HC = require("HookCrashers")
-
-HC.Character.Register(
+RegisterCharacter(
     "troll",
-    HC.Enums.Weapon.Pitchfork,
-    HC.Enums.Pet.None,
+    Enums.Weapon.Pitchfork,
+    Enums.Pet.None,
     true,
     false
 )
 ```
 
-The same function is also exposed as `HC.RegisterCharacter(...)`.
-
-`HC.Character.Register(id, weapon, pet, initiallyUnlocked, freshOnly)`:
+`RegisterCharacter(id, weapon, pet, initiallyUnlocked, freshOnly)`:
 
 - `id`: stable internal character id. Use lowercase ASCII names without spaces.
 - `weapon`: starting weapon id. Prefer `HC.Enums.Weapon.*`.
@@ -176,21 +177,22 @@ For in-game sprites and animation assets, keep using `main.swf`/game asset autho
 
 ## Localization
 
-`locs.json` declares localization strings used by the mod.
+`localizations.json` maps localization ids to translated strings. Supported language keys are `en`, `de`, `fr`, `it`, `ko`, `es`, `zh_cn`, `zh_tw`, `ru`, `ja`, and `pt`.
 
 ```json
 {
-  "strings": [
-    {
-      "unlocalized_name": "example_mod_character_name",
-      "english": "Example Mod Character",
-      "italian": "Personaggio Mod Esempio"
-    }
-  ]
+  "en": {
+    "characters.troll.name": "Troll",
+    "characters.troll.unlock": "Unlocked by Example Character Pack."
+  },
+  "it": {
+    "characters.troll.name": "Troll",
+    "characters.troll.unlock": "Sbloccato da Example Character Pack."
+  }
 }
 ```
 
-HookCrashers reads the `strings` array and tracks each `unlocalized_name` or `id`. Custom localization ids start at the fixed base id `5000`.
+Character localization ids follow `characters.<registered id>.name` and `characters.<registered id>.unlock`. Missing translations fall back to English.
 
 ## Multiplayer Notes
 
@@ -247,7 +249,7 @@ Useful helpers exposed by the API include:
 ## Troubleshooting
 
 - Check `HookCrashers.log` first. Lua syntax errors, registration errors, localization loads, addon character loads, network patch setup, and SWF patch failures are written there.
-- If a mod folder is ignored, make sure it contains `main.lua`, `manifest.json`, `locs.json`, or `icon.png`.
+- If a mod folder is ignored, make sure it contains a valid `manifest.yaml` and that every declared entrypoint exists.
 - If the save screen behaves like vanilla, check that `main_patched.swf` is being dumped and that the log reports the `f_InitSaveSystem` runtime patch.
 - If a portrait is missing, check that `portrait.swf` or `portrait_classic.swf` exists, is uncompressed `FWS`, and contains a real `DefineShape` tag.
 - If a portrait appears in the wrong place, inspect `lobby_patched.swf` and confirm classic frames were cloned from frame 34 and fresh frames from frame 135.
