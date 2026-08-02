@@ -26,7 +26,7 @@ Example layout:
 ```text
 CastleCrashers/
   HookCrashers.asi
-  HookCrashers.ini
+  HookCrashers.yaml
   mods/
     example_mod/
       manifest.yaml
