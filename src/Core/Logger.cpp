@@ -83,8 +83,9 @@ void Initialize(void* moduleHandle) {
     GetModuleFileNameA(static_cast<HMODULE>(moduleHandle), modulePath, sizeof(modulePath));
     g_ModuleDirectory = DirectoryOf(modulePath);
     g_LogPath = g_ModuleDirectory + "\\HookCrashers.log";
+    g_Lines.clear();
 
-    fopen_s(&g_File, g_LogPath.c_str(), "a");
+    fopen_s(&g_File, g_LogPath.c_str(), "w");
     g_Initialized = true;
 
     Info("Logger initialized");

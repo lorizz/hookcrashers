@@ -1,11 +1,11 @@
 #pragma once
 
 #ifndef HOOKCRASHERS_VERSION_STRING
-#define HOOKCRASHERS_VERSION_STRING "5.0.0-dev"
+#define HOOKCRASHERS_VERSION_STRING "5.0.0"
 #endif
 
 #ifndef HOOKCRASHERS_CHANNEL_STRING
-#define HOOKCRASHERS_CHANNEL_STRING "dev"
+#define HOOKCRASHERS_CHANNEL_STRING "release"
 #endif
 
 namespace HookCrashers::Core::Version {

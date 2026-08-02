@@ -42,8 +42,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.0-dev</HookCrashersVersion>
-    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">dev</HookCrashersChannel>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.0</HookCrashersVersion>
+    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">release</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.asi</TargetExt>
