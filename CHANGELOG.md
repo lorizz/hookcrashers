@@ -1,6 +1,6 @@
 # Changelog
 
-## 5.0.2 - 2026-09-26
+## 5.0.3 - 2026-09-26
 
 ### Added
 
@@ -11,6 +11,11 @@
 ### Fixed
 
 - Replaced stale C++ API documentation that referenced exports and headers absent from the v5 build.
+
+## 5.0.2 - 2026-09-26
+
+### Fixed
+
 - Isolated Painter Boss Paradise configuration per mod as `hcpbp_<modname>.dat`, preventing stale vanilla or another mod's Workshop selections from being loaded by HookCrashers.
 - Made save and PBP filename redirection atomic and rejected unexpected PBP filename operands from unsupported executable revisions.
 

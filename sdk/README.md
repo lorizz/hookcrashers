@@ -30,7 +30,7 @@ id: example.lua_mod
 name: Example Lua Mod
 author: YourName
 version: 1.0.0
-hookcrashers_version: ">=5.0.2"
+hookcrashers_version: ">=5.0.3"
 dependencies: []
 entrypoints:
   - scripts/main.lua
@@ -95,7 +95,17 @@ id: example.native_mod
 name: Example Native Mod
 author: YourName
 version: 1.0.0
-hookcrashers_version: ">=5.0.2"
+hookcrashers_version: ">=5.0.3"
 dependencies: []
 entrypoints: []
 ```
+
+## HookCrashers 5.0.3 changelog
+
+- Added native Win32/x86 ASI loading from dedicated `mods/<mod>/*.asi`
+  folders.
+- Added deterministic native-mod load order.
+- Added optional `HookCrashersModInit` and `HookCrashersModShutdown` exports.
+- Added `HookCrashers.h` and the x86 `HookCrashers.lib` import library.
+- Added public logging and HookCrashers runtime-version APIs for C++ mods.
+- Added a buildable native example and corrected the C++ API documentation.
