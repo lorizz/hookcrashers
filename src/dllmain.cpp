@@ -103,8 +103,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
 
     const HookCrashers::Core::ModLoader::LoadResult loadResult =
         HookCrashers::Core::ModLoader::LoadAll(HookCrashers::Core::Logger::ModuleDirectory());
-    HookCrashers::Core::Logger::Info("ModLoader result: mods=%d scripts=%d characters=%d registryAddons=%d",
+    HookCrashers::Core::Logger::Info("ModLoader result: mods=%d nativeModules=%d scripts=%d characters=%d registryAddons=%d",
                                     loadResult.modsFound,
+                                    loadResult.nativeModulesLoaded,
                                     loadResult.scriptsRun,
                                     loadResult.charactersRegistered,
                                     HookCrashers::Characters::Registry::Instance().AddonCount());
@@ -173,7 +174,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::UI::UpdatePromptMenu::Remove();
         HookCrashers::Localization::Remove();
-        HookCrashers::Core::ModLoader::Shutdown();
+        HookCrashers::Core::ModLoader::Shutdown(false);
         HookCrashers::Characters::CharacterExpansion::Remove();
         HookCrashers::Core::CrashHandler::Uninstall();
         HookCrashers::Core::Logger::Shutdown();

@@ -1,0 +1,8 @@
+id: example.native_mod
+name: Example Native Mod
+description: Minimal native HookCrashers mod.
+author: YourName
+version: 1.0.0
+hookcrashers_version: ">=5.0.2"
+dependencies: []
+entrypoints: []

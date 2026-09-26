@@ -1,4 +1,6 @@
 /Release
 HookCrashers/Release/
 External/
+examples/native/**/bin/
+examples/native/**/obj/
 .DS_Store

@@ -7,6 +7,7 @@ The current goal is simple: addon character mods should be folder-based and runt
 HookCrashers currently provides:
 
 - Lua folder mods from `mods/<mod>/`
+- native x86 ASI folder mods from `mods/<mod>/*.asi`
 - addon character registration
 - runtime save layout expansion
 - runtime `main.cok6` ActionScript patching for the save system
@@ -222,7 +223,41 @@ A future mod manifest/lobby compatibility layer should make modded lobbies visib
 
 ## C++ ASI API
 
-Advanced binary mods can include `HookCrashers.h` and call the exported API.
+Advanced binary mods use the `HookCrashers-SDK.zip` asset published with each
+HookCrashers release. It contains `include/HookCrashers.h` and the Win32/x86
+import library `lib/HookCrashers.lib`.
+
+Native ASIs are folder mods. Do not place an ASI directly in the `mods` root:
+
+```text
+CastleCrashers/
+  mods/
+    MyNativeMod/
+      manifest.yaml
+      MyNativeMod.asi
+```
+
+HookCrashers loads every `.asi` in the mod folder in case-insensitive filename
+order. The normal DLL `DllMain` runs automatically. A mod can also export the
+optional initialization and shutdown entrypoints:
+
+```cpp
+#include <HookCrashers.h>
+
+HOOKCRASHERS_MOD_EXPORT bool __stdcall HookCrashersModInit() {
+    HookCrashers::LogInfo("MyNativeMod initialized");
+    return true;
+}
+
+HOOKCRASHERS_MOD_EXPORT void __stdcall HookCrashersModShutdown() {
+    HookCrashers::LogInfo("MyNativeMod shutting down");
+}
+```
+
+Build the mod as a **Win32/x86** DLL, change the output extension to `.asi`, add
+the SDK include directory, and link `HookCrashers.lib`. Register characters
+during `DllMain` or `HookCrashersModInit`; that is when HookCrashers associates
+them with the native mod's `characters/<id>/` asset directory.
 
 Character registration:
 
@@ -237,32 +272,15 @@ HookCrashers::RegisterCharacter(
     false);
 ```
 
-Custom SWF native registration:
-
-```cpp
-HookCrashers::RegisterCustomSWF(
-    0x150,
-    "MyNativeFunction",
-    [](int argCount, HC_SWFArgument** args, HC_SWFReturn* ret) {
-        HookCrashers::SWF::ArgsReader reader(argCount, args);
-        HookCrashers::SWF::ReturnValue out(ret);
-        out.SetInt(reader.GetInt(0, 0) + 1);
-    });
-```
-
-Overrides can be registered with `HookCrashers::RegisterOverride(...)`, and the original game handler can be reached with `HookCrashers::CallOriginal(...)`.
-
-Useful helpers exposed by the API include:
-
-- logging: `LogInfo`, `LogWarn`, `LogError`
-- SWF strings: `AddString`, `GetString`
-- player helpers: `GetPlayerObject`, `GetPlayerSelectedCharacterType`, `IsOnlineMode`
-- save helpers: `FindCastleCrashersSavePath`, `GetCapturedSaveData`
+The current stable C++ ABI exposes version lookup, logging, character
+registration, and native confirmation prompts. Additional APIs will be added
+without requiring mods to link against HookCrashers internals.
 
 ## Troubleshooting
 
 - Check `HookCrashers.log` first. Lua syntax errors, registration errors, localization loads, addon character loads, network patch setup, and SWF patch failures are written there.
 - If a mod folder is ignored, make sure it contains a valid `manifest.yaml` and that every declared entrypoint exists.
+- If a native mod is ignored, put it under `mods/<mod-name>/<file>.asi`, compile it for Win32/x86, and check the `Native mod load failed` line for the exact Windows loader error.
 - If the save screen behaves like vanilla, check that `main_patched.swf` is being dumped and that the log reports the `f_InitSaveSystem` runtime patch.
 - If a portrait is missing, check that `portrait.swf` or `portrait_classic.swf` exists, is uncompressed `FWS`, and contains a real `DefineShape` tag.
 - If a portrait appears in the wrong place, inspect `lobby_patched.swf` and confirm classic frames were cloned from frame 34 and fresh frames from frame 135.
