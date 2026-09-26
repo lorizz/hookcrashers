@@ -57,7 +57,8 @@ bool InitializeImGui(IDirect3DDevice9* device) {
     IMGUI_CHECKVERSION();
     ImGui::CreateContext();
     ImGuiIO& io = ImGui::GetIO();
-    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;
+    io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard |
+                      ImGuiConfigFlags_NoMouseCursorChange;
 
     ImGui::StyleColorsDark();
     ImGui_ImplWin32_Init(g_GameWindow);
@@ -115,6 +116,9 @@ void RunFrame(IDirect3DDevice9* device) {
     }
     g_LastToggleDown = toggleDown;
 
+    ImGuiIO& io = ImGui::GetIO();
+    io.MouseDrawCursor = g_Visible;
+
     ImGui_ImplDX9_NewFrame();
     ImGui_ImplWin32_NewFrame();
     ImGui::NewFrame();
@@ -122,6 +126,9 @@ void RunFrame(IDirect3DDevice9* device) {
     if (g_Visible) {
         DrawLogConsole();
     }
+
+    // DrawLogConsole can close the overlay through its title-bar button.
+    io.MouseDrawCursor = g_Visible;
 
     ImGui::EndFrame();
     ImGui::Render();

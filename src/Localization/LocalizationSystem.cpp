@@ -1,8 +1,10 @@
 #include "LocalizationSystem.h"
 
 #include "LocalizationManager.h"
+#include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
 #include "../Core/Memory.h"
+#include "../NativeDB/Classes.h"
 #include "../NativeDB/Natives.h"
 
 #include <windows.h>
@@ -21,6 +23,8 @@ constexpr std::uintptr_t kRegisterAllRva = 0x1215B0;
 constexpr std::uintptr_t kAddStringRva = 0xFD670;
 constexpr std::uintptr_t kDispatcherRva = 0x11B2E0;
 constexpr std::uintptr_t kTextObjectSetNTextRva = 0x125F50;
+constexpr std::uintptr_t kIsCharacterUnlockedRva = 0xF0B60;
+constexpr std::uint16_t kIsCharacterUnlockedNativeId = 0xC4;
 
 struct SWFArgument {
     std::uint32_t unknown0;
@@ -126,9 +130,50 @@ void SetIntegerResult(std::uint32_t* rawResult, std::int32_t value) {
     result->value.integer = value;
 }
 
+void SetBooleanResult(std::uint32_t* rawResult, bool value) {
+    auto* result = reinterpret_cast<SWFReturn*>(rawResult);
+    if (!result) return;
+    result->status = 0;
+    result->type = 2;
+    result->padding = 0;
+    result->value.raw = value ? 1u : 0u;
+}
+
+bool HandleExpandedCharacterUnlock(std::uint32_t functionId,
+                                   int paramCount,
+                                   SWFArgument** args,
+                                   std::uint32_t* result) {
+    if ((functionId & 0xFFFFu) != kIsCharacterUnlockedNativeId ||
+        paramCount < 2 || !args || !args[0] || !args[1]) {
+        return false;
+    }
+
+    const std::uint32_t playerIndex = args[0]->value.raw;
+    const std::uint32_t characterId = args[1]->value.raw;
+    const auto& registry = Characters::Registry::Instance();
+    const std::uint32_t firstAddonId =
+        static_cast<std::uint32_t>(NativeDB::kVanillaBaseCharacterCount);
+    const std::uint32_t firstWorkshopId =
+        static_cast<std::uint32_t>(registry.NetworkBaseCount());
+
+    if (characterId >= firstAddonId && characterId < firstWorkshopId) {
+        using IsCharacterUnlockedFn = std::uint32_t(__cdecl*)(std::uint32_t, std::uint32_t);
+        const auto isCharacterUnlocked = reinterpret_cast<IsCharacterUnlockedFn>(
+            NativeDB::GetGameBase() + kIsCharacterUnlockedRva);
+        SetBooleanResult(result, isCharacterUnlocked(playerIndex, characterId) != 0);
+        return true;
+    }
+
+    return false;
+}
+
 void __fastcall HookedDispatcher(void* thisPtr, void*, int swfContext, std::uint32_t functionId,
                                  int paramCount, SWFArgument** args,
                                  std::uint32_t* result, std::uint32_t callbackPtr) {
+    if (HandleExpandedCharacterUnlock(functionId, paramCount, args, result)) {
+        return;
+    }
+
     if ((functionId & 0xFFFFu) != kGetLocalizationNativeId) {
         g_originalDispatcher(thisPtr, swfContext, functionId, paramCount, args, result, callbackPtr);
         return;

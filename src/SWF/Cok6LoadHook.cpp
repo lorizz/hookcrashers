@@ -32,6 +32,10 @@ constexpr std::uint16_t kTagDoInitAction = 59;
 constexpr std::uint16_t kTagShowFrame = 1;
 constexpr std::uint16_t kTagDefineSprite = 39;
 constexpr std::uint8_t kActionEnd = 0x00;
+constexpr std::uint8_t kActionPop = 0x17;
+constexpr std::uint8_t kActionPush = 0x96;
+constexpr std::uint8_t kActionStoreRegister = 0x87;
+constexpr std::uint8_t kActionDefineFunction2 = 0x8E;
 constexpr std::uint8_t kActionDefineFunction = 0x9B;
 constexpr std::uint16_t kLobbyPortraitSpriteId = 180;
 constexpr int kClassicCloneSourceFrame = 34;
@@ -467,6 +471,227 @@ bool PatchInitSaveSystemActions(const std::uint8_t* actions, std::uint32_t lengt
     return patchedCount > 0;
 }
 
+void StoreU32(std::uint8_t* p, std::uint32_t value) {
+    p[0] = static_cast<std::uint8_t>(value & 0xFF);
+    p[1] = static_cast<std::uint8_t>((value >> 8) & 0xFF);
+    p[2] = static_cast<std::uint8_t>((value >> 16) & 0xFF);
+    p[3] = static_cast<std::uint8_t>((value >> 24) & 0xFF);
+}
+
+bool PatchClassicSelectionFunctionBody(std::uint8_t* body, std::size_t length, int scanCount) {
+    if (!body || scanCount <= 4) {
+        return false;
+    }
+
+    std::uint8_t* cursor = body;
+    std::uint8_t* end = body + length;
+    while (cursor < end) {
+        std::uint8_t* action = cursor++;
+        const std::uint8_t actionCode = *action;
+        if (actionCode == kActionEnd) {
+            break;
+        }
+        if (actionCode < 0x80) {
+            continue;
+        }
+        if (cursor + 2 > end) {
+            break;
+        }
+
+        const std::uint16_t actionLength = ReadU16(cursor);
+        cursor += 2;
+        if (cursor + actionLength > end) {
+            break;
+        }
+
+        // Both Classic selectors initialize register 6 with Push(int 4),
+        // StoreRegister(6), Pop before optionally consulting the debug flag.
+        if (actionCode == kActionPush && actionLength == 5 && cursor[0] == 0x07 &&
+            ReadU32(cursor + 1) == 4) {
+            std::uint8_t* next = cursor + actionLength;
+            if (next + 5 <= end && next[0] == kActionStoreRegister &&
+                ReadU16(next + 1) == 1 && next[3] == 6 && next[4] == kActionPop) {
+                StoreU32(cursor + 1, static_cast<std::uint32_t>(scanCount));
+                return true;
+            }
+        }
+        cursor += actionLength;
+    }
+    return false;
+}
+
+bool TryReadDefineFunctionMetadata(std::uint8_t actionCode,
+                                   const std::uint8_t* payload,
+                                   std::uint16_t length,
+                                   std::string& name,
+                                   std::uint16_t& codeSize,
+                                   std::size_t& headerSize) {
+    name.clear();
+    codeSize = 0;
+    headerSize = 0;
+    if (!payload || (actionCode != kActionDefineFunction && actionCode != kActionDefineFunction2)) {
+        return false;
+    }
+
+    const std::uint8_t* end = payload + length;
+    const auto* nameEnd = static_cast<const std::uint8_t*>(std::memchr(payload, 0, length));
+    if (!nameEnd || nameEnd + 3 > end) {
+        return false;
+    }
+    name.assign(reinterpret_cast<const char*>(payload), reinterpret_cast<const char*>(nameEnd));
+
+    const std::uint8_t* cursor = nameEnd + 1;
+    const std::uint16_t numParams = ReadU16(cursor);
+    cursor += 2;
+    if (actionCode == kActionDefineFunction2) {
+        // registerCount (UI8) and preload/suppress flags (UI16).
+        if (cursor + 3 > end) {
+            return false;
+        }
+        cursor += 3;
+    }
+
+    for (std::uint16_t i = 0; i < numParams; ++i) {
+        if (actionCode == kActionDefineFunction2) {
+            if (cursor >= end) {
+                return false;
+            }
+            ++cursor; // parameter register
+        }
+        const auto* paramEnd = static_cast<const std::uint8_t*>(
+            std::memchr(cursor, 0, static_cast<std::size_t>(end - cursor)));
+        if (!paramEnd) {
+            return false;
+        }
+        cursor = paramEnd + 1;
+    }
+    if (cursor + 2 > end) {
+        return false;
+    }
+
+    codeSize = ReadU16(cursor);
+    cursor += 2;
+    headerSize = static_cast<std::size_t>(cursor - payload);
+    return true;
+}
+
+void PatchClassicSelectionActions(std::uint8_t* actions,
+                                  std::size_t length,
+                                  int scanCount,
+                                  int& patchedCount) {
+    std::uint8_t* cursor = actions;
+    std::uint8_t* end = actions + length;
+    while (cursor < end) {
+        const std::uint8_t actionCode = *cursor++;
+        if (actionCode == kActionEnd) {
+            return;
+        }
+        if (actionCode < 0x80) {
+            continue;
+        }
+        if (cursor + 2 > end) {
+            return;
+        }
+
+        const std::uint16_t actionLength = ReadU16(cursor);
+        cursor += 2;
+        if (cursor + actionLength > end) {
+            return;
+        }
+
+        if (actionCode != kActionDefineFunction && actionCode != kActionDefineFunction2) {
+            cursor += actionLength;
+            continue;
+        }
+
+        std::string functionName;
+        std::uint16_t codeSize = 0;
+        std::size_t headerSize = 0;
+        if (!TryReadDefineFunctionMetadata(
+                actionCode, cursor, actionLength, functionName, codeSize, headerSize)) {
+            cursor += actionLength;
+            continue;
+        }
+
+        std::uint8_t* body = nullptr;
+        std::uint8_t* nextAction = cursor + actionLength;
+        if (headerSize == actionLength && nextAction + codeSize <= end) {
+            body = nextAction;
+            nextAction += codeSize;
+        } else if (headerSize + codeSize <= actionLength) {
+            body = cursor + headerSize;
+        }
+
+        if (body) {
+            if ((functionName == "f_LobbySelectingChar" || functionName == "f_SelectingChar") &&
+                PatchClassicSelectionFunctionBody(body, codeSize, scanCount)) {
+                ++patchedCount;
+                Core::Logger::Info("Patched Classic selector '%s' scan count 4 -> %d",
+                                   functionName.c_str(),
+                                   scanCount);
+            }
+            PatchClassicSelectionActions(body, codeSize, scanCount, patchedCount);
+        }
+        cursor = nextAction;
+    }
+}
+
+void PatchClassicSelectionTags(std::uint8_t* tags,
+                               std::uint8_t* end,
+                               int scanCount,
+                               int& patchedCount) {
+    std::uint8_t* cursor = tags;
+    while (cursor < end) {
+        Tag tag;
+        if (!ReadTag(cursor, end, tag)) {
+            return;
+        }
+
+        auto* payload = const_cast<std::uint8_t*>(tag.payload);
+        if (tag.code == kTagDoAction) {
+            PatchClassicSelectionActions(payload, tag.length, scanCount, patchedCount);
+        } else if (tag.code == kTagDoInitAction && tag.length >= 2) {
+            PatchClassicSelectionActions(payload + 2, tag.length - 2, scanCount, patchedCount);
+        } else if (tag.code == kTagDefineSprite && tag.length >= 4) {
+            PatchClassicSelectionTags(payload + 4, payload + tag.length, scanCount, patchedCount);
+        }
+
+        cursor = const_cast<std::uint8_t*>(tag.next);
+        if (tag.code == kTagEnd) {
+            return;
+        }
+    }
+}
+
+bool TryPatchLobbyClassicSelectionLimit(SWFScene* scene, const std::string& swfPath) {
+    const int scanCount = Characters::Registry::Instance().ClassicVisibleCount();
+    if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || scanCount <= 4) {
+        return false;
+    }
+
+    const SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+    if (!view.valid || view.compressed || !view.tags || view.fileLength < view.headerSize) {
+        Core::Logger::Warn("Classic selector patch skipped: invalid lobby buffer path='%s'", swfPath.c_str());
+        return false;
+    }
+
+    auto owned = std::make_unique<std::vector<std::uint8_t>>(view.base, view.base + view.fileLength);
+    std::uint8_t* base = owned->data();
+    int patchedCount = 0;
+    PatchClassicSelectionTags(base + view.headerSize, base + view.fileLength, scanCount, patchedCount);
+    if (patchedCount == 0) {
+        Core::Logger::Warn("Classic selector patch found no target functions path='%s'", swfPath.c_str());
+        return false;
+    }
+
+    scene->swfBuffer = owned->data();
+    g_OwnedPatchedBuffers.push_back(std::move(owned));
+    Core::Logger::Info("Patched lobby Classic character scan functions=%d scanCount=%d",
+                       patchedCount,
+                       scanCount);
+    return true;
+}
+
 struct SpriteFrame {
     std::vector<std::uint8_t> bytes;
 };
@@ -873,11 +1098,12 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
     DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "before_patch");
     const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
+    const bool patchedClassicSelection = TryPatchLobbyClassicSelectionLimit(swfScene, g_CurrentCok6Path);
     const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path);
-    if (patchedLobby) {
+    if (patchedClassicSelection || patchedLobby) {
         DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "after_patch");
     }
-    const bool patched = patchedSave || patchedLobby;
+    const bool patched = patchedSave || patchedClassicSelection || patchedLobby;
     if (patched) {
         Core::Logger::Info("SWFSceneParseHeader patched current COK6 path='%s'", g_CurrentCok6Path.c_str());
     }

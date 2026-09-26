@@ -153,9 +153,16 @@ void RepairExpandedCharacterStatBaselines(void* saveManager) {
             saveBuffer + NativeDB::kGlobalDataSize + NativeDB::kCharacterDataSize * slot);
         const auto& addonConfig = registry.Addons()[addon];
 
-        if (!addonConfig.initiallyUnlocked &&
-            (character->unlocked & NativeDB::kCharacterUnlockedFlag) != 0 &&
-            !HasAddonProgress(*character)) {
+        const bool isUnlocked =
+            (character->unlocked & NativeDB::kCharacterUnlockedFlag) != 0;
+        if (addonConfig.initiallyUnlocked && !isUnlocked) {
+            character->unlocked |= NativeDB::kCharacterUnlockedFlag;
+            ++repairedUnlocks;
+            Core::Logger::Warn("Restored initial addon unlock bit for slot=%d name='%s'",
+                               slot,
+                               addonConfig.name.c_str());
+        } else if (!addonConfig.initiallyUnlocked && isUnlocked &&
+                   !HasAddonProgress(*character)) {
             character->unlocked &= ~NativeDB::kCharacterUnlockedFlag;
             ++repairedUnlocks;
             Core::Logger::Warn("Cleared stale addon unlock bit for slot=%d name='%s'",
@@ -287,6 +294,8 @@ bool PatchSaveAndRosterConstants() {
     ok = Core::Memory::WriteU8(0x87461, pastLastNetworkId) && ok;
 
     // DLC/fresh gates and 0x1F/0x20/0x21 style base roster comparisons.
+    // Keep these identical to 5.0.3: the no-DLC Classic fallback is handled
+    // only for addon IDs by the SWF dispatcher and must not alter workshops.
     ok = Core::Memory::WriteU8(0x10564A + 2, networkBase - 1) && ok;
     ok = Core::Memory::WriteU8(0x105673 + 2, -networkBase) && ok;
     ok = Core::Memory::WriteU8(0x1056A9 + 2, networkBase + 1) && ok;

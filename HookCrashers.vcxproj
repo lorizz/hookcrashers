@@ -42,7 +42,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.64-dev</HookCrashersVersion>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.66-dev</HookCrashersVersion>
     <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">dev</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
