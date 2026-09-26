@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.0.64-dev - 2026-09-26
+
+### Fixed
+
+- Isolated Painter Boss Paradise configuration per mod as `hcpbp_<modname>.dat`, preventing stale vanilla or another mod's Workshop selections from being loaded by HookCrashers.
+- Made save and PBP filename redirection atomic and rejected unexpected PBP filename operands from unsupported executable revisions.
+
+## 5.0.2.1-dev - 2026-08-03
+
+### Added
+
+- Expanded the runtime SWF string arena, pointer table, and hash table for code-heavy custom SWFs.
+
+### Fixed
+
+- Restored the vanilla menu return target after closing the updater prompt, so the Classic/Fresh selector only appears when requested by the game.
+- Right-aligned custom version text against the game's original bottom-right anchor and adjusted multiline vertical placement.
+- Added bounds checks before inserting custom localization strings into the SWF string table.
 ## 5.0.1 - 2026-08-02
 
 ### Added

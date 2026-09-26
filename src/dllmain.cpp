@@ -11,6 +11,7 @@
 #include "NativeDB/Natives.h"
 #include "Localization/LocalizationSystem.h"
 #include "Save/SaveFileRedirect.h"
+#include "SWF/SWFStringTableExpansion.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
 #include "UI/UpdatePromptMenu.h"
@@ -76,6 +77,11 @@ DWORD WINAPI BootstrapThread(void* parameter) {
 
     HookCrashers::NativeDB::SetGameBase(gameBase);
     HookCrashers::Core::Logger::Info("NativeDB game base set");
+
+    if (!HookCrashers::SWF::SWFStringTableExpansion::Install()) {
+        HookCrashers::Core::Logger::Error("SWF string table expansion failed to install");
+        return 1;
+    }
 
     HookCrashers::Localization::Reset();
     if (!HookCrashers::Localization::Install()) {
@@ -147,6 +153,15 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
 
     if (reason == DLL_PROCESS_ATTACH) {
         DisableThreadLibraryCalls(module);
+
+        const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));
+        if (IsSupportedTarget(ReadTargetAddress(gameBase))) {
+            HookCrashers::NativeDB::SetGameBase(gameBase);
+            if (!HookCrashers::SWF::SWFStringTableExpansion::Install()) {
+                return FALSE;
+            }
+        }
+
         HANDLE thread = CreateThread(nullptr, 0, BootstrapThread, module, 0, nullptr);
         if (thread) {
             CloseHandle(thread);

@@ -35,6 +35,19 @@ struct SWFReturn {
     std::uint32_t padding;
     union { std::uint32_t raw; std::int32_t integer; } value;
 };
+struct SWFStringTable {
+    std::uint32_t usedBytes;
+    std::uint32_t arenaCapacity;
+    std::uint8_t* arena;
+    std::uint32_t inlineEmptyString;
+    std::uint32_t reservedStringId;
+    std::uint32_t nextStringId;
+    std::uint32_t pointerCapacity;
+    const char** strings;
+    std::uint32_t hashCapacity;
+    std::uint16_t* hashes;
+};
+static_assert(sizeof(SWFStringTable) == 0x28);
 
 using RegisterNameFn = void(__thiscall*)(void* registry, std::uint16_t nativeId, const char* name);
 using RegisterAllFn = void(__fastcall*)(void* context);
@@ -72,6 +85,21 @@ void __fastcall HookedRegisterAll(void* context) {
 }
 
 std::uint16_t __fastcall HookedAddString(void* manager, void*, std::uint32_t hashOrIndex, const char* value) {
+    auto* table = static_cast<SWFStringTable*>(manager);
+    if (!table || !value) return 0;
+    const std::size_t length = std::strlen(value) + 1;
+    const bool pointerExhausted = table->nextStringId >= table->pointerCapacity;
+    const bool arenaInvalid = table->usedBytes > table->arenaCapacity;
+    const bool arenaExhausted = arenaInvalid || length > table->arenaCapacity - table->usedBytes;
+    if (pointerExhausted || arenaExhausted) {
+        Core::Logger::Error("Localization: SWF string table exhausted nextId=%u pointerCapacity=%u usedBytes=%u arenaCapacity=%u requestedBytes=%u",
+                            table->nextStringId,
+                            table->pointerCapacity,
+                            table->usedBytes,
+                            table->arenaCapacity,
+                            static_cast<unsigned int>(length));
+        return 0;
+    }
     const std::uint16_t id = g_originalAddString(manager, hashOrIndex, value);
     if (id != 0 && value) g_strings[id] = value;
     return id;

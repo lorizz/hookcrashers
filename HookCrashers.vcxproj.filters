@@ -71,6 +71,9 @@
     <ClCompile Include="src\SWF\ShapeInjection.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="src\SWF\SWFStringTableExpansion.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
     <ClCompile Include="src\UI\PromptApi.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
@@ -146,6 +149,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\SWF\SWFStructures.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="src\SWF\SWFStringTableExpansion.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="src\UI\PromptApi.h">

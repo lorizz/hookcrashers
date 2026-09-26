@@ -52,6 +52,7 @@ constexpr std::size_t kTextMaxWidthOffset = 0x4E;
 
 constexpr std::uint16_t kConfirmationMenuId = 3;
 constexpr std::uint16_t kMainMenuId = 23;
+constexpr std::uint16_t kMenuStateCount = 46;
 constexpr std::uintptr_t kProfileManagerPointerRva = 0x391294;
 
 using MainMenuBuilderFn = void*(__thiscall*)(void* self, void* scene, int flags);
@@ -288,7 +289,7 @@ bool SetRawText(void* item, const wchar_t* text, std::uint16_t maxWidth = 0, boo
     return true;
 }
 
-void OpenMainMenu(void* mainMenu) {
+void ReturnToPromptOrigin(void* mainMenu) {
     if (!mainMenu || !g_setMenuState) {
         return;
     }
@@ -297,8 +298,19 @@ void OpenMainMenu(void* mainMenu) {
     if (!table) {
         return;
     }
-    void* state = static_cast<std::uint8_t*>(table) + kMainMenuId * kMenuStateSize;
-    g_setMenuState(mainMenu, kMainMenuId, state);
+
+    void* promptState =
+        static_cast<std::uint8_t*>(table) + kConfirmationMenuId * kMenuStateSize;
+    std::uint16_t returnTarget =
+        Field<std::uint16_t>(promptState, kConfiguredTargetOffset);
+    if (returnTarget >= kMenuStateCount || returnTarget == kConfirmationMenuId) {
+        returnTarget = kMainMenuId;
+    }
+
+    void* returnState =
+        static_cast<std::uint8_t*>(table) + returnTarget * kMenuStateSize;
+    Core::Logger::Info("UpdatePromptMenu: returning to vanilla menu id=%u", returnTarget);
+    g_setMenuState(mainMenu, returnTarget, returnState);
 }
 
 std::wstring WidenAscii(const char* text) {
@@ -374,19 +386,16 @@ int TextLineCount(const std::wstring& text) {
 }
 
 void PlaceVersionTextInBottomRight(void* item, const std::wstring& text) {
-    constexpr float kRightAnchorOffset = -43.0f;
-    constexpr float kBottomAnchorOffset = -13.0f;
     constexpr float kFontScale = 0.50f;
+    constexpr float kLineHeight = 9.0f;
     constexpr std::uint16_t kMaxTextWidthUnits = 120;
-    constexpr std::uint16_t kTextAlignCandidate = 0;
+    constexpr std::uint16_t kTextAlignRight = 0;
 
-    (void)text;
-    Field<float>(item, kItemXOffset) += kRightAnchorOffset;
-    Field<float>(item, kItemYOffset) += kBottomAnchorOffset;
+    const int extraLines = (std::max)(TextLineCount(text) - 1, 0);
+    Field<float>(item, kItemYOffset) -= static_cast<float>(extraLines) * kLineHeight;
     Field<float>(item, kTextFontScaleOffset) = kFontScale;
-    Field<float>(item, kTextScaleOffset) = 1.0f;
     Field<std::uint16_t>(item, kTextMaxWidthOffset) = kMaxTextWidthUnits;
-    Field<std::uint16_t>(item, kTextAlignmentOffset) = kTextAlignCandidate;
+    Field<std::uint16_t>(item, kTextAlignmentOffset) = kTextAlignRight;
 }
 
 bool LooksLikeCastleVersionText(const wchar_t* text, std::uint16_t length) {
@@ -469,13 +478,13 @@ void __cdecl OnYes(void* mainMenu) {
         g_apiOnDecline = {};
         g_apiPromptActive = false;
         if (callback) callback();
-        if (!g_apiPromptActive) OpenMainMenu(mainMenu);
+        if (!g_apiPromptActive) ReturnToPromptOrigin(mainMenu);
         return;
     }
     Core::Logger::Info("UpdatePromptMenu: installing available HookCrashers update");
     if (!HookCrashers::Updater::AutoUpdater::InstallAvailableUpdate() &&
         !TryOpenPendingApiPrompt(mainMenu)) {
-        OpenMainMenu(mainMenu);
+        ReturnToPromptOrigin(mainMenu);
     }
 }
 
@@ -485,12 +494,12 @@ void __cdecl OnNo(void* mainMenu) {
         g_apiOnConfirm = {};
         g_apiPromptActive = false;
         if (callback) callback();
-        if (!g_apiPromptActive) OpenMainMenu(mainMenu);
+        if (!g_apiPromptActive) ReturnToPromptOrigin(mainMenu);
         return;
     }
     Core::Logger::Info("UpdatePromptMenu: No selected; returning to the main menu");
     if (!TryOpenPendingApiPrompt(mainMenu)) {
-        OpenMainMenu(mainMenu);
+        ReturnToPromptOrigin(mainMenu);
     }
 }
 
@@ -516,7 +525,17 @@ bool ConfigureAndOpenPrompt(void* mainMenu, const wchar_t* title, const wchar_t*
     Field<MenuCallbackFn>(items[2], kTextCallbackOffset) = OnYes;
     Field<MenuCallbackFn>(items[3], kTextCallbackOffset) = OnNo;
     Field<void*>(state, kBackCallbackOffset) = nullptr;
-    Field<std::uint16_t>(state, kConfiguredTargetOffset) = kMainMenuId;
+
+    const std::uint16_t activeMenuId =
+        Field<std::uint16_t>(mainMenu, kActiveMenuIdOffset);
+    std::uint16_t returnTarget = activeMenuId;
+    if (activeMenuId == kConfirmationMenuId) {
+        returnTarget = Field<std::uint16_t>(state, kConfiguredTargetOffset);
+    }
+    if (returnTarget >= kMenuStateCount || returnTarget == kConfirmationMenuId) {
+        returnTarget = kMainMenuId;
+    }
+    Field<std::uint16_t>(state, kConfiguredTargetOffset) = returnTarget;
     Field<std::uint16_t>(state, kSelectedIndexOffset) = 2;
 
     const LocalizedPromptText& localized = CurrentUpdatePromptText();
@@ -535,7 +554,8 @@ bool ConfigureAndOpenPrompt(void* mainMenu, const wchar_t* title, const wchar_t*
 
     g_setMenuState(mainMenu, kConfirmationMenuId, state);
     Field<std::uint16_t>(state, kSelectedIndexOffset) = 2;
-    Core::Logger::Info("UpdatePromptMenu: opened native bookbg confirmation menu");
+    Core::Logger::Info("UpdatePromptMenu: opened native bookbg confirmation menu active=%u returnTarget=%u",
+                       activeMenuId, returnTarget);
     return true;
 }
 
