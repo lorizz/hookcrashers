@@ -72,7 +72,9 @@ int Registry::ClassicUnlockedAddonCount() const {
 }
 
 int Registry::ClassicVisibleCount() const {
-    return static_cast<int>(NativeDB::kClassicVisibleCharacterCount) + ClassicUnlockedAddonCount();
+    // This value is the exclusive upper bound scanned by the Classic character
+    // selectors. Locked entries are filtered by IsCharacterUnlockedForPlayer.
+    return static_cast<int>(NativeDB::kVanillaBaseCharacterCount) + AddonCount();
 }
 
 int Registry::FreshVisibleCount() const {
