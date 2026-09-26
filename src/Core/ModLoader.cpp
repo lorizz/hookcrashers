@@ -28,6 +28,18 @@ namespace {
 
 std::vector<lua_State*> g_luaStates;
 
+using NativeModInitFn = bool(__stdcall*)();
+using NativeModShutdownFn = void(__stdcall*)();
+
+struct NativeModule {
+    HMODULE handle = nullptr;
+    NativeModShutdownFn shutdown = nullptr;
+    std::string path;
+};
+
+std::vector<NativeModule> g_nativeModules;
+std::string g_currentNativeModDirectory;
+
 std::string JoinPath(const std::string& a, const std::string& b) {
     if (a.empty()) {
         return b;
@@ -36,6 +48,11 @@ std::string JoinPath(const std::string& a, const std::string& b) {
         return a + b;
     }
     return a + "\\" + b;
+}
+
+std::string DirectoryOf(const std::string& path) {
+    const std::size_t slash = path.find_last_of("\\/");
+    return slash == std::string::npos ? std::string() : path.substr(0, slash);
 }
 
 std::string Trim(std::string value) {
@@ -118,6 +135,96 @@ std::string NormalizeEnumToken(std::string value) {
 bool FileExists(const std::string& path) {
     const DWORD attributes = GetFileAttributesA(path.c_str());
     return attributes != INVALID_FILE_ATTRIBUTES && (attributes & FILE_ATTRIBUTE_DIRECTORY) == 0;
+}
+
+std::string Win32ErrorMessage(DWORD error) {
+    char* buffer = nullptr;
+    const DWORD length = FormatMessageA(
+        FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        nullptr,
+        error,
+        MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+        reinterpret_cast<char*>(&buffer),
+        0,
+        nullptr);
+    std::string message = length != 0 && buffer ? std::string(buffer, length) : "unknown error";
+    if (buffer) {
+        LocalFree(buffer);
+    }
+    message = Trim(std::move(message));
+    return message;
+}
+
+template <typename Fn>
+Fn FindNativeEntrypoint(HMODULE module, const char* undecorated, const char* decorated) {
+    FARPROC address = GetProcAddress(module, undecorated);
+    if (!address && decorated) {
+        address = GetProcAddress(module, decorated);
+    }
+    return reinterpret_cast<Fn>(address);
+}
+
+std::vector<std::string> EnumerateNativeModules(const std::string& modDirectory) {
+    std::vector<std::string> modules;
+    WIN32_FIND_DATAA data {};
+    const std::string pattern = JoinPath(modDirectory, "*.asi");
+    HANDLE find = FindFirstFileA(pattern.c_str(), &data);
+    if (find == INVALID_HANDLE_VALUE) {
+        return modules;
+    }
+
+    do {
+        if ((data.dwFileAttributes & FILE_ATTRIBUTE_DIRECTORY) == 0) {
+            modules.push_back(JoinPath(modDirectory, data.cFileName));
+        }
+    } while (FindNextFileA(find, &data));
+    FindClose(find);
+
+    std::sort(modules.begin(), modules.end(), [](std::string left, std::string right) {
+        std::transform(left.begin(), left.end(), left.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        std::transform(right.begin(), right.end(), right.begin(), [](unsigned char ch) {
+            return static_cast<char>(std::tolower(ch));
+        });
+        return left < right;
+    });
+    return modules;
+}
+
+bool LoadNativeModule(const std::string& path) {
+    Logger::Info("Loading native mod: %s", path.c_str());
+    g_currentNativeModDirectory = DirectoryOf(path);
+    SetLastError(ERROR_SUCCESS);
+    HMODULE module = LoadLibraryExA(path.c_str(), nullptr, LOAD_WITH_ALTERED_SEARCH_PATH);
+    if (!module) {
+        const DWORD error = GetLastError();
+        Logger::Error("Native mod load failed: %s (error=%lu: %s)",
+                      path.c_str(),
+                      static_cast<unsigned long>(error),
+                      Win32ErrorMessage(error).c_str());
+        g_currentNativeModDirectory.clear();
+        return false;
+    }
+
+    const auto init = FindNativeEntrypoint<NativeModInitFn>(
+        module, "HookCrashersModInit", "_HookCrashersModInit@0");
+    const auto shutdown = FindNativeEntrypoint<NativeModShutdownFn>(
+        module, "HookCrashersModShutdown", "_HookCrashersModShutdown@0");
+    if (init && !init()) {
+        Logger::Error("Native mod init rejected loading: %s", path.c_str());
+        FreeLibrary(module);
+        g_currentNativeModDirectory.clear();
+        return false;
+    }
+
+    g_nativeModules.push_back({module, shutdown, path});
+    g_currentNativeModDirectory.clear();
+    Logger::Info("Native mod loaded: %s init=%s shutdown=%s",
+                 path.c_str(),
+                 init ? "exported" : "DllMain-only",
+                 shutdown ? "exported" : "none");
+    return true;
 }
 
 std::string ReadTextFile(const std::string& path) {
@@ -579,11 +686,29 @@ std::vector<std::string> EnumerateLuaScripts(const std::string& scriptsDirectory
 
 } // namespace
 
-void Shutdown() {
+void Shutdown(bool unloadNativeModules) {
     for (lua_State* state : g_luaStates) {
         if (state) lua_close(state);
     }
     g_luaStates.clear();
+
+    if (unloadNativeModules) {
+        for (auto it = g_nativeModules.rbegin(); it != g_nativeModules.rend(); ++it) {
+            if (it->shutdown) {
+                it->shutdown();
+            }
+            if (it->handle) {
+                FreeLibrary(it->handle);
+            }
+            Logger::Info("Native mod unloaded: %s", it->path.c_str());
+        }
+    }
+    g_nativeModules.clear();
+    g_currentNativeModDirectory.clear();
+}
+
+const std::string& CurrentNativeModDirectory() {
+    return g_currentNativeModDirectory;
 }
 
 LoadResult LoadAll(const std::string& rootDirectory) {
@@ -598,6 +723,12 @@ LoadResult LoadAll(const std::string& rootDirectory) {
     if (find == INVALID_HANDLE_VALUE) {
         Logger::Warn("Mods directory not found or empty: %s", modsDirectory.c_str());
         return result;
+    }
+
+    for (const std::string& misplacedModule : EnumerateNativeModules(modsDirectory)) {
+        Logger::Warn(
+            "Native mod in the mods root is ignored: %s. Move it to mods\\<mod-name>\\<file>.asi",
+            misplacedModule.c_str());
     }
 
     std::vector<std::string> modNames;
@@ -655,8 +786,20 @@ LoadResult LoadAll(const std::string& rootDirectory) {
             HookCrashers::Localization::LoadFile(localizationPath, modName);
         }
 
+        const std::vector<std::string> nativeModules = EnumerateNativeModules(modDirectory);
+        for (const std::string& nativeModule : nativeModules) {
+            const int before = Characters::Registry::Instance().AddonCount();
+            if (LoadNativeModule(nativeModule)) {
+                ++result.nativeModulesLoaded;
+                const int after = Characters::Registry::Instance().AddonCount();
+                result.charactersRegistered += (std::max)(0, after - before);
+            }
+        }
+
         if (entrypoints.empty()) {
-            Logger::Warn("No manifest entrypoints found for %s, falling back to scripts/*.lua", modName.c_str());
+            if (nativeModules.empty()) {
+                Logger::Warn("No manifest entrypoints found for %s, falling back to scripts/*.lua", modName.c_str());
+            }
             entrypoints = EnumerateLuaScripts(JoinPath(modDirectory, "scripts"));
         } else {
             for (std::string& entrypoint : entrypoints) {
@@ -674,8 +817,9 @@ LoadResult LoadAll(const std::string& rootDirectory) {
         }
     }
 
-    Logger::Info("Mod scan complete: mods=%d scripts=%d characters=%d manifestName='%s'",
+    Logger::Info("Mod scan complete: mods=%d nativeModules=%d scripts=%d characters=%d manifestName='%s'",
                  result.modsFound,
+                 result.nativeModulesLoaded,
                  result.scriptsRun,
                  result.charactersRegistered,
                  result.manifestName.c_str());

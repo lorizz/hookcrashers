@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Native Win32/x86 ASI loading from dedicated `mods/<mod>/*.asi` folders, including deterministic load order and optional `HookCrashersModInit` / `HookCrashersModShutdown` exports.
+- A packaged C++ SDK containing `HookCrashers.h` and `HookCrashers.lib`.
+- Public native-mod logging and runtime version exports.
+
+### Fixed
+
+- Replaced stale C++ API documentation that referenced exports and headers absent from the v5 build.
+
 ## 5.0.64-dev - 2026-09-26
 
 ### Fixed

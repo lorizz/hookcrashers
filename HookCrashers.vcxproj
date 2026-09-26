@@ -143,6 +143,7 @@
     <ClCompile Include="src\Localization\LocalizationSystem.cpp" />
     <ClCompile Include="src\NativeDB\LuaApi.cpp" />
     <ClCompile Include="src\Network\CharacterSyncExpansion.cpp" />
+    <ClCompile Include="src\Public\NativeApi.cpp" />
     <ClCompile Include="src\Save\SaveFileRedirect.cpp" />
     <ClCompile Include="src\SWF\Cok6LoadHook.cpp" />
     <ClCompile Include="src\SWF\InitSaveSystemBytecode.cpp" />
@@ -171,6 +172,7 @@
     <ClInclude Include="src\NativeDB\LuaApi.h" />
     <ClInclude Include="src\NativeDB\Natives.h" />
     <ClInclude Include="src\Network\CharacterSyncExpansion.h" />
+    <ClInclude Include="src\Public\NativeApi.h" />
     <ClInclude Include="src\Save\SaveFileRedirect.h" />
     <ClInclude Include="src\SWF\Cok6LoadHook.h" />
     <ClInclude Include="src\SWF\InitSaveSystemBytecode.h" />

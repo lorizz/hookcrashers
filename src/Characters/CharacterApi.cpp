@@ -2,6 +2,7 @@
 
 #include "CharacterExpansion.h"
 #include "CharacterRegistry.h"
+#include "../Core/ModLoader.h"
 #include "../SWF/InitSaveSystemBytecode.h"
 
 #include <vector>
@@ -14,6 +15,10 @@ bool __stdcall HookCrashers_RegisterCharacter(const char* name,
                                               bool freshOnly) {
     HookCrashers::Characters::AddonCharacter character;
     character.name = name ? name : "";
+    const std::string& modDirectory = HookCrashers::Core::ModLoader::CurrentNativeModDirectory();
+    if (!modDirectory.empty() && !character.name.empty()) {
+        character.assetDirectory = modDirectory + "\\characters\\" + character.name;
+    }
     character.startingWeapon = startingWeapon;
     character.startingPet = startingPet;
     character.initiallyUnlocked = initiallyUnlocked;
