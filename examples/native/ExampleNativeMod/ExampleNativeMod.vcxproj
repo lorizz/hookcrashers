@@ -41,6 +41,10 @@
     <TargetExt>.asi</TargetExt>
     <OutDir>$(ProjectDir)bin\$(Configuration)\</OutDir>
     <IntDir>$(ProjectDir)obj\$(Configuration)\</IntDir>
+    <HookCrashersSdkRoot Condition="Exists('$(ProjectDir)..\..\include\HookCrashers.h')">$(ProjectDir)..\..\</HookCrashersSdkRoot>
+    <HookCrashersSdkRoot Condition="'$(HookCrashersSdkRoot)'==''">$(ProjectDir)..\..\..\sdk\</HookCrashersSdkRoot>
+    <HookCrashersLibPath Condition="Exists('$(HookCrashersSdkRoot)lib\HookCrashers.lib')">$(HookCrashersSdkRoot)lib\HookCrashers.lib</HookCrashersLibPath>
+    <HookCrashersLibPath Condition="'$(HookCrashersLibPath)'==''">$(ProjectDir)..\..\..\Release\HookCrashers.lib</HookCrashersLibPath>
   </PropertyGroup>
   <ItemDefinitionGroup>
     <ClCompile>
@@ -48,11 +52,11 @@
       <SDLCheck>true</SDLCheck>
       <ConformanceMode>true</ConformanceMode>
       <LanguageStandard>stdcpp17</LanguageStandard>
-      <AdditionalIncludeDirectories>$(ProjectDir)..\..\..\sdk\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(HookCrashersSdkRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
       <SubSystem>Windows</SubSystem>
-      <AdditionalDependencies>$(ProjectDir)..\..\..\Release\HookCrashers.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>$(HookCrashersLibPath);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
