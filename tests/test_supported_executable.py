@@ -48,6 +48,32 @@ class SupportedExecutableTests(unittest.TestCase):
         self.assertIn('stosb', instruction.mnemonic)
         self.assertIn('edi', instruction.op_str)
 
+    def test_unlock_native_callee_cleans_both_arguments(self):
+        returns = [i for i in self.instructions(0xF0BD0, 0x7A) if i.mnemonic == 'ret']
+        self.assertEqual(len(returns), 3)
+        self.assertTrue(all(i.op_str == '8' for i in returns))
+        self.assertRegex(self.source, r'using IsCharacterUnlockedFn\s*=\s*std::uint8_t\(__stdcall\*\)')
+
+    def test_sync_insert_matches_the_native_roster_receiver(self):
+        source = (pathlib.Path(__file__).resolve().parents[1] /
+                  'src/Network/CharacterSyncExpansion.cpp').read_text()
+        target = int(re.search(r'kInsertCharacterSyncEntryRva\s*=\s*(0x[\da-fA-F]+)', source)[1], 16)
+        calls = [i.operands[0].imm for i in self.instructions(0x876F0, 0x440)
+                 if i.mnemonic == 'call' and i.operands[0].type == capstone.x86.X86_OP_IMM]
+        self.assertEqual(target, 0x2B030)
+        self.assertIn(target, calls)
+        self.assertEqual(self.pe.get_data(target, 6), bytes.fromhex('558bec6aff68'))
+        self.assertEqual(self.pe.get_data(target + 0xE9, 3), bytes.fromhex('c21000'))
+        enclosing = [i for i in self.instructions(0x12B070, 0x11C)
+                     if i.address < 0x12B0E0 < i.address + i.size]
+        self.assertEqual(len(enclosing), 1)
+        self.assertEqual(enclosing[0].address, 0x12B0DC)
+
+    def test_lobby_crash_is_argument_cleanup_after_dispatch(self):
+        instruction = self.instructions(0x111EE5, 4)[0]
+        self.assertEqual((instruction.mnemonic, instruction.op_str),
+                         ('mov', 'byte ptr [eax + 8], 0'))
+
     def test_runtime_safety_signatures_accept_the_supported_snapshot(self):
         def source_bytes(name):
             body = re.search(r'const std::uint8_t ' + name + r'\[\]\s*\{([^}]+)\}', self.source)[1]

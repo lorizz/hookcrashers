@@ -79,6 +79,7 @@ bool HasVerifiedUnlockNatives() {
     const auto* unlock = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(kIsCharacterUnlockedRva));
     const std::uint8_t unlockPrefix[] { 0x55, 0x8B, 0xEC, 0x8B, 0x0D };
     const std::uint8_t unlockSuffix[] { 0x83, 0xEC, 0x08, 0x57, 0xFF, 0x75, 0x08 };
+    const std::uint8_t unlockReturn[] { 0xC2, 0x08, 0x00 };
     std::uint32_t profileGlobal = 0;
     std::memcpy(&profileGlobal, unlock + sizeof(unlockPrefix), sizeof(profileGlobal));
     const std::uint8_t numericPrefix[] {
@@ -87,6 +88,9 @@ bool HasVerifiedUnlockNatives() {
     return std::memcmp(unlock, unlockPrefix, sizeof(unlockPrefix)) == 0 &&
            profileGlobal == Core::Memory::Va(0x391284) &&
            std::memcmp(unlock + 9, unlockSuffix, sizeof(unlockSuffix)) == 0 &&
+           std::memcmp(unlock + 0x26, unlockReturn, sizeof(unlockReturn)) == 0 &&
+           std::memcmp(unlock + 0x62, unlockReturn, sizeof(unlockReturn)) == 0 &&
+           std::memcmp(unlock + 0x77, unlockReturn, sizeof(unlockReturn)) == 0 &&
            std::memcmp(reinterpret_cast<const void*>(Core::Memory::Va(kReadIntegerArgumentRva)),
                        numericPrefix, sizeof(numericPrefix)) == 0;
 }
@@ -185,7 +189,9 @@ bool HandleExpandedCharacterUnlock(std::uint32_t functionId,
         static_cast<std::uint32_t>(registry.NetworkBaseCount());
 
     if (characterId >= firstAddonId && characterId < firstWorkshopId) {
-        using IsCharacterUnlockedFn = std::uint32_t(__cdecl*)(std::uint32_t, std::uint32_t);
+        // Every native exit is RET 8: the callee removes both arguments.
+        // __cdecl removes them again in our caller, corrupting its stack frame.
+        using IsCharacterUnlockedFn = std::uint8_t(__stdcall*)(std::uint32_t, std::uint32_t);
         const auto isCharacterUnlocked = reinterpret_cast<IsCharacterUnlockedFn>(
             NativeDB::GetGameBase() + kIsCharacterUnlockedRva);
         SetBooleanResult(result, isCharacterUnlocked(playerIndex, characterId) != 0);

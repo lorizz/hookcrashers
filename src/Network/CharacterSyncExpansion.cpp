@@ -27,6 +27,9 @@ constexpr std::uint8_t kCharacterSyncMessageType = 0x0D;
 constexpr std::uint16_t kHookCrashersSyncVersion = 5;
 constexpr std::array<std::uint8_t, 4> kHookCrashersSyncMagic { 'H', 'C', '5', 'C' };
 constexpr std::uint32_t kAddonSkinIdHi = 0x48433541; // HC5A
+// CALL at RVA 0x87A3D in the vanilla roster receiver targets this map insert.
+// 0x12B0E0 lies inside an unrelated instruction, not a callable entry point.
+constexpr std::uintptr_t kInsertCharacterSyncEntryRva = 0x2B030;
 
 
 using ResolveCharacterSkinRuntimeFn = void*(__thiscall*)(void* lobbyManager, void* characterRuntimeKey);
@@ -339,7 +342,7 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
         return false;
     }
 
-    auto insertEntry = reinterpret_cast<InsertCharacterSyncEntryFn>(Core::Memory::Va(0x12B0E0));
+    auto insertEntry = reinterpret_cast<InsertCharacterSyncEntryFn>(Core::Memory::Va(kInsertCharacterSyncEntryRva));
     auto* sentinel = *reinterpret_cast<std::uint8_t**>(static_cast<std::uint8_t*>(lobbyManager) + 0x1C);
     if (!sentinel || !insertEntry) {
         Core::Logger::Error("ApplyExpandedPacketToRoster missing sentinel/insertEntry sentinel=%p insertEntry=%p", sentinel, reinterpret_cast<void*>(insertEntry));
@@ -548,6 +551,14 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
 }
 
 bool InstallNetworkDetours() {
+    const std::uint8_t insertPrefix[] { 0x55, 0x8B, 0xEC, 0x6A, 0xFF, 0x68 };
+    const std::uint8_t insertReturn[] { 0xC2, 0x10, 0x00 };
+    const auto* insert = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(kInsertCharacterSyncEntryRva));
+    if (std::memcmp(insert, insertPrefix, sizeof(insertPrefix)) != 0 ||
+        std::memcmp(insert + 0xE9, insertReturn, sizeof(insertReturn)) != 0) {
+        Core::Logger::Error("Character sync install refused: unsupported roster map insert instructions");
+        return false;
+    }
     g_OriginalSendInitialCharacterSyncPacket =
         reinterpret_cast<SendInitialCharacterSyncPacketFn>(
             NativeDB::NativeAddress(NativeDB::Natives::CC_SendInitialCharacterSyncPacket));
