@@ -17,7 +17,7 @@
 
 - Local Release/Win32 build, five executable compatibility checks, and native allocator/core hook integration tests passed. Ultra graphics and multiplayer gameplay have not yet been validated with this build.
 
-## 5.0.4 - 2026-09-27
+## 5.0.66-dev - 2026-09-27
 
 ### Fixed
 
@@ -30,7 +30,7 @@
 
 - Expanded the runtime Classic lobby selector scan to include every registered addon slot, with locked characters still filtered by their save data.
 
-## 5.0.3 - 2026-09-26
+## 5.0.65-dev - 2026-09-26
 
 ### Added
 
@@ -42,7 +42,7 @@
 
 - Replaced stale C++ API documentation that referenced exports and headers absent from the v5 build.
 
-## 5.0.2 - 2026-09-26
+## 5.0.64-dev - 2026-09-26
 
 ### Fixed
 
