@@ -1,5 +1,26 @@
 # Changelog
 
+## 5.1.0-dev - 2026-10-26
+
+### Added
+
+- Expanded the C++ SDK with `GetCurrentCharacterData(slot)` for HUD/player slots 1..4: character identity, health/magic, level/XP, gold, stats, equipment, consumables and other runtime values. Numeric validity and explicit live/HUD/loading/stale states distinguish unavailable fields from zero.
+- Added bounded enumeration of ActionScript properties, arrays and nested objects, including addon fields, with sequence checks and truncation/read-fault flags. Public snapshots contain no raw VM pointers.
+- Added `RegisterUpdateCallback` / `UnregisterUpdateCallback`: a `void __stdcall` callback runs on the game thread after snapshot publication. Successful unregistration waits for active calls. Duplicate registrations are rejected and faulting callbacks are disabled.
+- Added a C++ ASI mini tutorial and buildable CharacterLevelWatch example with `void Update()`, four-player level-increase polling and baseline resets for loading or identity changes.
+- Committed the x86 import library under `sdk/lib` and added `HookCrashers-SDK-Win32.zip` to private/public release assets. CI verifies the packaged example links against the freshly built SDK.
+
+### Changed
+
+- Starts the 5.1 C++ runtime API series. Release versions now come from the explicit `VERSION` file rather than the CI run number; development builds append `-dev`.
+- Retains the 1 GiB pool and multiplayer native calling-convention/roster fixes from 5.0.68-dev.
+
+### Validation
+
+- Release/Win32 build, ten supported-executable compatibility checks, production API tests on a four-player VM model, and SDK consumer/example compilation passed locally.
+- Offline tests cover isolated actual native getters/hash/map/array routines, the ECX/XMM1 frame bridge, Detours attach/capture/detach on the native disabled-update branch, callback ordering, level-up comparison, fault isolation, concurrent reads and synchronized unregistration.
+- No game was launched. The full in-game object chain/lifecycle and achievement behavior still require tester verification; polling does not recover intermediate changes between captures or loading gaps.
+
 ## 5.0.68-dev - 2026-10-25
 
 ### Fixed

@@ -1,0 +1,7 @@
+id: example.character_level_watch
+name: Character Level Watch
+author: YourName
+version: 1.0.0
+hookcrashers_version: ">=5.1.0-dev"
+dependencies: []
+entrypoints: []

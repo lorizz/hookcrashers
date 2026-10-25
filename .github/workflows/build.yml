@@ -14,13 +14,24 @@ jobs:
   build:
     name: Windows x86 ASI
     runs-on: windows-2022
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     env:
       HC_CHANNEL: ${{ github.event_name == 'push' && github.ref_name == 'main' && 'release' || 'dev' }}
-      HC_VERSION: ${{ github.event_name == 'push' && github.ref_name == 'main' && format('5.0.{0}', github.run_number) || format('5.0.{0}-dev', github.run_number) }}
 
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Resolve semantic version
+        id: version
+        shell: pwsh
+        run: |
+          $base = (Get-Content VERSION -Raw).Trim()
+          if ($base -notmatch '^\d+\.\d+\.\d+$') { throw "Invalid VERSION: $base" }
+          $version = if ($env:HC_CHANNEL -eq 'release') { $base } else { "$base-dev" }
+          "HC_VERSION=$version" >> $env:GITHUB_ENV
+          "version=$version" >> $env:GITHUB_OUTPUT
 
       - name: Setup MSBuild
         uses: microsoft/setup-msbuild@v2
@@ -74,6 +85,21 @@ jobs:
 
           Compress-Archive -Path dist/HookCrashers.asi,dist/dinput8.dll,dist/mods -DestinationPath HookCrashers-v5-dropin.zip -Force
 
+      - name: Package and verify C++ SDK
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          New-Item -ItemType Directory -Force sdk-package/sdk/lib,sdk-package/examples/native,sdk-package/docs | Out-Null
+          Copy-Item sdk/* sdk-package/sdk -Recurse -Force
+          Copy-Item Release/HookCrashers.lib sdk-package/sdk/lib/HookCrashers.lib -Force
+          Copy-Item examples/native/* sdk-package/examples/native -Recurse
+          Copy-Item docs/current-character-api.md sdk-package/docs/current-character-api.md
+          Set-Content sdk-package/VERSION.txt $env:HC_VERSION
+          $stage = (Resolve-Path sdk-package).Path
+          msbuild sdk-package/examples/native/CharacterLevelWatch/CharacterLevelWatch.vcxproj /m /p:Configuration=Release /p:Platform=Win32 /p:PlatformToolset=v143 "/p:OutDir=$stage/../sdk-smoke/bin/" "/p:IntDir=$stage/../sdk-smoke/obj/"
+          if ($LASTEXITCODE -ne 0) { throw "Packaged SDK example failed to link" }
+          Compress-Archive -Path sdk-package/* -DestinationPath HookCrashers-SDK-Win32.zip -Force
+
       - name: Upload ASI artifact
         uses: actions/upload-artifact@v4
         with:
@@ -83,6 +109,7 @@ jobs:
             dist/dinput8.dll
             dist/mods/**
             HookCrashers-v5-dropin.zip
+            HookCrashers-SDK-Win32.zip
           if-no-files-found: error
 
   publish-channel:
@@ -93,7 +120,7 @@ jobs:
     env:
       HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
       HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
-      HC_VERSION: ${{ github.ref_name == 'main' && format('5.0.{0}', github.run_number) || format('5.0.{0}-dev', github.run_number) }}
+      HC_VERSION: ${{ needs.build.outputs.version }}
       RELEASES_REPO: lorizz/hookcrashers-releases
     steps:
       - name: Checkout private source
@@ -115,6 +142,8 @@ jobs:
             echo "Commit: ${GITHUB_SHA}"
             echo
             awk '/^## /{ if (seen) exit; seen=1; next } seen { print }' CHANGELOG.md
+            echo
+            cat sdk/QUICKSTART-ASI.md
           } > release-notes.md
 
       - name: Publish private channel release
@@ -125,6 +154,7 @@ jobs:
           gh release delete "${HC_CHANNEL}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
           gh release create "${HC_CHANNEL}" \
             artifact/HookCrashers-v5-dropin.zip \
+            artifact/HookCrashers-SDK-Win32.zip \
             artifact/dist/HookCrashers.asi \
             artifact/dist/dinput8.dll \
             --repo "${GITHUB_REPOSITORY}" \
@@ -144,6 +174,7 @@ jobs:
           gh release delete "${HC_CHANNEL}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
           gh release create "${HC_CHANNEL}" \
             artifact/HookCrashers-v5-dropin.zip \
+            artifact/HookCrashers-SDK-Win32.zip \
             artifact/dist/HookCrashers.asi \
             artifact/dist/dinput8.dll \
             --repo "${RELEASES_REPO}" \
@@ -172,6 +203,7 @@ jobs:
             "commit": "${GITHUB_SHA}",
             "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers.asi",
             "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers-v5-dropin.zip",
+            "sdk_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers-SDK-Win32.zip",
             "notes": "See the ${HC_CHANNEL} release page for patch notes."
           }
           EOF

@@ -4,6 +4,7 @@
 
 #include "Characters/CharacterExpansion.h"
 #include "Characters/CharacterRegistry.h"
+#include "Characters/CurrentCharacterData.h"
 #include "Core/Config.h"
 #include "Core/CrashHandler.h"
 #include "Core/GamePoolExpansion.h"
@@ -101,6 +102,10 @@ DWORD WINAPI BootstrapThread(void* parameter) {
         HookCrashers::Core::Logger::Error("Game pool expansion could not be enabled; see allocator compatibility log");
     }
 
+    if (!HookCrashers::Characters::CurrentData::Install()) {
+        HookCrashers::Core::Logger::Warn("Current character data API unavailable: capture hook not installed");
+    }
+
     const bool updateAvailable = HookCrashers::Updater::AutoUpdater::CheckForUpdates(
         HookCrashers::Core::Logger::ModuleDirectory(), config);
     HookCrashers::UI::UpdatePromptMenu::SetStartupUpdateAvailable(updateAvailable);
@@ -175,6 +180,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         }
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
+        HookCrashers::Characters::CurrentData::Shutdown();
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::UI::UpdatePromptMenu::Remove();
         HookCrashers::Localization::Remove();

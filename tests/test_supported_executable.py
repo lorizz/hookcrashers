@@ -92,6 +92,27 @@ class SupportedExecutableTests(unittest.TestCase):
         self.assertIn(0x24000000, immediates)
         self.assertIn(0x2400001F, immediates)
 
+    def test_character_capture_preserves_the_private_frame_update_abi(self):
+        self.assertEqual(self.pe.get_data(0x1082D0, 10), bytes.fromhex('558bec81ec24010000a1'))
+        self.assertEqual(self.pe.get_data(0x1082DE, 13), bytes.fromhex('33c58945fc5356578bf90f28c1'))
+        returns = [i for i in self.instructions(0x1082D0, 503) if i.mnemonic == 'ret']
+        self.assertTrue(returns)
+        self.assertTrue(all(not i.op_str for i in returns))
+        source = (pathlib.Path(__file__).resolve().parents[1] /
+                  'src/Characters/CurrentCharacterData.cpp').read_text()
+        self.assertIn('fxsave [esp]', source)
+        self.assertIn('fxrstor [esp]', source)
+
+    def test_native_property_and_array_storage_have_different_value_widths(self):
+        # Numeric own-property getter reads the compact scalar at +8.
+        self.assertEqual(self.pe.get_data(0x11D046, 5), bytes.fromhex('f30f2c4108'))
+        # Array getter's numeric indexing multiplies by 16 and reads array+0x20.
+        instructions = self.instructions(0x10E8A0, 0x8A)
+        self.assertTrue(any(i.mnemonic == 'shl' and i.op_str == 'eax, 4' for i in instructions))
+        # Array vtable+0xC returns its u16 length at +0x24 for property ID 1.
+        self.assertEqual(int.from_bytes(self.pe.get_data(0x1CEC3C,4),'little'),
+                         self.pe.OPTIONAL_HEADER.ImageBase + 0x11E990)
+
 
 if __name__ == '__main__':
     unittest.main()

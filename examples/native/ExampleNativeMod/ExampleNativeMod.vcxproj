@@ -55,6 +55,7 @@
       <AdditionalIncludeDirectories>$(HookCrashersSdkRoot)include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
     </ClCompile>
     <Link>
+      <AdditionalLibraryDirectories>$(HookCrashersSdkRoot)lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <SubSystem>Windows</SubSystem>
       <AdditionalDependencies>$(HookCrashersLibPath);%(AdditionalDependencies)</AdditionalDependencies>
     </Link>

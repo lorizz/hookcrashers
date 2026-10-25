@@ -188,4 +188,9 @@
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Characters\CurrentCharacterData.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="src\Characters\CurrentCharacterData.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="sdk\include\CurrentCharacterData.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
 </Project>

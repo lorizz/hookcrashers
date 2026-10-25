@@ -1,5 +1,10 @@
 # HookCrashers Modding Guide
 
+For C++ runtime checks, start with the [ASI mini tutorial](QUICKSTART-ASI.md).
+The repository includes the Win32 import library at `sdk/lib/HookCrashers.lib`.
+Releases provide `HookCrashers-SDK-Win32.zip` with matching headers, library,
+reference and Visual Studio examples.
+
 HookCrashers supports both Lua folder mods and native Win32/x86 ASI mods. Every
 mod lives in its own directory under `CastleCrashers/mods` and should include a
 `manifest.yaml`.
@@ -72,6 +77,11 @@ CastleCrashers/
 Loading the ASI runs its normal `DllMain`. A mod may additionally export
 `HookCrashersModInit` and `HookCrashersModShutdown`. When present, HookCrashers
 calls them after loading and before an explicit unload.
+For runtime checks, register a `void __stdcall OnUpdate()` using
+`HookCrashers::RegisterUpdateCallback` in ModInit and unregister it in ModShutdown.
+It runs on the game thread after character snapshots are published. See
+`examples/native/CharacterUpdate.cpp` and `docs/current-character-api.md` for
+the level-increase example and callback lifetime/threading contract.
 Register characters during `DllMain` or `HookCrashersModInit` so HookCrashers can
 associate them with the native mod's `characters/<id>/` asset directory.
 
@@ -99,6 +109,15 @@ hookcrashers_version: ">=5.0.3"
 dependencies: []
 entrypoints: []
 ```
+
+## Current character data (5.1.0-dev)
+
+`HookCrashers::GetCurrentCharacterData(playerSlot = 1)` returns a versioned copy
+of live player data or explicitly marked HUD data. Check `result`, `source`,
+`state` and each numeric field's validity bit. Generic property enumeration also
+supports addon fields and bounded arrays/nested objects. See
+[the API reference](../docs/current-character-api.md) for examples, ABI, limits,
+threading and the remaining live-game validation requirement.
 
 ## HookCrashers 5.0.3 changelog
 

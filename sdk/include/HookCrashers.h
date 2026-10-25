@@ -10,6 +10,8 @@
 
 #define HOOKCRASHERS_MOD_EXPORT extern "C" __declspec(dllexport)
 
+#include "CurrentCharacterData.h"
+
 #if defined(_MSC_VER) && !defined(HOOKCRASHERS_NO_AUTOLINK)
 #pragma comment(lib, "HookCrashers.lib")
 #endif

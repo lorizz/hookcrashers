@@ -42,7 +42,7 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.68-dev</HookCrashersVersion>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.1.0-dev</HookCrashersVersion>
     <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">dev</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -131,6 +131,7 @@
     <ClCompile Include="External\imgui\backends\imgui_impl_dx9.cpp" />
     <ClCompile Include="External\imgui\backends\imgui_impl_win32.cpp" />
     <ClCompile Include="src\Characters\CharacterApi.cpp" />
+    <ClCompile Include="src\Characters\CurrentCharacterData.cpp" />
     <ClCompile Include="src\Characters\CharacterExpansion.cpp" />
     <ClCompile Include="src\Characters\CharacterRegistry.cpp" />
     <ClCompile Include="src\Core\CrashHandler.cpp" />
@@ -159,6 +160,8 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\Characters\CharacterApi.h" />
+    <ClInclude Include="src\Characters\CurrentCharacterData.h" />
+    <ClInclude Include="sdk\include\CurrentCharacterData.h" />
     <ClInclude Include="src\Characters\CharacterExpansion.h" />
     <ClInclude Include="src\Characters\CharacterRegistry.h" />
     <ClInclude Include="src\Core\CrashHandler.h" />

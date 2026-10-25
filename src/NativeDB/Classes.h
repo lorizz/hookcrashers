@@ -81,6 +81,27 @@ struct CC_SaveFile {
     u32 checksum;                                         // +0x84C
 };
 
+// AVM1 runtime layouts verified from the supported x86 executable. Address
+// fields are 32-bit target addresses; do not confuse stored values with args.
+struct CC_AVMPropertyValue { u32 object; u32 type; u32 scalar; };
+struct CC_AVMArgument { u32 object; u32 type; u32 padding; u32 scalar; };
+struct CC_AVMPropertyEntry { u16 name; u16 unknown; u32 value; };
+struct CC_AVMPropertyMap { u32 count; u32 entries; };
+struct CC_AVMObjectPrefix {
+    u32 vtable;                       // +0x00
+    CC_AVMPropertyMap properties;      // +0x04: own property map
+    std::array<u8, 12> unknown0c;     // +0x0C
+    u32 type;                         // +0x18: 0x80 for Array
+    u16 referenceCount;                // +0x1C
+    u16 unknown1e;
+};
+struct CC_AVMArrayPrefix {
+    CC_AVMObjectPrefix object;         // +0x00
+    u32 elements;                     // +0x20 -> CC_AVMArgument[length]
+    u16 length;                       // +0x24: returned by native getter 0x11E990
+    u16 unknown26;
+};
+
 struct CC_SWFReader {
     std::array<u8, 0x0F0> unknown_000;
     u8* tagData;                          // +0x0F0
@@ -197,6 +218,14 @@ struct CC_CharacterSyncPacketLayout {
 #pragma pack(pop)
 
 static_assert(sizeof(CC_GlobalData) == 0x40);
+static_assert(sizeof(CC_AVMPropertyValue) == 12);
+static_assert(sizeof(CC_AVMArgument) == 16);
+static_assert(sizeof(CC_AVMPropertyEntry) == 8);
+static_assert(sizeof(CC_AVMPropertyMap) == 8);
+static_assert(sizeof(CC_AVMObjectPrefix) == 0x20);
+static_assert(offsetof(CC_AVMObjectPrefix, type) == 0x18);
+static_assert(offsetof(CC_AVMArrayPrefix, elements) == 0x20);
+static_assert(offsetof(CC_AVMArrayPrefix, length) == 0x24);
 static_assert(sizeof(CC_CharacterData) == 0x30);
 static_assert(sizeof(CC_SaveFile) == 0x850);
 static_assert(sizeof(CC_OwnedBuffer20) == 0x14);

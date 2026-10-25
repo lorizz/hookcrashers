@@ -4,3 +4,7 @@ External/
 examples/native/**/bin/
 examples/native/**/obj/
 .DS_Store
+__pycache__/
+/sdk-package/
+/sdk-smoke/
+/HookCrashers-SDK-Win32.zip
