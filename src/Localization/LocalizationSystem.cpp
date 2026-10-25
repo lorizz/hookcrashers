@@ -23,7 +23,10 @@ constexpr std::uintptr_t kRegisterAllRva = 0x1215B0;
 constexpr std::uintptr_t kAddStringRva = 0xFD670;
 constexpr std::uintptr_t kDispatcherRva = 0x11B2E0;
 constexpr std::uintptr_t kTextObjectSetNTextRva = 0x125F50;
-constexpr std::uintptr_t kIsCharacterUnlockedRva = 0xF0B60;
+// Verified against native 0xC4 in the game's dispatcher (RVA 0x104750).
+// 0xF0B60 is a branch operand inside a different function, not an entry point.
+constexpr std::uintptr_t kIsCharacterUnlockedRva = 0xF0BD0;
+constexpr std::uintptr_t kReadIntegerArgumentRva = 0x115E50;
 constexpr std::uint16_t kIsCharacterUnlockedNativeId = 0xC4;
 
 struct SWFArgument {
@@ -70,6 +73,23 @@ std::unordered_map<std::uint16_t, std::string> g_strings;
 void* g_nativeRegistry = nullptr;
 void* g_registeredRegistry = nullptr;
 bool g_installed = false;
+bool g_expandedUnlockSupported = false;
+
+bool HasVerifiedUnlockNatives() {
+    const auto* unlock = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(kIsCharacterUnlockedRva));
+    const std::uint8_t unlockPrefix[] { 0x55, 0x8B, 0xEC, 0x8B, 0x0D };
+    const std::uint8_t unlockSuffix[] { 0x83, 0xEC, 0x08, 0x57, 0xFF, 0x75, 0x08 };
+    std::uint32_t profileGlobal = 0;
+    std::memcpy(&profileGlobal, unlock + sizeof(unlockPrefix), sizeof(profileGlobal));
+    const std::uint8_t numericPrefix[] {
+        0x8B, 0x41, 0x04, 0x83, 0xC0, 0xFE, 0x83, 0xF8, 0x0E, 0x77, 0x4F, 0x0F, 0xB6
+    };
+    return std::memcmp(unlock, unlockPrefix, sizeof(unlockPrefix)) == 0 &&
+           profileGlobal == Core::Memory::Va(0x391284) &&
+           std::memcmp(unlock + 9, unlockSuffix, sizeof(unlockSuffix)) == 0 &&
+           std::memcmp(reinterpret_cast<const void*>(Core::Memory::Va(kReadIntegerArgumentRva)),
+                       numericPrefix, sizeof(numericPrefix)) == 0;
+}
 
 void __fastcall HookedRegisterName(void* registry, void*, std::uint16_t nativeId, const char* name) {
     if (nativeId == 0x14D && name && std::strcmp(name, "u_temp") == 0) {
@@ -143,13 +163,21 @@ bool HandleExpandedCharacterUnlock(std::uint32_t functionId,
                                    int paramCount,
                                    SWFArgument** args,
                                    std::uint32_t* result) {
-    if ((functionId & 0xFFFFu) != kIsCharacterUnlockedNativeId ||
+    if (!g_expandedUnlockSupported ||
+        (functionId & 0xFFFFu) != kIsCharacterUnlockedNativeId ||
         paramCount < 2 || !args || !args[0] || !args[1]) {
         return false;
     }
 
-    const std::uint32_t playerIndex = args[0]->value.raw;
-    const std::uint32_t characterId = args[1]->value.raw;
+    // Use the same numeric coercion as native 0xC4 (bool/int/string/float).
+    // Reading value.raw directly treats float bits and SWF string IDs as integers.
+    using ReadIntegerArgumentFn = std::uint32_t(__fastcall*)(SWFArgument*);
+    const auto readInteger = reinterpret_cast<ReadIntegerArgumentFn>(Core::Memory::Va(kReadIntegerArgumentRva));
+    const std::uint32_t playerIndex = readInteger(args[0]);
+    const std::uint32_t characterId = readInteger(args[1]);
+    if (playerIndex >= 4) {
+        return false;
+    }
     const auto& registry = Characters::Registry::Instance();
     const std::uint32_t firstAddonId =
         static_cast<std::uint32_t>(NativeDB::kVanillaBaseCharacterCount);
@@ -221,6 +249,10 @@ void DetachHook(PVOID* original, PVOID detour) {
 
 bool Install() {
     if (g_installed) return true;
+    g_expandedUnlockSupported = HasVerifiedUnlockNatives();
+    if (!g_expandedUnlockSupported) {
+        Core::Logger::Warn("Expanded addon unlock fallback disabled: native signatures do not match this executable");
+    }
     g_originalRegisterName = reinterpret_cast<RegisterNameFn>(Core::Memory::Va(kRegisterNameRva));
     g_originalRegisterAll = reinterpret_cast<RegisterAllFn>(Core::Memory::Va(kRegisterAllRva));
     g_originalDispatcher = reinterpret_cast<DispatcherFn>(Core::Memory::Va(kDispatcherRva));
@@ -251,6 +283,7 @@ void Remove() {
     DetachHook(&(PVOID&)g_originalAddString, reinterpret_cast<PVOID>(HookedAddString));
     DetachHook(&(PVOID&)g_originalRegisterName, reinterpret_cast<PVOID>(HookedRegisterName));
     g_installed = false;
+    g_expandedUnlockSupported = false;
     g_nativeRegistry = nullptr;
     g_registeredRegistry = nullptr;
     g_strings.clear();

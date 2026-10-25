@@ -5,6 +5,8 @@
 #include <windows.h>
 #include <algorithm>
 #include <cctype>
+#include <cerrno>
+#include <cstdlib>
 #include <fstream>
 #include <sstream>
 #include <string>
@@ -67,6 +69,7 @@ void WriteDefaultConfig(const std::string& path) {
     file << "show_external_console: false\n";
     file << "enable_overlay: true\n";
     file << "overlay_toggle_key: Home\n";
+    file << "game_pool_mib: 1024\n";
 }
 
 void ApplyKeyValue(RuntimeConfig& config, const std::string& key, const std::string& rawValue) {
@@ -86,6 +89,17 @@ void ApplyKeyValue(RuntimeConfig& config, const std::string& key, const std::str
         config.showExternalConsole = normalizedValue == "true" || normalizedValue == "1" || normalizedValue == "yes";
     } else if (normalizedKey == "enable_overlay" || normalizedKey == "enableoverlay") {
         config.enableOverlay = normalizedValue != "false" && normalizedValue != "0" && normalizedValue != "no";
+    } else if (normalizedKey == "game_pool_mib") {
+        errno = 0;
+        char* end = nullptr;
+        const unsigned long parsed = std::strtoul(value.c_str(), &end, 10);
+        if (errno == 0 && end != value.c_str() && *end == '\0' &&
+            (parsed == 0 || (parsed >= 576 && parsed <= 1536))) {
+            config.gamePoolMiB = static_cast<unsigned int>(parsed);
+        } else {
+            Logger::Warn("Invalid game_pool_mib '%s'; keeping %u (allowed: 0 or 576..1536)",
+                         value.c_str(), config.gamePoolMiB);
+        }
     } else if (normalizedKey == "overlay_toggle_key" || normalizedKey == "overlaytogglekey") {
         if (normalizedValue == "home") config.overlayToggleKey = VK_HOME;
         else if (normalizedValue == "f10") config.overlayToggleKey = VK_F10;
@@ -136,6 +150,7 @@ RuntimeConfig LoadOrCreate(const std::string& moduleDirectory) {
                  config.showExternalConsole ? 1 : 0,
                  config.enableOverlay ? 1 : 0,
                  config.overlayToggleKey);
+    Logger::Info("Config game pool budget: %u MiB", config.gamePoolMiB);
     return config;
 }
 

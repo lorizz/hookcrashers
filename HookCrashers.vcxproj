@@ -42,8 +42,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.4</HookCrashersVersion>
-    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">release</HookCrashersChannel>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.0.67-dev</HookCrashersVersion>
+    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">dev</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.asi</TargetExt>
@@ -135,6 +135,7 @@
     <ClCompile Include="src\Characters\CharacterRegistry.cpp" />
     <ClCompile Include="src\Core\CrashHandler.cpp" />
     <ClCompile Include="src\Core\Config.cpp" />
+    <ClCompile Include="src\Core\GamePoolExpansion.cpp" />
     <ClCompile Include="src\Core\Logger.cpp" />
     <ClCompile Include="src\Core\Memory.cpp" />
     <ClCompile Include="src\Core\ModLoader.cpp" />
@@ -162,6 +163,8 @@
     <ClInclude Include="src\Characters\CharacterRegistry.h" />
     <ClInclude Include="src\Core\CrashHandler.h" />
     <ClInclude Include="src\Core\Config.h" />
+    <ClInclude Include="src\Core\GamePoolExpansion.h" />
+    <ClInclude Include="src\Core\GamePoolExpansionInternal.h" />
     <ClInclude Include="src\Core\Logger.h" />
     <ClInclude Include="src\Core\Memory.h" />
     <ClInclude Include="src\Core\ModLoader.h" />

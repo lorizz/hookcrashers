@@ -16,6 +16,7 @@
 #include <fstream>
 #include <iterator>
 #include <memory>
+#include <mutex>
 #include <string>
 #include <vector>
 
@@ -47,7 +48,9 @@ using SWFNodeCtorLoadCOK6Fn = char*(__thiscall*)(char* thisPtr, int a2, int path
 SWFSceneParseHeaderFn g_OriginalSWFSceneParseHeader = nullptr;
 SWFNodeCtorLoadCOK6Fn g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
 thread_local std::string g_CurrentCok6Path;
-std::vector<std::unique_ptr<std::vector<std::uint8_t>>> g_OwnedPatchedBuffers;
+using OwnedPatchedBuffers = std::vector<std::unique_ptr<std::vector<std::uint8_t>>>;
+OwnedPatchedBuffers g_OwnedPatchedBuffers;
+std::mutex g_OwnedPatchedBuffersMutex;
 volatile LONG g_LobbyRuntimeDumpIndex = 0;
 
 struct Tag {
@@ -663,7 +666,8 @@ void PatchClassicSelectionTags(std::uint8_t* tags,
     }
 }
 
-bool TryPatchLobbyClassicSelectionLimit(SWFScene* scene, const std::string& swfPath) {
+bool TryPatchLobbyClassicSelectionLimit(SWFScene* scene, const std::string& swfPath,
+                                       OwnedPatchedBuffers& stagedBuffers) {
     const int scanCount = Characters::Registry::Instance().ClassicVisibleCount();
     if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || scanCount <= 4) {
         return false;
@@ -685,7 +689,7 @@ bool TryPatchLobbyClassicSelectionLimit(SWFScene* scene, const std::string& swfP
     }
 
     scene->swfBuffer = owned->data();
-    g_OwnedPatchedBuffers.push_back(std::move(owned));
+    stagedBuffers.push_back(std::move(owned));
     Core::Logger::Info("Patched lobby Classic character scan functions=%d scanCount=%d",
                        patchedCount,
                        scanCount);
@@ -910,7 +914,8 @@ bool PatchLobbyPortraitSpritePayload(const std::uint8_t* payload,
     return true;
 }
 
-bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
+bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath,
+                                OwnedPatchedBuffers& stagedBuffers) {
     const auto& registry = Characters::Registry::Instance();
     if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath) || registry.AddonCount() <= 0) {
         return false;
@@ -996,7 +1001,7 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
 
     auto owned = std::make_unique<std::vector<std::uint8_t>>(std::move(patched));
     scene->swfBuffer = owned->data();
-    g_OwnedPatchedBuffers.push_back(std::move(owned));
+    stagedBuffers.push_back(std::move(owned));
     Core::Logger::Info("Patched lobby portrait shapes path='%s' definitions=%u classic=%u fresh=%u newLength=%u",
                        swfPath.c_str(),
                        static_cast<unsigned int>(injection.definitions.size()),
@@ -1006,7 +1011,8 @@ bool TryPatchLobbyPortraitFrames(SWFScene* scene, const std::string& swfPath) {
     return true;
 }
 
-bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
+bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath,
+                            OwnedPatchedBuffers& stagedBuffers) {
     if (!scene || !scene->swfBuffer || !PathContainsMain(swfPath)) {
         return false;
     }
@@ -1075,7 +1081,7 @@ bool TryPatchMainSaveSystem(SWFScene* scene, const std::string& swfPath) {
 
     auto owned = std::make_unique<std::vector<std::uint8_t>>(std::move(patched));
     scene->swfBuffer = owned->data();
-    g_OwnedPatchedBuffers.push_back(std::move(owned));
+    stagedBuffers.push_back(std::move(owned));
     Core::Logger::Info("Patched f_InitSaveSystem path='%s' patchedActions=%d newLength=%u",
                        swfPath.c_str(),
                        patchedActions,
@@ -1096,16 +1102,26 @@ char* __fastcall DetouredSWFNodeCtorLoadCOK6(char* thisPtr, void*, int a2, int p
 
 int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
+    OwnedPatchedBuffers stagedBuffers;
     DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "before_patch");
-    const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path);
-    const bool patchedClassicSelection = TryPatchLobbyClassicSelectionLimit(swfScene, g_CurrentCok6Path);
-    const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path);
+    const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path, stagedBuffers);
+    const bool patchedClassicSelection = TryPatchLobbyClassicSelectionLimit(swfScene, g_CurrentCok6Path, stagedBuffers);
+    const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path, stagedBuffers);
     if (patchedClassicSelection || patchedLobby) {
         DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "after_patch");
     }
     const bool patched = patchedSave || patchedClassicSelection || patchedLobby;
     if (patched) {
         Core::Logger::Info("SWFSceneParseHeader patched current COK6 path='%s'", g_CurrentCok6Path.c_str());
+    }
+    if (!stagedBuffers.empty()) {
+        // The original parser has not seen these copies yet. Only the last
+        // successful patch is published to it; retain that final buffer for
+        // the existing lifetime, and discard superseded copies before parsing.
+        auto finalBuffer = std::move(stagedBuffers.back());
+        stagedBuffers.clear();
+        std::lock_guard<std::mutex> lock(g_OwnedPatchedBuffersMutex);
+        g_OwnedPatchedBuffers.push_back(std::move(finalBuffer));
     }
     return g_OriginalSWFSceneParseHeader(scene);
 }

@@ -6,6 +6,7 @@
 #include "Characters/CharacterRegistry.h"
 #include "Core/Config.h"
 #include "Core/CrashHandler.h"
+#include "Core/GamePoolExpansion.h"
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
@@ -96,6 +97,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
     HookCrashers::Core::Logger::SetExternalConsoleEnabled(config.showExternalConsole);
+    if (!HookCrashers::Core::GamePoolExpansion::Install(config.gamePoolMiB)) {
+        HookCrashers::Core::Logger::Error("Game pool expansion could not be enabled; see allocator compatibility log");
+    }
 
     const bool updateAvailable = HookCrashers::Updater::AutoUpdater::CheckForUpdates(
         HookCrashers::Core::Logger::ModuleDirectory(), config);
@@ -176,6 +180,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::Localization::Remove();
         HookCrashers::Core::ModLoader::Shutdown(false);
         HookCrashers::Characters::CharacterExpansion::Remove();
+        HookCrashers::Core::GamePoolExpansion::Shutdown();
         HookCrashers::Core::CrashHandler::Uninstall();
         HookCrashers::Core::Logger::Shutdown();
     }
