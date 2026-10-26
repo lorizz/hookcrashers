@@ -30,7 +30,7 @@ enum class Natives : std::uintptr_t {
     CC_GetDlcEntitlementMask = 0x4A6F6,
     CC_RefreshDlcEntitlementsIntoSave = 0x4973A,
     CC_SetPainterFreshWorkshopUnlock = 0x4BC8,
-    CC_SetFreshModeEnabled = 0x4A24C,
+    CC_SetFreshModeEnabled = 0x10A540,
     CC_LoadGlobalProfileFlagsFromSave = 0x49B8C,
     CC_ApplyDlcUnlockMaskToSave = 0x4CD2,
     CC_LoadKeybindsFromSave = 0x12F2C0,

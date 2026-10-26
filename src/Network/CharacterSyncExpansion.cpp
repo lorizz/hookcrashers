@@ -1,4 +1,5 @@
 #include "CharacterSyncExpansion.h"
+#include "LobbyGameMode.h"
 
 #include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
@@ -24,7 +25,9 @@ constexpr std::uintptr_t kLobbyManagerGlobalRva = 0x3912B0;
 constexpr std::uintptr_t kCharacterRuntimeBaseArrayOffset = 0x11AC;
 constexpr std::uintptr_t kNetworkKickReasonGlobalRva = 0x260E94;
 constexpr std::uint8_t kCharacterSyncMessageType = 0x0D;
-constexpr std::uint16_t kHookCrashersSyncVersion = 5;
+// v6 transmits the actual mode; v5 always advertised Fresh and cannot be trusted.
+constexpr std::uint16_t kHookCrashersSyncVersion = 6;
+constexpr std::uintptr_t kSetFreshModeRva = 0x10A540;
 constexpr std::array<std::uint8_t, 4> kHookCrashersSyncMagic { 'H', 'C', '5', 'C' };
 constexpr std::uint32_t kAddonSkinIdHi = 0x48433541; // HC5A
 // CALL at RVA 0x87A3D in the vanilla roster receiver targets this map insert.
@@ -43,6 +46,7 @@ using ChannelSendFn = void(__thiscall*)(void* channel,
                                         std::uint32_t byteCount,
                                         std::uint32_t reliable);
 using PeerBoolFn = std::uint8_t(__thiscall*)(void* peer);
+using SetFreshModeFn = void(__stdcall*)(std::uint8_t fresh);
 using InsertCharacterSyncEntryFn = void*(__thiscall*)(void* map,
                                                       void* outPair,
                                                       void* keyForSearch,
@@ -51,6 +55,7 @@ using InsertCharacterSyncEntryFn = void*(__thiscall*)(void* map,
 
 SendInitialCharacterSyncPacketFn g_OriginalSendInitialCharacterSyncPacket = nullptr;
 HandleIncomingCharacterSyncPacketFn g_OriginalHandleIncomingCharacterSyncPacket = nullptr;
+SetFreshModeFn g_SetFreshMode = nullptr;
 
 void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
                                                           void*,
@@ -60,8 +65,45 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
 
 struct ExpandedPacket {
     CharacterSyncPacketLayout layout {};
+    LobbyGameMode gameMode = LobbyGameMode::Unknown;
     std::vector<std::uint8_t> bytes;
 };
+
+// Verified in the original sender at RVA F216F..F21AA and setter 10A540:
+// profile global 391294 -> map +814 -> key 0120 -> node value +14.
+// Walk the native std::map without operator[]: reading must not create a setting.
+bool ReadLocalGameMode(LobbyGameMode& mode) {
+    mode = LobbyGameMode::Unknown;
+    __try {
+        const auto profile = *reinterpret_cast<const std::uintptr_t*>(Core::Memory::Va(0x391294));
+        if (!profile) return false;
+        const auto head = *reinterpret_cast<const std::uintptr_t*>(profile + 0x814);
+        if (!head) return false;
+        auto node = *reinterpret_cast<const std::uintptr_t*>(head + 4);
+        for (unsigned depth = 0; node && node != head && depth < 128; ++depth) {
+            if (*reinterpret_cast<const std::uint8_t*>(node + 0xD)) return false;
+            const auto key = *reinterpret_cast<const std::uint16_t*>(node + 0x10);
+            if (key == 0x120) {
+                const auto value = *reinterpret_cast<const std::uint32_t*>(node + 0x14);
+                if (value > 1) return false;
+                mode = static_cast<LobbyGameMode>(value);
+                return true;
+            }
+            node = *reinterpret_cast<const std::uintptr_t*>(node + (key < 0x120 ? 8 : 0));
+        }
+    } __except(EXCEPTION_EXECUTE_HANDLER) { return false; }
+    return false;
+}
+
+void RejectCharacterSync(void* self,std::uint32_t* result,const char* reason,
+                         LobbyGameMode local,LobbyGameMode remote) {
+    Core::Logger::Error("Lobby rejected: %s; localMode=%s remoteMode=%s (no roster applied)",
+                        reason,LobbyGameModeName(local),LobbyGameModeName(remote));
+    // Use the existing native incompatibility path, not an invented error code.
+    *reinterpret_cast<std::uint32_t*>(Core::Memory::Va(kNetworkKickReasonGlobalRva)) = 0x0D;
+    if (self) *reinterpret_cast<std::uint8_t*>(static_cast<std::uint8_t*>(self) + 0x29A5) = 0;
+    if (result) { result[0] = 1; result[1] = 0; }
+}
 
 struct CharacterNetId {
     std::uint32_t lo = 0;
@@ -105,6 +147,28 @@ void* GetVfunc(void* object, std::uintptr_t offset) {
 bool CallPeerBool(void* peer, std::uintptr_t vtableOffset) {
     auto fn = reinterpret_cast<PeerBoolFn>(GetVfunc(peer, vtableOffset));
     return fn ? fn(peer) != 0 : false;
+}
+
+bool ApplyAuthoritativeGameMode(void* self,void* peer,LobbyGameMode remoteMode) {
+    if (!self || !IsKnownLobbyMode(remoteMode)) return false;
+    const auto* state = static_cast<const std::uint8_t*>(self);
+    const bool syncEnabled = state[0x29A4] != 0;
+    if (!syncEnabled || !CallPeerBool(peer,0x20)) return true;
+    void* session = *reinterpret_cast<void* const*>(state+0x0C);
+    if (!ShouldAdoptHostMode(syncEnabled,true,session && CallPeerBool(session,0x68))) return true;
+    if (!g_SetFreshMode) return false;
+    LobbyGameMode before;
+    ReadLocalGameMode(before);
+    // Vanilla does this before roster building. A client follows its host;
+    // receiving a client's packet must never switch the host's own setting.
+    g_SetFreshMode(remoteMode == LobbyGameMode::Fresh ? 1 : 0);
+    LobbyGameMode after;
+    if (!ReadLocalGameMode(after) || after != remoteMode) {
+        Core::Logger::Error("Failed to apply authoritative lobby mode %s",LobbyGameModeName(remoteMode));
+        return false;
+    }
+    if (before != after) Core::Logger::Info("Lobby mode follows host: %s -> %s",LobbyGameModeName(before),LobbyGameModeName(after));
+    return true;
 }
 
 void WriteCharacterSkinId(void* destination, void* skinRuntime) {
@@ -275,7 +339,7 @@ ExpandedPacket BuildExpandedPacketFromRuntime() {
     return packet;
 }
 
-std::vector<std::uint8_t> BuildWireMessage() {
+std::vector<std::uint8_t> BuildWireMessage(LobbyGameMode mode) {
     ExpandedPacket packet = BuildExpandedPacketFromRuntime();
     const std::uint16_t bodyLength = static_cast<std::uint16_t>(
         1 + 1 + kHookCrashersSyncMagic.size() + sizeof(std::uint16_t) * 2 + sizeof(std::uint32_t) + packet.bytes.size());
@@ -284,7 +348,7 @@ std::vector<std::uint8_t> BuildWireMessage() {
     message.reserve(static_cast<std::size_t>(bodyLength) + sizeof(std::uint16_t));
     AppendUnaligned<std::uint16_t>(message, bodyLength);
     message.push_back(kCharacterSyncMessageType);
-    message.push_back(1);
+    message.push_back(static_cast<std::uint8_t>(mode));
     message.insert(message.end(), kHookCrashersSyncMagic.begin(), kHookCrashersSyncMagic.end());
     AppendUnaligned<std::uint16_t>(message, kHookCrashersSyncVersion);
     AppendUnaligned<std::uint16_t>(message, static_cast<std::uint16_t>(Characters::Registry::Instance().AddonCount()));
@@ -294,7 +358,7 @@ std::vector<std::uint8_t> BuildWireMessage() {
 }
 
 bool TryReadWirePacket(std::uint8_t* payload, ExpandedPacket& packet) {
-    if (!payload || payload[0] == 0) {
+    if (!payload || payload[0] > 1) {
         return false;
     }
 
@@ -326,6 +390,7 @@ bool TryReadWirePacket(std::uint8_t* payload, ExpandedPacket& packet) {
         return false;
     }
 
+    packet.gameMode = static_cast<LobbyGameMode>(payload[0]);
     packet.layout = expectedLayout;
     packet.bytes.assign(cursor, cursor + packetSize);
     Core::Logger::Info("Accepted HC5 sync packet: addonCount=%u packetSize=%u", addonCount, packetSize);
@@ -473,6 +538,11 @@ bool ApplyExpandedPacketToRoster(const ExpandedPacket& packet) {
 }
 
 void __fastcall DetouredSendInitialCharacterSyncPacket(void* self, void*, std::uint32_t* outResult, void* peer) {
+    LobbyGameMode localMode;
+    if (!ReadLocalGameMode(localMode)) {
+        RejectCharacterSync(self,outResult,"local game mode unavailable",LobbyGameMode::Unknown,LobbyGameMode::Unknown);
+        return;
+    }
     if (!CharacterSyncExpansion::NeedsExpandedLayout()) {
         g_OriginalSendInitialCharacterSyncPacket(self, outResult, peer);
         return;
@@ -497,7 +567,7 @@ void __fastcall DetouredSendInitialCharacterSyncPacket(void* self, void*, std::u
         return;
     }
 
-    std::vector<std::uint8_t> message = BuildWireMessage();
+    std::vector<std::uint8_t> message = BuildWireMessage(localMode);
     if (CallPeerBool(peer, 0x1C)) {
         Core::Logger::Info("SendInitialCharacterSyncPacket loopback/local peer");
         DetouredHandleIncomingCharacterSyncPacket(self, nullptr, outResult, channel, message.data() + 3);
@@ -522,21 +592,27 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
                                                           std::uint32_t* outResult,
                                                           void* transport,
                                                           std::uint8_t* payload) {
-    if (!CharacterSyncExpansion::NeedsExpandedLayout()) {
-        g_OriginalHandleIncomingCharacterSyncPacket(self, outResult, transport, payload);
-        return;
-    }
-
     Core::Logger::Info("DetouredHandleIncomingCharacterSyncPacket self=%p transport=%p payload=%p", self, transport, payload);
 
     ExpandedPacket packet;
     if (!TryReadWirePacket(payload, packet)) {
+        // A recognized HC envelope with an old version/wrong roster is NOT a
+        // vanilla packet. Forwarding it would bypass checks and misread its body.
+        if (payload && std::equal(kHookCrashersSyncMagic.begin(),kHookCrashersSyncMagic.end(),payload+1)) {
+            LobbyGameMode localMode; ReadLocalGameMode(localMode);
+            RejectCharacterSync(self,outResult,"incompatible HookCrashers protocol or addon layout",localMode,LobbyGameMode::Unknown);
+            return;
+        }
         Core::Logger::Warn("Incoming packet is not HC5 expanded packet; forwarding to vanilla handler");
         g_OriginalHandleIncomingCharacterSyncPacket(self, outResult, transport, payload);
         return;
     }
 
-    (void)transport;
+    if (!ApplyAuthoritativeGameMode(self,transport,packet.gameMode)) {
+        LobbyGameMode localMode; ReadLocalGameMode(localMode);
+        RejectCharacterSync(self,outResult,"could not apply host game mode",localMode,packet.gameMode);
+        return;
+    }
 
     if (ApplyExpandedPacketToRoster(packet)) {
         *reinterpret_cast<std::uint8_t*>(static_cast<std::uint8_t*>(self) + 0x29A5) = 1;
@@ -551,6 +627,30 @@ void __fastcall DetouredHandleIncomingCharacterSyncPacket(void* self,
 }
 
 bool InstallNetworkDetours() {
+    const auto* sender = reinterpret_cast<const std::uint8_t*>(
+        NativeDB::NativeAddress(NativeDB::Natives::CC_SendInitialCharacterSyncPacket));
+    const std::uint8_t senderPrefix[] {0x55,0x8B,0xEC,0xB8,0xF4,0x14,0,0};
+    const std::uint8_t modeMapOffset[] {0x81,0xC1,0x14,0x08,0,0};
+    const std::uint8_t modeWrite[] {0x88,0x85,0x13,0xEB,0xFF,0xFF};
+    std::uint32_t modeProfile = 0;
+    std::memcpy(&modeProfile,sender+0x51,sizeof(modeProfile));
+    if (std::memcmp(sender,senderPrefix,sizeof(senderPrefix)) || sender[0x4F]!=0x8B || sender[0x50]!=0x0D ||
+        modeProfile!=Core::Memory::Va(0x391294) ||
+        std::memcmp(sender+0x5B,modeMapOffset,sizeof(modeMapOffset)) ||
+        std::memcmp(sender+0x8A,modeWrite,sizeof(modeWrite))) {
+        Core::Logger::Error("Character sync install refused: unsupported Classic/Fresh mode layout");
+        return false;
+    }
+    const auto* setter = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(kSetFreshModeRva));
+    const std::uint8_t setterPrefix[] {0x55,0x8B,0xEC,0x83,0xEC,0x0C,0x8B,0x0D};
+    const std::uint8_t setterTail[] {0x89,0x48,0x14,0x8B,0xE5,0x5D,0xC2,0x04,0x00};
+    std::uint32_t setterProfile=0;
+    std::memcpy(&setterProfile,setter+8,sizeof(setterProfile));
+    if (std::memcmp(setter,setterPrefix,sizeof(setterPrefix)) || setterProfile!=Core::Memory::Va(0x391294) ||
+        std::memcmp(setter+0x31,setterTail,sizeof(setterTail))) {
+        Core::Logger::Error("Character sync install refused: unsupported host-mode setter"); return false;
+    }
+    g_SetFreshMode = reinterpret_cast<SetFreshModeFn>(Core::Memory::Va(kSetFreshModeRva));
     const std::uint8_t insertPrefix[] { 0x55, 0x8B, 0xEC, 0x6A, 0xFF, 0x68 };
     const std::uint8_t insertReturn[] { 0xC2, 0x10, 0x00 };
     const auto* insert = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(kInsertCharacterSyncEntryRva));
@@ -629,7 +729,7 @@ bool CharacterSyncExpansion::NeedsExpandedLayout() {
 
 bool CharacterSyncExpansion::Install() {
     if (!NeedsExpandedLayout()) {
-        Core::Logger::Info("CharacterSyncExpansion skipped: expanded layout not needed");
+        Core::Logger::Info("CharacterSyncExpansion: native mode synchronization retained (no addons)");
         return true;
     }
 

@@ -52,7 +52,7 @@ constexpr std::size_t kTextMaxWidthOffset = 0x4E;
 
 constexpr std::uint16_t kConfirmationMenuId = 3;
 constexpr std::uint16_t kMainMenuId = 23;
-constexpr std::uint16_t kMenuStateCount = 46;
+constexpr std::uint16_t kMenuStateCount = 48;
 constexpr std::uintptr_t kProfileManagerPointerRva = 0x391294;
 
 using MainMenuBuilderFn = void*(__thiscall*)(void* self, void* scene, int flags);

@@ -193,4 +193,14 @@
     <ClInclude Include="src\Characters\CurrentCharacterData.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="sdk\include\CurrentCharacterData.h"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\SWF\OnlineMenuAssets.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Save\MenuOnlineCompatibilityHook.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\Save\OnlineCompatibilityMode.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="src\SWF\OnlineMenuAssets.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Save\MenuOnlineCompatibilityHook.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Save\OnlineCompatibilityMode.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Game\MenuStructs.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Network\LobbyGameMode.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
 </Project>

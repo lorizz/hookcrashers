@@ -14,6 +14,8 @@
 #include "Localization/LocalizationSystem.h"
 #include "Save/SaveFileRedirect.h"
 #include "SWF/SWFStringTableExpansion.h"
+#include "SWF/Cok6LoadHook.h"
+#include "Save/MenuOnlineCompatibilityHook.h"
 #include "UI/DebugOverlay.h"
 #include "UI/SplashScreen.h"
 #include "UI/UpdatePromptMenu.h"
@@ -93,6 +95,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
 
     if (!HookCrashers::UI::UpdatePromptMenu::Install()) {
         HookCrashers::Core::Logger::Warn("Update prompt menu hook failed to install");
+    }
+    if (!HookCrashers::SWF::Cok6LoadHook::Install() || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
+        HookCrashers::Core::Logger::Error("Online compatibility menus could not be installed");
     }
 
     const HookCrashers::Core::Config::RuntimeConfig config =
@@ -182,6 +187,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
         HookCrashers::Characters::CurrentData::Shutdown();
         HookCrashers::UI::DebugOverlay::Shutdown();
+        HookCrashers::Save::RemoveMenuOnlineCompatibilityHook();
         HookCrashers::UI::UpdatePromptMenu::Remove();
         HookCrashers::Localization::Remove();
         HookCrashers::Core::ModLoader::Shutdown(false);

@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.1.1-dev - 2026-10-26
+
+### Added
+
+- Restored the original injected multiplayer selector and custom SWF artwork: Play Vanilla follows the native Play With Friends flow; Play Modded opens the injected lobby screen. Assets are embedded in the ASI.
+
+### Fixed
+
+- Expanded character synchronization now transmits the actual Classic/Fresh setting instead of always advertising Fresh. Joining clients adopt the host's mode before the roster becomes ready, using the native authority checks and mode setter. Clients cannot change the host's mode.
+- Corrected the mode setter address and its x86 stdcall calling convention, with executable signature checks before installation.
+- Updated menu integration for the supported executable, including state allocation, sprite/font ID remapping, full physical MENU length and native menu layout calls.
+
+### Compatibility and validation
+
+- HC character-sync protocol is now version 6. All modded peers must update and use matching addon layouts; old or malformed HC packets are rejected. A valid Classic/Fresh difference is synchronized, not rejected.
+- The restored custom lobby screen starts empty. The former demonstration lobby provider and real-lobby joining are not implemented by this restoration.
+- Offline production sender/receiver tests cover all four host/client mode combinations, host authority, malformed metadata and native fallback. Two-account Steam gameplay still requires verification.
+
 ## 5.1.0-dev - 2026-10-26
 
 ### Added

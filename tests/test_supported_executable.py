@@ -86,6 +86,29 @@ class SupportedExecutableTests(unittest.TestCase):
         numeric = source_bytes('numericPrefix')
         self.assertEqual(self.pe.get_data(0x115E50, len(numeric)), numeric)
 
+    def test_native_sender_serializes_the_actual_fresh_setting(self):
+        code = self.pe.get_data(0xF216F, 0x41)
+        self.assertEqual(code[:2], bytes.fromhex('8b0d'))
+        self.assertEqual(int.from_bytes(code[2:6], 'little'), self.pe.OPTIONAL_HEADER.ImageBase + 0x391294)
+        self.assertEqual(code[0xC:0x12], bytes.fromhex('81c114080000'))
+        self.assertEqual(self.pe.get_data(0xF2187, 10), bytes.fromhex('c785c2fbffff20010000'))
+        self.assertEqual(self.pe.get_data(0xF21AA, 6), bytes.fromhex('888513ebffff'))
+
+    def test_native_receiver_calls_stdcall_host_mode_setter(self):
+        calls = [i.operands[0].imm for i in self.instructions(0xF2390, 0x90)
+                 if i.mnemonic == 'call' and i.operands[0].type == capstone.x86.X86_OP_IMM]
+        self.assertIn(0x10A540, calls)
+        self.assertEqual(self.pe.get_data(0x10A540, 8), bytes.fromhex('558bec83ec0c8b0d'))
+        self.assertEqual(self.pe.get_data(0x10A55B, 6), bytes.fromhex('8d8914080000'))
+        self.assertEqual(self.pe.get_data(0x10A571, 9), bytes.fromhex('8948148be55dc20400'))
+        native_map = (pathlib.Path(__file__).resolve().parents[1] / 'src/NativeDB/Natives.h').read_text()
+        self.assertRegex(native_map, r'CC_SetFreshModeEnabled\s*=\s*0x10A540')
+
+    def test_native_menu_table_expansion_sites_are_instruction_immediates(self):
+        self.assertEqual(self.pe.get_data(0x1443E0, 5), bytes.fromhex('682c5e0000'))
+        self.assertEqual(self.pe.get_data(0x144413, 8), bytes.fromhex('6a2ec7072e000000'))
+        self.assertEqual(self.pe.get_data(0x14441E, 5), bytes.fromhex('680c020000'))
+
     def test_main_pool_has_a_fixed_576_mib_budget(self):
         immediates = [operand.imm for i in self.instructions(0xF6BA0, 0xA0)
                       for operand in i.operands if operand.type == capstone.x86.X86_OP_IMM]

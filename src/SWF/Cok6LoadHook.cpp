@@ -2,6 +2,7 @@
 
 #include "InitSaveSystemBytecode.h"
 #include "ShapeInjection.h"
+#include "OnlineMenuAssets.h"
 #include "SWFStructures.h"
 #include "../Characters/CharacterRegistry.h"
 #include "../Core/Logger.h"
@@ -1122,6 +1123,12 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
         stagedBuffers.clear();
         std::lock_guard<std::mutex> lock(g_OwnedPatchedBuffersMutex);
         g_OwnedPatchedBuffers.push_back(std::move(finalBuffer));
+    }
+    std::string menuPath = g_CurrentCok6Path;
+    std::transform(menuPath.begin(),menuPath.end(),menuPath.begin(),[](unsigned char c){ return static_cast<char>(std::tolower(c)); });
+    if (menuPath.find("menu") != std::string::npos && menuPath.find("amenu") == std::string::npos &&
+        menuPath.find("vignettes") == std::string::npos) {
+        OnlineMenuAssets::PatchScene(swfScene);
     }
     return g_OriginalSWFSceneParseHeader(scene);
 }

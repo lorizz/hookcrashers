@@ -1,3 +1,5 @@
 #include "src/UI/resource.h"
 
 IDR_HOOKCRASHERS_SPLASH RCDATA "assets\\splash\\hookcrashers_splash.png"
+IDR_HOOKCRASHERS_ONLINE_MENU RCDATA "assets\\menu\\online-compatibility.swf"
+IDR_HOOKCRASHERS_LOBBY_MENU RCDATA "assets\\menu\\matchmaking.swf"
