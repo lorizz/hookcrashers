@@ -1,5 +1,23 @@
 # Changelog
 
+## 5.1.2-dev - 2026-10-28
+
+### Added
+
+- Four texture quality presets in order: Low (0), Medium (1), High (2), Ultra (3). High reuses the original localized label in all eleven languages.
+- Restored High's historical per-axis texture sizing from the pre-Painter Steam build of 31 July 2024: optional power-of-two rounding followed by independent bounds, with the historical 512 limit and native minimum. Medium retains the current aspect-preserving sizing policy.
+
+### Changed
+
+- Moved Ultra's atlas selection, texture scaling, warning and defaults from value 2 to 3. Ultra's rendering parameters are retained. Ultra keeps the native WOW64 availability check; 32-bit Windows can select High as its maximum.
+- Migrates existing `video/tex_quality=2` configurations to Ultra (3), with a persisted schema marker so a new High selection remains High after restart. This changes the graphics setting only, not character progress or saves.
+- All graphics instruction sites and native calling conventions are validated before enabling the feature; incompatible code disables the entire feature.
+
+### Validation
+
+- Release/Win32 build and 6,656 isolated native comparisons passed: historical High, relocated Ultra and unchanged Low/Medium. Production configuration/menu tests cover migration, four-preset round trips and native stack signatures; hook tests cover atomic signature rejection and full attach/patch/detach restoration.
+- Historical sizing is restored; this does not revert the game's newer assets or the rest of its renderer. Full visual/gameplay verification remains necessary.
+
 ## 5.1.1 - 2026-10-27
 
 ### Multiplayer and menus

@@ -8,6 +8,7 @@
 #include "Core/Config.h"
 #include "Core/CrashHandler.h"
 #include "Core/GamePoolExpansion.h"
+#include "Core/GraphicsQuality.h"
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
 #include "NativeDB/Natives.h"
@@ -53,6 +54,11 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     auto module = static_cast<HMODULE>(parameter);
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
+    if (HookCrashers::Core::GraphicsQuality::IsInstalled()) {
+        HookCrashers::Core::Logger::Info("Graphics presets: Low=0 Medium=1 High=2 Ultra=3; historical High enabled");
+    } else {
+        HookCrashers::Core::Logger::Error("Four graphics presets disabled: %s", HookCrashers::Core::GraphicsQuality::FailureReason());
+    }
 
 
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
@@ -175,6 +181,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
             if (!HookCrashers::SWF::SWFStringTableExpansion::Install()) {
                 return FALSE;
             }
+            HookCrashers::Core::GraphicsQuality::Install();
         }
 
         HANDLE thread = CreateThread(nullptr, 0, BootstrapThread, module, 0, nullptr);
@@ -185,6 +192,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         }
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
+        HookCrashers::Core::GraphicsQuality::Shutdown();
         HookCrashers::Characters::CurrentData::Shutdown();
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::Save::RemoveMenuOnlineCompatibilityHook();

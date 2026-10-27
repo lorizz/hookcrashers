@@ -42,8 +42,8 @@
   </ImportGroup>
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup>
-    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.1.1</HookCrashersVersion>
-    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">release</HookCrashersChannel>
+    <HookCrashersVersion Condition="'$(HookCrashersVersion)'==''">5.1.2-dev</HookCrashersVersion>
+    <HookCrashersChannel Condition="'$(HookCrashersChannel)'==''">dev</HookCrashersChannel>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <TargetExt>.asi</TargetExt>
@@ -206,4 +206,9 @@
     <Image Include="assets\splash\hookcrashers_splash.png" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
+  <ItemGroup>
+    <ClCompile Include="src\Core\GraphicsQuality.cpp" />
+    <ClInclude Include="src\Core\GraphicsQuality.h" />
+    <ClInclude Include="src\Core\GraphicsQualityInternal.h" />
+  </ItemGroup>
 </Project>

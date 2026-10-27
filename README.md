@@ -59,6 +59,15 @@ The ImGui log overlay starts closed. Press the configured `overlay_toggle_key` (
 
 Save expansion, localization, and runtime SWF patching are driven by the loaded folder mods. Custom localization ids start at the fixed base id `5000`.
 
+## Texture Quality (5.1.2)
+
+Video Settings offers **Low, Medium, High, Ultra**, in that order. High restores
+the per-axis texture sizing used before Painter Boss Paradise; Medium keeps the
+current sizing policy. Ultra retains its existing rendering settings and uses
+value 3 internally. Existing Ultra configurations are migrated automatically.
+On a 32-bit Windows OS, the native Ultra restriction remains and High is the
+maximum. These settings are separate from Classic/Fresh multiplayer mode.
+
 ## Folder Mods
 
 Each folder inside `mods` is scanned independently. A mod uses `manifest.yaml` to declare its metadata and Lua entrypoints.
