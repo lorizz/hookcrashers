@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.1.1 - 2026-10-27
+
+### Multiplayer and menus
+
+- Joining players now follow the host's graphics mode: a Fresh host switches clients to Fresh, and a Classic host switches clients to Classic. Expanded character synchronization preserves the game's host authority checks.
+- Includes the addon unlock fix for players without the Painter Boss DLC and the corrected native roster insertion used during lobby synchronization.
+- Restores the injected online selector and original custom SWF artwork. Play Vanilla opens the native multiplayer flow, including addon synchronization when mods are loaded. Play Modded is visibly disabled as `Play Modded - soon` while the custom lobby browser is unfinished.
+- All modded players must use a compatible HC sync protocol (version 6), matching mods and character registration order. Older HC packets are rejected.
+
+### Modding and performance
+
+- Includes the 1 GiB effective game allocation budget which resolved the reported Ultra graphics loading crashes. The reported occasional Blacksmith level lag spike remains separate.
+- Adds the C++ character snapshot API `GetCurrentCharacterData` for player slots 1..4 and game-thread Update callbacks for native ASI mods.
+- Includes the Win32 SDK, import library, ASI mini tutorial and buildable CharacterLevelWatch example.
+
+### Validation
+
+- Promoted after positive tester feedback on 5.1.1-dev. Local Release/Win32 build, thirteen supported-executable checks and offline production sender/receiver tests passed, including all four Classic/Fresh host/client combinations.
+- The character API's complete in-game player lifecycle still requires consumer validation. The custom lobby browser is not available in this release.
+
 ## 5.1.1-dev - 2026-10-26
 
 ### Added

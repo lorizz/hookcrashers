@@ -121,6 +121,9 @@ jobs:
       HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
       HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
       HC_VERSION: ${{ needs.build.outputs.version }}
+      HC_TAG: ${{ github.ref_name == 'main' && format('release_{0}', needs.build.outputs.version) || 'dev' }}
+      HC_TITLE: ${{ github.ref_name == 'main' && format('HookCrashers {0}', needs.build.outputs.version) || format('HookCrashers dev {0}', needs.build.outputs.version) }}
+      HC_LATEST: ${{ github.ref_name == 'main' && 'true' || 'false' }}
       RELEASES_REPO: lorizz/hookcrashers-releases
     steps:
       - name: Checkout private source
@@ -151,16 +154,19 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh release delete "${HC_CHANNEL}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
-          gh release create "${HC_CHANNEL}" \
+          if [ "${HC_CHANNEL}" = "dev" ]; then
+            gh release delete "${HC_TAG}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
+          fi
+          gh release create "${HC_TAG}" \
             artifact/HookCrashers-v5-dropin.zip \
             artifact/HookCrashers-SDK-Win32.zip \
             artifact/dist/HookCrashers.asi \
             artifact/dist/dinput8.dll \
             --repo "${GITHUB_REPOSITORY}" \
-            --title "HookCrashers ${HC_CHANNEL} ${HC_VERSION}" \
+            --title "${HC_TITLE}" \
             --notes-file release-notes.md \
-            --latest=false
+            --target "${GITHUB_SHA}" \
+            --latest="${HC_LATEST}"
 
       - name: Publish public release mirror
         shell: bash
@@ -171,16 +177,18 @@ jobs:
             echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public release mirror"
             exit 0
           fi
-          gh release delete "${HC_CHANNEL}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
-          gh release create "${HC_CHANNEL}" \
+          if [ "${HC_CHANNEL}" = "dev" ]; then
+            gh release delete "${HC_TAG}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
+          fi
+          gh release create "${HC_TAG}" \
             artifact/HookCrashers-v5-dropin.zip \
             artifact/HookCrashers-SDK-Win32.zip \
             artifact/dist/HookCrashers.asi \
             artifact/dist/dinput8.dll \
             --repo "${RELEASES_REPO}" \
-            --title "HookCrashers ${HC_CHANNEL} ${HC_VERSION}" \
+            --title "${HC_TITLE}" \
             --notes-file release-notes.md \
-            --latest=false
+            --latest="${HC_LATEST}"
 
       - name: Update public channel manifest
         shell: bash
@@ -201,10 +209,10 @@ jobs:
             "channel": "${HC_CHANNEL}",
             "version": "${HC_VERSION}",
             "commit": "${GITHUB_SHA}",
-            "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers.asi",
-            "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers-v5-dropin.zip",
-            "sdk_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_CHANNEL}/HookCrashers-SDK-Win32.zip",
-            "notes": "See the ${HC_CHANNEL} release page for patch notes."
+            "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers.asi",
+            "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-v5-dropin.zip",
+            "sdk_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-SDK-Win32.zip",
+            "notes": "See the ${HC_TAG} release page for patch notes."
           }
           EOF
           cp ../release-notes.md "${HC_CHANNEL}-patch-notes.md"

@@ -1,7 +1,7 @@
-# Online menu restoration and host game mode — 5.1.1-dev
+# Online menu restoration and host game mode — 5.1.1
 
-Development-channel build; do not confuse a successful offline test with a
-two-account Steam gameplay test.
+Stable release promoted after positive tester feedback on 5.1.1-dev.
+Offline test results and tester feedback are separate evidence.
 
 ## Restored injected menus
 
@@ -11,8 +11,8 @@ menu: custom SWF definitions are imported into MENU before parsing, and native
 menu states 46/47 own the selector and lobby screen respectively.
 
 - `Play Vanilla` follows the original game's Play With Friends transition.
-- `Play Modded` opens the injected `playerlobbies` screen.
-- Back from that screen returns to the injected compatibility selector.
+- `Play Modded - soon` is greyed out and disabled in the stable release.
+- The injected `playerlobbies` screen and its artwork remain in the source for future development.
 
 The original SWFs are preserved byte-for-byte under `assets/menu/` and embedded
 as RCDATA in the ASI. No external modified menu.pak is required. The new importer
@@ -21,8 +21,8 @@ COK6 MENU (whose legacy SWF FileLength is smaller), and refuses malformed inputs
 without publishing a partial buffer.
 
 The lobby-list backend/real-lobby joining are not part of this restoration.
-The old `/test-lobbies` provider was demonstrative. The screen starts empty;
-design-time sample names and placeholder text are not presented as real lobbies.
+The old `/test-lobbies` provider was demonstrative. The screen remains inaccessible in the stable release; design-time sample names
+and placeholder text are not presented as real lobbies.
 No new restart-without-mods flow is introduced. The restored Vanilla entry is
 the original native menu path; it does not hot-unload mods or undo expanded saves.
 
@@ -59,7 +59,7 @@ self+`29A5` ready. A client packet cannot change the host's setting. Native
 packets continue through the original native handler.
 
 HC wire version is **6** because v5's hardcoded mode is unreliable. All modded
-peers must use this protocol (5.1.1-dev) and matching addon layout. Recognized HC
+peers must use this protocol (5.1.1 or 5.1.1-dev) and matching addon layout. Recognized HC
 packets with an old/wrong version, invalid mode or incompatible layout are
 rejected, rather than misinterpreted as vanilla. This rejection concerns bad
 protocol metadata, not a valid Classic/Fresh difference.

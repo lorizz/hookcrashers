@@ -53,6 +53,7 @@ namespace {
     constexpr uint16_t kOnlineLobbyMenuId = 39;
     constexpr uint16_t kOnlineCompatibilityMenuId = 46;
     constexpr uint16_t kPlayerLobbiesMenuId = 47;
+    constexpr bool kModdedLobbyBrowserAvailable = false;
     constexpr size_t kCurrentHandlerOffset = 56;
     constexpr size_t kHandlerTableOffset = 64;
     constexpr size_t kMenuItemCountOffset = 0x04;
@@ -440,6 +441,7 @@ namespace {
     }
 
     int __cdecl SelectPlayModded(int self) {
+        if (!kModdedLobbyBrowserAvailable) return SetOnlineCompatibilitySelection(self, 0);
         return SetOnlineCompatibilitySelection(self, 1);
     }
     int OpenPlayWithFriendsWithMode(uint32_t* self, OnlineCompatibilityMode mode) {
@@ -476,6 +478,10 @@ namespace {
     }
 
     int __cdecl PlayModdedClicked(int self) {
+        if (!kModdedLobbyBrowserAvailable) {
+            LogLine("[OnlineCompatibility] Play Modded unavailable: lobby browser coming soon.");
+            return self;
+        }
         auto* menu = reinterpret_cast<uint32_t*>(self);
         if (!menu || !g_originalSetMenuState) {
             return 0;
@@ -508,8 +514,9 @@ namespace {
         }
 
         uint16_t selectedIndex = *reinterpret_cast<uint16_t*>(menuState + kMenuSelectionOffset);
-        if (selectedIndex > 1) {
+        if (selectedIndex > 1 || (!kModdedLobbyBrowserAvailable && selectedIndex != 0)) {
             selectedIndex = 0;
+            SetOnlineCompatibilitySelection(self, selectedIndex);
         }
 
         const bool upDown = (GetAsyncKeyState(VK_UP) & 0x8000) != 0;
@@ -538,7 +545,7 @@ namespace {
         g_previousOnlineEscape = escapeDown;
 
         if (movePressed) {
-            selectedIndex = selectedIndex == 0 ? 1 : 0;
+            selectedIndex = kModdedLobbyBrowserAvailable && selectedIndex == 0 ? 1 : 0;
             SetOnlineCompatibilitySelection(self, selectedIndex);
             return self;
         }
@@ -880,7 +887,8 @@ namespace {
         LogLine(buildStream.str());
 
         AddOnlineCompatibilityHotspot(compatibilityHandler, self, 289.0f, 147.5f, 539.0f, 202.5f, reinterpret_cast<uintptr_t>(&SelectPlayVanilla), reinterpret_cast<uintptr_t>(&PlayVanillaClicked));
-        AddOnlineCompatibilityHotspot(compatibilityHandler, self, 289.0f, 212.5f, 539.0f, 267.5f, reinterpret_cast<uintptr_t>(&SelectPlayModded), reinterpret_cast<uintptr_t>(&PlayModdedClicked));
+        if (kModdedLobbyBrowserAvailable)
+            AddOnlineCompatibilityHotspot(compatibilityHandler, self, 289.0f, 212.5f, 539.0f, 267.5f, reinterpret_cast<uintptr_t>(&SelectPlayModded), reinterpret_cast<uintptr_t>(&PlayModdedClicked));
 
         compatibilityHandler->owner = self;
         compatibilityHandler->updateCallback = reinterpret_cast<void*>(&OnlineCompatibilityUpdate);
@@ -1135,6 +1143,7 @@ if (menuId == kOnlineLobbyMenuId && GetOnlineCompatibilityMode() == OnlineCompat
             const uintptr_t compatibilityState = handlerTable ? handlerTable + kOnlineCompatibilityMenuId * kMenuHandlerSize : 0;
             if (currentHandler == compatibilityState) {
                 uint16_t selectedIndex = *reinterpret_cast<uint16_t*>(compatibilityState + kMenuSelectionOffset);
+                if (selectedIndex != 0 && !kModdedLobbyBrowserAvailable) return PlayModdedClicked(reinterpret_cast<int>(self));
                 OnlineCompatibilityMode mode = selectedIndex == 0 ? OnlineCompatibilityMode::Vanilla : OnlineCompatibilityMode::Modded;
                 std::ostringstream stream;
                 stream << "[OnlineCompatibility] Intercept lobby from compatibility selected=" << selectedIndex

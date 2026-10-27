@@ -126,6 +126,19 @@ bool Import(const std::uint8_t* data, std::size_t bytes, bool selector, unsigned
                 const auto font=U16(p.data()+flags+2); if (!map[font]) return false;
                 Set16(p,flags+2,map[font]);
             }
+            if (selector && old==290) {
+                // Keep the original artwork intact; mark the unfinished browser
+                // entry unavailable only in the imported runtime definition.
+                constexpr char original[] = "Play Modded!";
+                constexpr char unavailable[] = "Play Modded - soon";
+                const auto text=std::search(p.begin(),p.end(),std::begin(original),std::end(original));
+                if (text==p.end() || !(p[flags]&1) || !(p[flags]&4) || flags+10>p.size()) return false;
+                const auto offset=static_cast<std::size_t>(text-p.begin());
+                p.erase(p.begin()+offset,p.begin()+offset+sizeof(original));
+                p.insert(p.begin()+offset,std::begin(unavailable),std::end(unavailable));
+                Set16(p,flags+4,300); // 15 px, fits the existing button bounds.
+                p[flags+6]=p[flags+7]=p[flags+8]=0x99; p[flags+9]=0xFF;
+            }
         }
         AppendTag(definitions,t.code,p);
     }

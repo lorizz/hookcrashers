@@ -210,22 +210,22 @@ unlockText.ntext = GetLocalization("characters.troll.unlock");
 
 ## Multiplayer Notes
 
-Expanded multiplayer character sync currently keeps the original packet replacement disabled. The stable path is to let the game use its original sync packet while HookCrashers patches the roster split/loop limits and rebuilt lobby character tables.
+With addon characters loaded, HookCrashers uses expanded character synchronization
+(HC protocol 6). Joining clients adopt the host's Classic/Fresh mode. Without
+addons, the native synchronization path is retained.
 
-Practical rules for testing:
-
-- Every modded player should use the same HookCrashers build.
-- Every modded player should use the same folder mods.
-- Character registration order must match.
-- Vanilla clients are not protected yet. A vanilla client can still join and may desync or crash when addon slots are involved.
-
-A future mod manifest/lobby compatibility layer should make modded lobbies visible only to compatible clients or provide a clear modded/vanilla choice before joining.
+- All modded players must use a compatible HookCrashers build (5.1.1 or 5.1.1-dev),
+  the same folder mods and the same character registration order.
+- Use Play Vanilla to open the native multiplayer flow; installed mods remain loaded.
+- Play Modded - soon is disabled while the custom lobby browser is unfinished.
+- Old HC protocol packets are rejected. Unmodified clients are not guaranteed
+  compatible with addon characters.
 
 ## C++ ASI API
 
-Advanced binary mods use the `HookCrashers-SDK.zip` asset published with each
-HookCrashers release. It contains `include/HookCrashers.h` and the Win32/x86
-import library `lib/HookCrashers.lib`.
+Advanced binary mods use the `HookCrashers-SDK-Win32.zip` asset published with each
+HookCrashers release. It contains `sdk/include/HookCrashers.h` and the Win32/x86
+import library `sdk/lib/HookCrashers.lib`, plus examples and a setup tutorial.
 
 Native ASIs are folder mods. Do not place an ASI directly in the `mods` root:
 
