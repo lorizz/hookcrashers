@@ -10,6 +10,7 @@
 #include <windows.h>
 #include <detours.h>
 #include <algorithm>
+#include <atomic>
 #include <cctype>
 #include <cstdio>
 #include <cstdint>
@@ -49,6 +50,7 @@ using SWFNodeCtorLoadCOK6Fn = char*(__thiscall*)(char* thisPtr, int a2, int path
 SWFSceneParseHeaderFn g_OriginalSWFSceneParseHeader = nullptr;
 SWFNodeCtorLoadCOK6Fn g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
 thread_local std::string g_CurrentCok6Path;
+std::atomic<bool> g_CharacterPatchesEnabled {false};
 using OwnedPatchedBuffers = std::vector<std::unique_ptr<std::vector<std::uint8_t>>>;
 OwnedPatchedBuffers g_OwnedPatchedBuffers;
 std::mutex g_OwnedPatchedBuffersMutex;
@@ -1105,9 +1107,10 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     auto* swfScene = reinterpret_cast<SWFScene*>(scene);
     OwnedPatchedBuffers stagedBuffers;
     DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "before_patch");
-    const bool patchedSave = TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path, stagedBuffers);
-    const bool patchedClassicSelection = TryPatchLobbyClassicSelectionLimit(swfScene, g_CurrentCok6Path, stagedBuffers);
-    const bool patchedLobby = TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path, stagedBuffers);
+    const bool characterPatches = g_CharacterPatchesEnabled.load();
+    const bool patchedSave = characterPatches && TryPatchMainSaveSystem(swfScene, g_CurrentCok6Path, stagedBuffers);
+    const bool patchedClassicSelection = characterPatches && TryPatchLobbyClassicSelectionLimit(swfScene, g_CurrentCok6Path, stagedBuffers);
+    const bool patchedLobby = characterPatches && TryPatchLobbyPortraitFrames(swfScene, g_CurrentCok6Path, stagedBuffers);
     if (patchedClassicSelection || patchedLobby) {
         DumpLobbyRuntimeCok6(swfScene, g_CurrentCok6Path, "after_patch");
     }
@@ -1135,8 +1138,9 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
 
 } // namespace
 
-bool Cok6LoadHook::Install() {
+bool Cok6LoadHook::Install(bool enableCharacterPatches) {
     if (g_OriginalSWFSceneParseHeader || g_OriginalSWFNodeCtorLoadCOK6) {
+        if (enableCharacterPatches) g_CharacterPatchesEnabled.store(true);
         Core::Logger::Info("Cok6LoadHook already installed");
         return true;
     }
@@ -1164,10 +1168,17 @@ bool Cok6LoadHook::Install() {
     }
     const LONG commit = DetourTransactionCommit();
     Core::Logger::Info("Cok6LoadHook commit result=%ld", commit);
+    if (commit == NO_ERROR) {
+        if (enableCharacterPatches) g_CharacterPatchesEnabled.store(true);
+    } else {
+        g_OriginalSWFSceneParseHeader = nullptr;
+        g_OriginalSWFNodeCtorLoadCOK6 = nullptr;
+    }
     return commit == NO_ERROR;
 }
 
 void Cok6LoadHook::Remove() {
+    g_CharacterPatchesEnabled.store(false);
     if (!g_OriginalSWFSceneParseHeader && !g_OriginalSWFNodeCtorLoadCOK6) {
         return;
     }

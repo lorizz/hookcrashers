@@ -102,7 +102,7 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     if (!HookCrashers::UI::UpdatePromptMenu::Install()) {
         HookCrashers::Core::Logger::Warn("Update prompt menu hook failed to install");
     }
-    if (!HookCrashers::SWF::Cok6LoadHook::Install() || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
+    if (!HookCrashers::SWF::Cok6LoadHook::Install(false) || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
         HookCrashers::Core::Logger::Error("Online compatibility menus could not be installed");
     }
 

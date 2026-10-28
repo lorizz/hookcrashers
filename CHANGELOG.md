@@ -2,6 +2,11 @@
 
 ## 5.1.2-dev - 2026-10-28
 
+### Fixed
+
+- Restored the 5.0.0–5.0.4 character-patch activation behavior. Starting the online menus alone no longer replaces MAIN's `f_InitSaveSystem` or changes lobby character selectors. Registered character addons and explicit Lua/C++ character-expansion installs still enable the existing expansion patches. This preserves custom MAIN initialization in installations without character expansion.
+- Crash reports now include the exact HookCrashers version and bounded register/stack memory samples. Stack labels derived only from the nearest export are marked as unverified so an unrelated API export is not mistaken for the crashing function.
+
 ### Added
 
 - Four texture quality presets in order: Low (0), Medium (1), High (2), Ultra (3). High reuses the original localized label in all eleven languages.
@@ -15,6 +20,7 @@
 
 ### Validation
 
+- Offline production-loader regression checks passed on the stock MAIN and the tester's modified MAIN: menu-only startup preserves each file byte-for-byte, explicit zero-addon expansion and registered-addon expansion retain initializer replacement, and activation/removal/failure/retry behavior is covered. Online-menu import is stubbed in these activation tests; the tester's in-game crash still needs a reproduction check.
 - Release/Win32 build and 6,656 isolated native comparisons passed: historical High, relocated Ultra and unchanged Low/Medium. Production configuration/menu tests cover migration, four-preset round trips and native stack signatures; hook tests cover atomic signature rejection and full attach/patch/detach restoration.
 - Historical sizing is restored; this does not revert the game's newer assets or the rest of its renderer. Full visual/gameplay verification remains necessary.
 
