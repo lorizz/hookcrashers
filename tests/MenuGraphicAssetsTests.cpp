@@ -148,6 +148,13 @@ int main() {
         Check(!Assets::Validate(s.data(), s.size(), "logo", error) && error.find("ActionScript 3") != std::string::npos, "AS3 SWF rejected");
     }
 
+    {
+        Check(!Assets::IsMainMenuMovie(menu.data(), menu.size()), "movie without playwithfriends is not MENU");
+        Bytes tags; Tag(tags, 2, Shape(5)); Tag(tags, 56, Export(5, "playwithfriends"));
+        const Bytes stock = Swf(tags);
+        Check(Assets::IsMainMenuMovie(stock.data(), stock.size()), "movie exporting playwithfriends is MENU");
+    }
+
     Bytes output;
     std::vector<std::string> imported, failures;
     std::vector<Assets::Source> sources {{logo.data(), logo.size(), "logo", "hcg_0"}};

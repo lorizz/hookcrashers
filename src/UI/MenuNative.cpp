@@ -607,7 +607,15 @@ bool OpenNow(const std::string& menuId) {
     void* handler = HandlerFor(static_cast<std::size_t>(slot));
     const std::uint16_t active = Field<std::uint16_t>(g_mainMenu, kMainActiveId);
     const std::uint16_t self = SlotMenuId(static_cast<std::size_t>(slot));
-    if (active != self) {
+    // Remember where Back should go, unless we are returning to a parent from one
+    // of its own submenus (that would make Back bounce between the two forever).
+    bool returningToParent = false;
+    if (active < Table::kTotalCount) {
+        const void* activeHandler = static_cast<std::uint8_t*>(g_table) + active * Table::kHandlerSize;
+        returningToParent = SlotOfHandler(const_cast<void*>(activeHandler)) >= 0 &&
+                            Field<std::uint16_t>(const_cast<void*>(activeHandler), kStateReturnTarget) == self;
+    }
+    if (active != self && !returningToParent) {
         Field<std::uint16_t>(handler, kStateReturnTarget) =
             active < Table::kTotalCount ? active : Table::kMainMenuId;
     }

@@ -15,6 +15,14 @@
 
 - `MenuStructs.h`: `TextMenuItem` owner and callback were swapped (owner is +0x34, callback +0x38, as the native constructor and confirm action use them).
 - Release workflow: the channel-manifest step hashed `../artifact/...` instead of `artifact/...`, so the 5.1.2 release had to be finished by hand. Manifests now get `asset_sha256` automatically.
+- Character expansion wrote `-networkBase` one byte too far (0x8D2D6 instead of 0x8D2D5): it replaced the opcode of `cmp ecx, eax` in the lobby skin lookup with `loopne`, corrupting that function whenever addon characters were registered. It now patches the `lea ecx, [edi-0x20]` immediate as intended.
+- Character expansion verifies the original bytes of all 79 constants and code patches before writing any of them; on a mismatch nothing is written. Values from an earlier install are accepted, so a Lua `InstallCharacterExpansion` followed by the automatic install still works.
+- A second `CharacterExpansion::Install` no longer detours `CC_CreateDefaultSave`/`CC_SanitizeCharacterSaveSlots` again (the hooks ran twice). The two stats-iterator bytes that were written twice now have a single owner; the result is unchanged.
+- Save redirect: the 11 `cc_save.dat`/`cc_save.dat.bak` references are verified to point at the vanilla strings before redirecting (previously only the PBP config references were).
+- Network: incoming HC5 sync packets are bounds-checked against the received message length before the roster body is copied; a truncated or malformed packet from another player is rejected instead of reading past the buffer.
+- Updater: the channel manifest download is capped at 64 KiB.
+- `NativeDB/Natives.h`: removed 38 entries that were macOS offsets or mid-function addresses (calling them crashed the game) and corrected `CC_WriteSaveFile` (0xE9280), `CC_SyncCharacterListFromSave` (0x85B90), `CC_TextMenuItemCtor` (0x153EE0) and `CC_TextMenuItemSetLocalizedText` (0x154210). Every remaining entry is a verified function entry point.
+- Menu graphics are imported only into the stock MENU movie (the one exporting `playwithfriends`), never into other movies whose path contains "menu".
 
 ### Validation
 

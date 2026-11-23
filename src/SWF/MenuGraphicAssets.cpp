@@ -321,6 +321,11 @@ std::vector<std::unique_ptr<std::vector<std::uint8_t>>> g_buffers;
 
 } // namespace
 
+bool IsMainMenuMovie(const std::uint8_t* menu, std::size_t bytes) {
+    MenuInfo info;
+    return ScanMenu(menu, bytes, info) && info.exports.count("playwithfriends") != 0;
+}
+
 bool Validate(const std::uint8_t* swf, std::size_t bytes, const std::string& exportName, std::string& error) {
     std::vector<std::uint8_t> sink;
     unsigned next = 1;
@@ -436,7 +441,6 @@ std::size_t MeasurePhysical(const std::uint8_t* b) {
 bool PatchScene(void* rawScene) {
     auto* scene = static_cast<SWFScene*>(rawScene);
     std::lock_guard<std::mutex> lock(g_lock);
-    g_inScene.clear();
     if (g_graphics.empty()) return true;
     if (!scene || !scene->swfBuffer) return false;
     const std::size_t bytes = MeasurePhysical(scene->swfBuffer);
@@ -444,6 +448,9 @@ bool PatchScene(void* rawScene) {
         Core::Logger::Error("Menu graphics: MENU buffer could not be measured; no graphics imported");
         return false;
     }
+    // Other movies whose path contains "menu" must not receive mod graphics.
+    if (!IsMainMenuMovie(scene->swfBuffer, bytes)) return true;
+    g_inScene.clear();
     std::vector<Source> sources;
     for (const Registered& graphic : g_graphics) {
         sources.push_back({graphic.swf.data(), graphic.swf.size(), graphic.exportName, graphic.alias});

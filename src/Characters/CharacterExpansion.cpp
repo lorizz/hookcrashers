@@ -11,6 +11,10 @@
 #include <windows.h>
 #include <detours.h>
 #include <cstdint>
+#include <cstring>
+#include <unordered_map>
+#include <utility>
+#include <vector>
 
 namespace HookCrashers::Characters {
 namespace {
@@ -20,6 +24,85 @@ CreateDefaultSaveFn g_OriginalCreateDefaultSave = nullptr;
 
 using SanitizeCharacterSaveSlotsFn = std::uintptr_t(__fastcall*)(void* saveManager);
 SanitizeCharacterSaveSlotsFn g_OriginalSanitizeCharacterSaveSlots = nullptr;
+bool g_DefaultSaveHookInstalled = false;
+bool g_SanitizeSaveHookInstalled = false;
+
+// Every constant patch carries the byte(s) the supported build has at that
+// address. All of them are verified before anything is written, so a different
+// build (or another mod patching the same code) leaves the game untouched.
+struct ConstantPatch {
+    std::uintptr_t rva;
+    std::uint8_t width;      // 1, 2 or 4 bytes
+    std::uint32_t original;  // value in castle.exe 0x6A4D42BF
+    std::uint32_t value;
+};
+
+struct BytePatch {
+    std::uintptr_t rva;
+    std::vector<std::uint8_t> original;
+    std::vector<std::uint8_t> replacement;
+};
+
+struct PatchSet {
+    std::vector<ConstantPatch> constants;
+    std::vector<BytePatch> bytes;
+};
+
+// Values written by an earlier install (Install can run twice: once from a Lua
+// InstallCharacterExpansion call and once automatically after all mods load).
+std::unordered_map<std::uintptr_t, std::uint32_t> g_WrittenConstants;
+
+std::uint32_t Mask(std::uint8_t width) {
+    return width >= 4 ? 0xFFFFFFFFu : ((1u << (width * 8)) - 1u);
+}
+
+std::uint32_t ReadConstant(std::uintptr_t rva, std::uint8_t width) {
+    std::uint32_t value = 0;
+    std::memcpy(&value, reinterpret_cast<const void*>(Core::Memory::Va(rva)), width);
+    return value & Mask(width);
+}
+
+bool ApplyVerified(const PatchSet& set) {
+    bool matches = true;
+    for (const ConstantPatch& patch : set.constants) {
+        const std::uint32_t current = ReadConstant(patch.rva, patch.width);
+        const auto previous = g_WrittenConstants.find(patch.rva);
+        const bool known = current == (patch.original & Mask(patch.width)) ||
+                           (previous != g_WrittenConstants.end() && current == previous->second);
+        if (!known) {
+            Core::Logger::Error("Character expansion: unexpected value at rva=0x%08X width=%u current=0x%X expected=0x%X",
+                                static_cast<unsigned>(patch.rva), patch.width, current, patch.original);
+            matches = false;
+        }
+    }
+    for (const BytePatch& patch : set.bytes) {
+        const auto* current = reinterpret_cast<const std::uint8_t*>(Core::Memory::Va(patch.rva));
+        if (std::memcmp(current, patch.original.data(), patch.original.size()) != 0 &&
+            std::memcmp(current, patch.replacement.data(), patch.replacement.size()) != 0) {
+            Core::Logger::Error("Character expansion: unexpected code at rva=0x%08X", static_cast<unsigned>(patch.rva));
+            matches = false;
+        }
+    }
+    if (!matches) {
+        Core::Logger::Error("Character expansion: game code does not match the supported build; no constants patched");
+        return false;
+    }
+
+    bool ok = true;
+    for (const ConstantPatch& patch : set.constants) {
+        const std::uint32_t value = patch.value & Mask(patch.width);
+        switch (patch.width) {
+        case 1: ok = Core::Memory::WriteU8(patch.rva, static_cast<int>(value)) && ok; break;
+        case 2: ok = Core::Memory::WriteU16(patch.rva, static_cast<int>(value)) && ok; break;
+        default: ok = Core::Memory::WriteU32(patch.rva, value) && ok; break;
+        }
+        g_WrittenConstants[patch.rva] = value;
+    }
+    for (const BytePatch& patch : set.bytes) {
+        ok = Core::Memory::WriteBytes(patch.rva, patch.replacement) && ok;
+    }
+    return ok;
+}
 
 std::uint8_t VanillaStartingWeapon(std::uint32_t index) {
     switch (index) {
@@ -254,115 +337,129 @@ bool PatchSaveAndRosterConstants() {
                        workshopSlotTableByteOffset,
                        workshopSkinEntryByteOffset);
 
-    bool ok = true;
+    PatchSet set;
+    auto patch = [&set](std::uintptr_t rva, std::uint8_t width, std::uint32_t original, int value) {
+        set.constants.push_back({rva, width, original, static_cast<std::uint32_t>(value)});
+    };
+    auto bytes = [&set](std::uintptr_t rva, std::vector<std::uint8_t> original, std::vector<std::uint8_t> replacement) {
+        set.bytes.push_back({rva, std::move(original), std::move(replacement)});
+    };
+
 
     // Save allocation/checksum/keybind constants from NativeDB save flow.
-    ok = Core::Memory::WriteU32(0xFD366, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0xFD390, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0xFD39A, savePayloadSize) && ok;
-    ok = Core::Memory::WriteBytes(0x130FC0, { 0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90 }) && ok;
-    ok = Core::Memory::WriteBytes(0xE9143, { 0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90 }) && ok;
-    ok = Core::Memory::WriteU32(0x131018, saveSize) && ok;
-    ok = Core::Memory::WriteU32(0x12F557, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12F560, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EEED, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EEF6, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D280 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D289 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D76B + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13D774 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13E202 + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x13E20B + 3, keybindsOffset) && ok;
-    ok = Core::Memory::WriteU32(0x12EE66, 0x832 + addonBytes) && ok;
-    ok = Core::Memory::WriteU32(0x12EE6F, 0x832 + addonBytes) && ok;
+    patch(0xfd366, 4, 0x850, saveSize);
+    patch(0xfd390, 4, 0x850, saveSize);
+    patch(0xfd39a, 4, 0x84c, savePayloadSize);
+    // Save-size validators accept any size (vanilla accepts 0x850/0x640/0x610 only).
+    bytes(0x130FC0, {0x81, 0xF9, 0x50, 0x08, 0x00, 0x00}, {0xB0, 0x01, 0xC3, 0x90, 0x90, 0x90}); // cmp ecx,0x850 -> mov al,1; ret
+    bytes(0xE9143, {0x81, 0xFE, 0x50, 0x08, 0x00, 0x00}, {0xEB, 0x2B, 0x90, 0x90, 0x90, 0x90}); // CC_ReadSaveFile size check -> jmp valid path
+    patch(0x131018, 4, 0x850, saveSize);
+    patch(0x12f557, 4, 0x820, keybindsOffset);
+    patch(0x12f560, 4, 0x820, keybindsOffset);
+    patch(0x12eeed, 4, 0x820, keybindsOffset);
+    patch(0x12eef6, 4, 0x820, keybindsOffset);
+    patch(0x13d283, 4, 0x820, keybindsOffset);
+    patch(0x13d28c, 4, 0x820, keybindsOffset);
+    patch(0x13d76e, 4, 0x820, keybindsOffset);
+    patch(0x13d777, 4, 0x820, keybindsOffset);
+    patch(0x13e205, 4, 0x820, keybindsOffset);
+    patch(0x13e20e, 4, 0x820, keybindsOffset);
+    patch(0x12ee66, 4, 0x832, 0x832 + addonBytes);
+    patch(0x12ee6f, 4, 0x832, 0x832 + addonBytes);
     // Match v4's level-offset iterator boundary exactly: one byte past the
     // relocated keybind start.
-    ok = Core::Memory::WriteU32(0x12EE34, 0x821 + addonBytes) && ok;
-    ok = Core::Memory::WriteU8(0x12F26E, saveSlotCount) && ok;
+    patch(0x12ee34, 4, 0x821, 0x821 + addonBytes);
+    patch(0x12f26e, 1, 0x2a, saveSlotCount);
 
     // Lobby character table and classic/fresh/workshop boundaries.
-    ok = Core::Memory::WriteU8(0x83110, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x83114, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU16(0x83150, pastLastNetworkId * 4) && ok;
-    ok = Core::Memory::WriteU32(0x10C895, characterTableBytes) && ok;
-    ok = Core::Memory::WriteU16(0x84771, pastLastNetworkId * 4) && ok;
-    ok = Core::Memory::WriteU8(0x8482D, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x84842, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x84A9C, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8EA30 + 2, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8EA52 + 2, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x87461, pastLastNetworkId) && ok;
+    patch(0x83110, 1, 0x49, pastLastNetworkId);
+    patch(0x83114, 1, 0x49, pastLastNetworkId);
+    patch(0x83150, 2, 0x124, pastLastNetworkId * 4);
+    patch(0x10c895, 4, 0x3990, characterTableBytes);
+    patch(0x84771, 2, 0x124, pastLastNetworkId * 4);
+    patch(0x8482d, 1, 0x21, firstWorkshopId);
+    patch(0x84842, 1, 0xe0, -networkBase);
+    patch(0x84a9c, 1, 0x49, pastLastNetworkId);
+    patch(0x8ea32, 1, 0x49, pastLastNetworkId);
+    patch(0x8ea54, 1, 0x21, firstWorkshopId);
+    patch(0x87461, 1, 0x49, pastLastNetworkId);
 
     // DLC/fresh gates and 0x1F/0x20/0x21 style base roster comparisons.
     // Keep these identical to 5.0.3: the no-DLC Classic fallback is handled
     // only for addon IDs by the SWF dispatcher and must not alter workshops.
-    ok = Core::Memory::WriteU8(0x10564A + 2, networkBase - 1) && ok;
-    ok = Core::Memory::WriteU8(0x105673 + 2, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x1056A9 + 2, networkBase + 1) && ok;
-    ok = Core::Memory::WriteU8(0x1056B7 + 2, networkBase + 11) && ok;
-    ok = Core::Memory::WriteU8(0x1056AE + 2, networkBase + 11) && ok;
-    ok = Core::Memory::WriteU8(0x1056C5 + 2, networkBase + 21) && ok;
-    ok = Core::Memory::WriteU8(0x1056BC + 2, networkBase + 21) && ok;
-    ok = Core::Memory::WriteU8(0x1056D3 + 2, networkBase + 31) && ok;
-    ok = Core::Memory::WriteU8(0x1056CA + 2, networkBase + 31) && ok;
-    ok = Core::Memory::WriteU8(0x1056DC + 2, pastLastNetworkId) && ok;
+    patch(0x10564c, 1, 0x1f, networkBase - 1);
+    patch(0x105675, 1, 0xe0, -networkBase);
+    patch(0x1056ab, 1, 0x21, networkBase + 1);
+    patch(0x1056b9, 1, 0x2b, networkBase + 11);
+    patch(0x1056b0, 1, 0x2b, networkBase + 11);
+    patch(0x1056c7, 1, 0x35, networkBase + 21);
+    patch(0x1056be, 1, 0x35, networkBase + 21);
+    patch(0x1056d5, 1, 0x3f, networkBase + 31);
+    patch(0x1056cc, 1, 0x3f, networkBase + 31);
+    patch(0x1056de, 1, 0x49, pastLastNetworkId);
 
     // Selection/portrait/workshop start.
-    ok = Core::Memory::WriteU8(0x14CFCE + 2, networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x14CFEB + 2, networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x8D695, networkBase + 1) && ok;
-    ok = Core::Memory::WriteU8(0x8D664, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8D66B, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8D2AC, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8D2D6, -networkBase) && ok;
-    ok = Core::Memory::WriteU8(0x8D2DC, firstWorkshopId) && ok;
+    // 0x14CFD0/0x14CFED belong to the stats iterator below (CC_StatsMenu at 0x14CF50);
+    // they used to be written here with networkBase and then overwritten there.
+    patch(0x8d695, 1, 0x21, networkBase + 1);
+    patch(0x8d664, 1, 0x49, pastLastNetworkId);
+    patch(0x8d66b, 1, 0x49, pastLastNetworkId);
+    patch(0x8d2ac, 1, 0x21, firstWorkshopId);
+    // `lea ecx, [edi-0x20]` at 0x8D2D3: the imm8 is at 0x8D2D5. Until 5.2.0 this wrote
+    // 0x8D2D6, the opcode of the following `cmp ecx, eax`, turning it into `loopne`.
+    patch(0x8d2d5, 1, 0xe0, -networkBase);
+    patch(0x8d2dc, 1, 0x21, firstWorkshopId);
 
     // Addon display names and workshop name fallback ranges.
-    ok = Core::Memory::WriteU8(0x8A639, -firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8A645, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8A654, firstWorkshopId - 2) && ok;
-    ok = Core::Memory::WriteU8(0x8A6E8, -firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x8A6FA, static_cast<std::uint32_t>(workshopNameBase)) && ok;
-    ok = Core::Memory::WriteU8(0x8A72B, firstWorkshopId - 2) && ok;
-    ok = Core::Memory::WriteU8(0x8FCFC, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8FDA2, firstWorkshopId - 1) && ok;
-    ok = Core::Memory::WriteU8(0x8A7A0, pastLastNetworkId) && ok;
+    patch(0x8a639, 1, 0xdf, -firstWorkshopId);
+    patch(0x8a645, 1, 0x20, firstWorkshopId - 1);
+    patch(0x8a654, 1, 0x1f, firstWorkshopId - 2);
+    patch(0x8a6e8, 1, 0xdf, -firstWorkshopId);
+    patch(0x8a6fa, 4, 0x398, static_cast<std::uint32_t>(workshopNameBase));
+    patch(0x8a72b, 1, 0x1f, firstWorkshopId - 2);
+    patch(0x8fcfc, 1, 0x21, firstWorkshopId - 1);
+    patch(0x8fda2, 1, 0x21, firstWorkshopId - 1);
+    patch(0x8a7a0, 1, 0x49, pastLastNetworkId);
 
     // Lobby workshop/addon behavior.
-    ok = Core::Memory::WriteU8(0x8406D, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8EBA4, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8EBE6, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU32(0x106117, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
-    ok = Core::Memory::WriteU8(0x105F2A, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x8FC81, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x8FC95, pastLastNetworkId) && ok;
-    ok = Core::Memory::WriteU8(0x105DF6, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x1608AA, -firstWorkshopId) && ok;
+    patch(0x8406d, 1, 0x21, firstWorkshopId);
+    patch(0x8eba4, 1, 0x49, pastLastNetworkId);
+    patch(0x8ebe6, 1, 0x49, pastLastNetworkId);
+    patch(0x106117, 4, 0x21, static_cast<std::uint32_t>(firstWorkshopId));
+    patch(0x105f2a, 1, 0x21, firstWorkshopId);
+    patch(0x8fc81, 1, 0x49, pastLastNetworkId);
+    patch(0x8fc95, 1, 0x49, pastLastNetworkId);
+    patch(0x105df6, 1, 0x21, firstWorkshopId);
+    patch(0x1608aa, 1, 0xdf, -firstWorkshopId);
 
     // Stats menu character iterator. Classic addons use classic frames; fresh addons move
     // the workshop block after the expanded fresh roster.
-    ok = Core::Memory::WriteU32(0x14CF64, static_cast<std::uint32_t>(statsTotalCount)) && ok;
-    ok = Core::Memory::WriteU8(0x14CFBF, statsTotalCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CF76, statsClassicCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CFA4, statsClassicCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CFD0, statsFreshCount) && ok;
-    ok = Core::Memory::WriteU8(0x14CFED, statsFreshCount) && ok;
+    patch(0x14cf64, 4, 0x2a, static_cast<std::uint32_t>(statsTotalCount));
+    patch(0x14cfbf, 1, 0x2a, statsTotalCount);
+    patch(0x14cf76, 1, 0x1f, statsClassicCount);
+    patch(0x14cfa4, 1, 0x1f, statsClassicCount);
+    patch(0x14cfd0, 1, 0x20, statsFreshCount);
+    patch(0x14cfed, 1, 0x20, statsFreshCount);
 
     // Ready-state workshop validation.
-    ok = Core::Memory::WriteU8(0x87C5C, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x87D7E, static_cast<std::uint32_t>(workshopSkinEntryByteOffset)) && ok;
-    ok = Core::Memory::WriteU8(0x87DDC, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU32(0x87E96, static_cast<std::uint32_t>(workshopSlotTableByteOffset)) && ok;
-    ok = Core::Memory::WriteU32(0x87E9B, static_cast<std::uint32_t>(firstWorkshopId)) && ok;
-    ok = Core::Memory::WriteU8(0x87FC8, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x88047, firstWorkshopId) && ok;
-    ok = Core::Memory::WriteU8(0x88090, pastLastNetworkId) && ok;
+    patch(0x87c5c, 1, 0x21, firstWorkshopId);
+    patch(0x87d7e, 4, 0x122c, static_cast<std::uint32_t>(workshopSkinEntryByteOffset));
+    patch(0x87ddc, 1, 0x21, firstWorkshopId);
+    patch(0x87e96, 4, 0x122c, static_cast<std::uint32_t>(workshopSlotTableByteOffset));
+    patch(0x87e9b, 4, 0x21, static_cast<std::uint32_t>(firstWorkshopId));
+    patch(0x87fc8, 1, 0x21, firstWorkshopId);
+    patch(0x88047, 1, 0x21, firstWorkshopId);
+    patch(0x88090, 1, 0x49, pastLastNetworkId);
 
+
+    const bool ok = ApplyVerified(set);
     Core::Logger::Info("PatchSaveAndRosterConstants result=%d", ok ? 1 : 0);
     return ok;
 }
 
 bool InstallDefaultSaveHook() {
+    // A second Install must not detour the trampoline again (the hook would run twice).
+    if (g_DefaultSaveHookInstalled) return true;
     g_OriginalCreateDefaultSave =
         reinterpret_cast<CreateDefaultSaveFn>(NativeDB::NativeAddress(NativeDB::Natives::CC_CreateDefaultSave));
 
@@ -373,14 +470,18 @@ bool InstallDefaultSaveHook() {
     if (attach != NO_ERROR) {
         Core::Logger::Error("DetourAttach CC_CreateDefaultSave failed: %ld", attach);
         DetourTransactionAbort();
+        g_OriginalCreateDefaultSave = nullptr;
         return false;
     }
     const LONG commit = DetourTransactionCommit();
     Core::Logger::Info("CC_CreateDefaultSave detour commit result=%ld", commit);
-    return commit == NO_ERROR;
+    g_DefaultSaveHookInstalled = commit == NO_ERROR;
+    if (!g_DefaultSaveHookInstalled) g_OriginalCreateDefaultSave = nullptr;
+    return g_DefaultSaveHookInstalled;
 }
 
 bool InstallSanitizeSaveHook() {
+    if (g_SanitizeSaveHookInstalled) return true;
     g_OriginalSanitizeCharacterSaveSlots =
         reinterpret_cast<SanitizeCharacterSaveSlotsFn>(
             NativeDB::NativeAddress(NativeDB::Natives::CC_SanitizeCharacterSaveSlots));
@@ -395,11 +496,14 @@ bool InstallSanitizeSaveHook() {
     if (attach != NO_ERROR) {
         Core::Logger::Error("DetourAttach CC_SanitizeCharacterSaveSlots failed: %ld", attach);
         DetourTransactionAbort();
+        g_OriginalSanitizeCharacterSaveSlots = nullptr;
         return false;
     }
     const LONG commit = DetourTransactionCommit();
     Core::Logger::Info("CC_SanitizeCharacterSaveSlots detour commit result=%ld", commit);
-    return commit == NO_ERROR;
+    g_SanitizeSaveHookInstalled = commit == NO_ERROR;
+    if (!g_SanitizeSaveHookInstalled) g_OriginalSanitizeCharacterSaveSlots = nullptr;
+    return g_SanitizeSaveHookInstalled;
 }
 
 } // namespace
@@ -425,7 +529,7 @@ void CharacterExpansion::Remove() {
     Core::Logger::Info("CharacterExpansion::Remove begin");
     Network::CharacterSyncExpansion::Remove();
     SWF::Cok6LoadHook::Remove();
-    if (g_OriginalSanitizeCharacterSaveSlots) {
+    if (g_SanitizeSaveHookInstalled) {
         DetourTransactionBegin();
         DetourUpdateThread(GetCurrentThread());
         DetourDetach(
@@ -433,8 +537,9 @@ void CharacterExpansion::Remove() {
             DetouredSanitizeCharacterSaveSlots);
         DetourTransactionCommit();
         g_OriginalSanitizeCharacterSaveSlots = nullptr;
+        g_SanitizeSaveHookInstalled = false;
     }
-    if (!g_OriginalCreateDefaultSave) {
+    if (!g_DefaultSaveHookInstalled) {
         Core::Logger::Info("CharacterExpansion::Remove no default save hook installed");
         return;
     }
@@ -443,6 +548,7 @@ void CharacterExpansion::Remove() {
     DetourDetach(reinterpret_cast<PVOID*>(&g_OriginalCreateDefaultSave), DetouredCreateDefaultSave);
     DetourTransactionCommit();
     g_OriginalCreateDefaultSave = nullptr;
+    g_DefaultSaveHookInstalled = false;
     Core::Logger::Info("CharacterExpansion::Remove complete");
 }
 

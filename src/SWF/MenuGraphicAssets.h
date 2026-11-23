@@ -24,6 +24,9 @@ enum class RegisterResult : int {
 constexpr std::size_t kMaxGraphics = 64;
 constexpr std::size_t kMaxSwfBytes = 8u * 1024 * 1024;
 
+// True for the stock main-menu movie (it exports "playwithfriends").
+bool IsMainMenuMovie(const std::uint8_t* menu, std::size_t bytes);
+
 // Pure validation: true when `exportName` is an exported sprite that Import can copy.
 bool Validate(const std::uint8_t* swf, std::size_t bytes, const std::string& exportName, std::string& error);
 

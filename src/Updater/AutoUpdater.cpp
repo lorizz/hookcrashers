@@ -202,7 +202,13 @@ std::string HttpGetText(const char* url) {
     std::string result;
     std::array<char, 4096> buffer {};
     DWORD bytesRead = 0;
+    constexpr std::size_t kMaxManifestBytes = 64 * 1024; // a channel manifest is < 1 KiB
     while (InternetReadFile(request, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead) && bytesRead != 0) {
+        if (result.size() + bytesRead > kMaxManifestBytes) {
+            Core::Logger::Warn("Update manifest exceeds %u bytes; ignored", static_cast<unsigned>(kMaxManifestBytes));
+            result.clear();
+            break;
+        }
         result.append(buffer.data(), bytesRead);
     }
 
