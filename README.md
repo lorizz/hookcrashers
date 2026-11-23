@@ -291,3 +291,12 @@ without requiring mods to link against HookCrashers internals.
 HookCrashers is intended for modding, research, and creative extension of Castle Crashers Remastered.
 
 Do not use HookCrashers to build cheats, trainers, piracy tools, DLC unlockers, or anything designed to give an unfair multiplayer advantage. Mod responsibly and keep backups of original game files and saves.
+
+## License
+
+HookCrashers is free software, licensed under the
+[GNU General Public License v3.0](LICENSE). You can study, modify and
+redistribute it; redistributed or modified versions must stay under the GPL,
+publish their source code and keep the original copyright notices.
+
+Copyright (C) 2024-2026 Alessandro Burza (ilVonBurza / lorizz).
