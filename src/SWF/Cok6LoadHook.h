@@ -4,7 +4,9 @@ namespace HookCrashers::SWF {
 
 class Cok6LoadHook {
 public:
-    static bool Install();
+    // CharacterExpansion uses the default, including explicit Lua/C++ installs.
+    // Menu startup only needs the loader and must pass false.
+    static bool Install(bool enableCharacterPatches = true);
     static void Remove();
 };
 

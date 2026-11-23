@@ -8,3 +8,22 @@ __pycache__/
 /sdk-package/
 /sdk-smoke/
 /HookCrashers-SDK-Win32.zip
+
+# Visual Studio build output (never commit: contains local paths)
+/Debug/
+/x64/
+HookCrashers/Debug/
+HookCrashers/x64/
+*.obj
+*.pdb
+*.idb
+*.ilk
+*.iobj
+*.ipdb
+*.pch
+*.tlog
+*.lastbuildstate
+*.recipe
+*.exp
+*.vcxproj.user
+.vs/

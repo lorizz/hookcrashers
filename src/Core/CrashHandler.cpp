@@ -1,6 +1,7 @@
 #include "CrashHandler.h"
 
 #include "Logger.h"
+#include "Version.h"
 
 #include <windows.h>
 #include <dbghelp.h>
@@ -127,6 +128,40 @@ void WriteRegisters(FILE* file, const CONTEXT& context) {
 #endif
 }
 
+// ReadProcessMemory reports unreadable addresses without raising another local
+// exception inside the first-chance crash handler. Keep all samples bounded.
+void WriteMemoryWords(FILE* file, const char* label, std::uintptr_t address, unsigned count) {
+    std::fprintf(file, "%s @ %s:\n", label, Hex(address, sizeof(void*) * 2).c_str());
+    for (unsigned i = 0; i < count; ++i) {
+        const auto offset = static_cast<std::uintptr_t>(i) * sizeof(std::uint32_t);
+        std::uint32_t word = 0;
+        SIZE_T bytes = 0;
+        if (address > UINTPTR_MAX - offset ||
+            !ReadProcessMemory(GetCurrentProcess(), reinterpret_cast<const void*>(address + offset),
+                               &word, sizeof(word), &bytes) || bytes != sizeof(word)) {
+            std::fprintf(file, "  +%02X <unreadable>\n", static_cast<unsigned>(offset));
+            break;
+        }
+        std::fprintf(file, "  +%02X %08X\n", static_cast<unsigned>(offset), word);
+    }
+}
+
+void WriteNativeMemoryContext(FILE* file, const CONTEXT& context) {
+#if defined(_M_IX86)
+    // SetMember uses ECX=receiver, EDX=vtable, EAX=name ID and ESI/EDI/EBX
+    // for the VM operand slots. These are raw samples, not validated objects.
+    std::fprintf(file, "Native memory context (raw words, not validated AVM objects):\n");
+    WriteMemoryWords(file, "ECX", context.Ecx, 8);
+    WriteMemoryWords(file, "EDX", context.Edx, 8);
+    WriteMemoryWords(file, "ESI", context.Esi, 4);
+    WriteMemoryWords(file, "EDI", context.Edi, 4);
+    WriteMemoryWords(file, "EBX", context.Ebx, 4);
+    WriteMemoryWords(file, "Stack ESP", context.Esp, 64);
+#else
+    WriteMemoryWords(file, "Stack RSP", static_cast<std::uintptr_t>(context.Rsp), 64);
+#endif
+}
+
 void WriteSymbol(FILE* file, HANDLE process, DWORD64 address) {
     DWORD64 moduleBase = 0;
     const std::string moduleName = ModuleNameFromAddress(address, &moduleBase);
@@ -151,6 +186,9 @@ void WriteSymbol(FILE* file, HANDLE process, DWORD64 address) {
                  Hex(rva).c_str());
     if (hasSymbol) {
         std::fprintf(file, " %s+%llu", symbol->Name, static_cast<unsigned long long>(displacement));
+        if ((symbol->Flags & SYMFLAG_EXPORT) != 0) {
+            std::fprintf(file, " [nearest export; function identity unverified]");
+        }
     }
     if (hasLine) {
         std::fprintf(file, " (%s:%lu+%lu)", line.FileName, line.LineNumber, lineDisplacement);
@@ -235,6 +273,7 @@ void WriteCrashReport(EXCEPTION_POINTERS* info, const char* source) {
 
     std::fprintf(file, "================ HookCrashers Crash Report ================\n");
     WriteTimestamp(file);
+    std::fprintf(file, "HookCrashers version: %s\n", Version::kVersion);
     std::fprintf(file, "Source: %s\n", source ? source : "unknown");
     std::fprintf(file, "ThreadId: %lu\n", GetCurrentThreadId());
     std::fprintf(file, "Exception: %s (%s)\n", ExceptionCodeName(record->ExceptionCode), Hex(record->ExceptionCode, 8).c_str());
@@ -256,6 +295,7 @@ void WriteCrashReport(EXCEPTION_POINTERS* info, const char* source) {
         std::fprintf(file, "  Param[%lu]=%s\n", i, Hex(record->ExceptionInformation[i], sizeof(void*) == 4 ? 8 : 16).c_str());
     }
     WriteRegisters(file, *info->ContextRecord);
+    WriteNativeMemoryContext(file, *info->ContextRecord);
     WriteStack(file, *info->ContextRecord);
     std::fprintf(file, "===========================================================\n");
     std::fflush(file);

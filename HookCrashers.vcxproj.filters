@@ -203,4 +203,9 @@
     <ClInclude Include="src\Game\MenuStructs.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="src\Network\LobbyGameMode.h"><Filter>Header Files</Filter></ClInclude>
   </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\Core\GraphicsQuality.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClInclude Include="src\Core\GraphicsQuality.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Core\GraphicsQualityInternal.h"><Filter>Header Files</Filter></ClInclude>
+  </ItemGroup>
 </Project>

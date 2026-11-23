@@ -8,12 +8,14 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read
 
 jobs:
   build:
     name: Windows x86 ASI
     runs-on: windows-2022
+    permissions:
+      contents: read
     outputs:
       version: ${{ steps.version.outputs.version }}
     env:
@@ -116,7 +118,14 @@ jobs:
     name: Publish update channel
     runs-on: ubuntu-latest
     needs: build
-    if: github.event_name == 'push'
+    # Only owner pushes to main (release) or v5 (dev) publish. Other branches and
+    # pull requests (including forks) only build.
+    if: >-
+      github.event_name == 'push' &&
+      github.repository_owner == 'lorizz' &&
+      (github.ref_name == 'main' || github.ref_name == 'v5')
+    permissions:
+      contents: write
     env:
       HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
       HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
@@ -202,6 +211,7 @@ jobs:
           gh auth setup-git
           rm -rf releases-repo
           gh repo clone "${RELEASES_REPO}" releases-repo
+          ASSET_SHA256="$(sha256sum ../artifact/dist/HookCrashers.asi | cut -d' ' -f1)"
           cd releases-repo
           cat > "${HC_MANIFEST}" <<EOF
           {
@@ -210,6 +220,7 @@ jobs:
             "version": "${HC_VERSION}",
             "commit": "${GITHUB_SHA}",
             "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers.asi",
+            "asset_sha256": "${ASSET_SHA256}",
             "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-v5-dropin.zip",
             "sdk_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-SDK-Win32.zip",
             "notes": "See the ${HC_TAG} release page for patch notes."

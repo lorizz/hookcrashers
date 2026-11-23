@@ -59,6 +59,15 @@ The ImGui log overlay starts closed. Press the configured `overlay_toggle_key` (
 
 Save expansion, localization, and runtime SWF patching are driven by the loaded folder mods. Custom localization ids start at the fixed base id `5000`.
 
+## Texture Quality (5.1.2)
+
+Video Settings offers **Low, Medium, High, Ultra**, in that order. High restores
+the per-axis texture sizing used before Painter Boss Paradise; Medium keeps the
+current sizing policy. Ultra retains its existing rendering settings and uses
+value 3 internally. Existing Ultra configurations are migrated automatically.
+On a 32-bit Windows OS, the native Ultra restriction remains and High is the
+maximum. These settings are separate from Classic/Fresh multiplayer mode.
+
 ## Folder Mods
 
 Each folder inside `mods` is scanned independently. A mod uses `manifest.yaml` to declare its metadata and Lua entrypoints.
@@ -291,6 +300,17 @@ without requiring mods to link against HookCrashers internals.
 HookCrashers is intended for modding, research, and creative extension of Castle Crashers Remastered.
 
 Do not use HookCrashers to build cheats, trainers, piracy tools, DLC unlockers, or anything designed to give an unfair multiplayer advantage. Mod responsibly and keep backups of original game files and saves.
+
+## Updates and Security
+
+The in-game updater only installs `HookCrashers.asi` builds published on
+[lorizz/hookcrashers-releases](https://github.com/lorizz/hookcrashers-releases).
+Each channel manifest carries the SHA-256 of the release asset, and the updater
+refuses any download whose hash does not match or whose URL points elsewhere.
+Release builds are produced by the GitHub Actions workflow in this repository,
+so every published binary can be traced back to a public commit.
+
+To opt out, set `updates_enabled: false` in `HookCrashers.yaml`.
 
 ## License
 

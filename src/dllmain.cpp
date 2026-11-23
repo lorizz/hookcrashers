@@ -8,8 +8,10 @@
 #include "Core/Config.h"
 #include "Core/CrashHandler.h"
 #include "Core/GamePoolExpansion.h"
+#include "Core/GraphicsQuality.h"
 #include "Core/Logger.h"
 #include "Core/ModLoader.h"
+#include "Core/Version.h"
 #include "NativeDB/Natives.h"
 #include "Localization/LocalizationSystem.h"
 #include "Save/SaveFileRedirect.h"
@@ -25,6 +27,22 @@ namespace {
 
 constexpr std::uintptr_t kSteam32TargetAddress = 0x0085E310;
 constexpr std::uintptr_t kPePreferredImageBase = 0x00400000;
+// The SteamStub entry point above is identical across Steam builds, so it cannot
+// tell game updates apart. Every RVA in HookCrashers targets this exact build
+// (castle.exe linked 2026-07-07 18:17:35 UTC); refuse anything else before patching.
+constexpr DWORD kSupportedTimeDateStamp = 0x6A4D42BF;
+
+DWORD ReadTimeDateStamp(std::uintptr_t moduleBase) {
+    if (moduleBase == 0) {
+        return 0;
+    }
+    auto* dos = reinterpret_cast<IMAGE_DOS_HEADER*>(moduleBase);
+    if (dos->e_magic != IMAGE_DOS_SIGNATURE) {
+        return 0;
+    }
+    auto* nt = reinterpret_cast<IMAGE_NT_HEADERS*>(moduleBase + dos->e_lfanew);
+    return nt->Signature == IMAGE_NT_SIGNATURE ? nt->FileHeader.TimeDateStamp : 0;
+}
 
 std::uintptr_t ReadTargetAddress(std::uintptr_t moduleBase) {
     if (moduleBase == 0) {
@@ -53,6 +71,11 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     auto module = static_cast<HMODULE>(parameter);
     HookCrashers::Core::Logger::Initialize(module);
     HookCrashers::Core::Logger::Info("Bootstrap thread started");
+    if (HookCrashers::Core::GraphicsQuality::IsInstalled()) {
+        HookCrashers::Core::Logger::Info("Graphics presets: Low=0 Medium=1 High=2 Ultra=3; historical High enabled");
+    } else {
+        HookCrashers::Core::Logger::Error("Four graphics presets disabled: %s", HookCrashers::Core::GraphicsQuality::FailureReason());
+    }
 
 
     HookCrashers::Core::CrashHandler::Install(HookCrashers::Core::Logger::ModuleDirectory());
@@ -62,6 +85,29 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     HookCrashers::Core::Logger::Info("Game base=0x%08X targetAddress=0x%08X",
                                     static_cast<unsigned int>(gameBase),
                                     static_cast<unsigned int>(targetAddress));
+    const DWORD timeDateStamp = ReadTimeDateStamp(gameBase);
+    HookCrashers::Core::Logger::Info("Game TimeDateStamp=0x%08X supported=0x%08X",
+                                    static_cast<unsigned int>(timeDateStamp),
+                                    static_cast<unsigned int>(kSupportedTimeDateStamp));
+    if (timeDateStamp != kSupportedTimeDateStamp) {
+        HookCrashers::Core::Logger::Error("Unsupported game build. Expected TimeDateStamp=0x%08X current=0x%08X; no patches applied",
+                                         static_cast<unsigned int>(kSupportedTimeDateStamp),
+                                         static_cast<unsigned int>(timeDateStamp));
+        char message[320] {};
+        std::snprintf(message,
+                      sizeof(message),
+                      "This Castle Crashers build is not supported by HookCrashers %s.\n"
+                      "Expected build: 0x%08X\n"
+                      "Current build: 0x%08X\n\n"
+                      "The game was probably updated by Steam. HookCrashers made no changes;\n"
+                      "check for a HookCrashers update. See HookCrashers.log for details.",
+                      HookCrashers::Core::Version::kVersion,
+                      static_cast<unsigned int>(kSupportedTimeDateStamp),
+                      static_cast<unsigned int>(timeDateStamp));
+        MessageBoxA(nullptr, message, "HookCrashers", MB_ICONERROR | MB_OK);
+        return 1;
+    }
+
     if (!IsSupportedTarget(targetAddress)) {
         HookCrashers::Core::Logger::Error("Unsupported target. Expected=0x%08X current=0x%08X",
                                          static_cast<unsigned int>(kSteam32TargetAddress),
@@ -96,7 +142,7 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     if (!HookCrashers::UI::UpdatePromptMenu::Install()) {
         HookCrashers::Core::Logger::Warn("Update prompt menu hook failed to install");
     }
-    if (!HookCrashers::SWF::Cok6LoadHook::Install() || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
+    if (!HookCrashers::SWF::Cok6LoadHook::Install(false) || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
         HookCrashers::Core::Logger::Error("Online compatibility menus could not be installed");
     }
 
@@ -170,11 +216,14 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         DisableThreadLibraryCalls(module);
 
         const auto gameBase = reinterpret_cast<std::uintptr_t>(GetModuleHandleA(nullptr));
-        if (IsSupportedTarget(ReadTargetAddress(gameBase))) {
+        // Unsupported builds skip the early patches; BootstrapThread reports them.
+        if (IsSupportedTarget(ReadTargetAddress(gameBase)) &&
+            ReadTimeDateStamp(gameBase) == kSupportedTimeDateStamp) {
             HookCrashers::NativeDB::SetGameBase(gameBase);
             if (!HookCrashers::SWF::SWFStringTableExpansion::Install()) {
                 return FALSE;
             }
+            HookCrashers::Core::GraphicsQuality::Install();
         }
 
         HANDLE thread = CreateThread(nullptr, 0, BootstrapThread, module, 0, nullptr);
@@ -185,6 +234,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         }
     } else if (reason == DLL_PROCESS_DETACH) {
         HookCrashers::Core::Logger::Info("DllMain PROCESS_DETACH");
+        HookCrashers::Core::GraphicsQuality::Shutdown();
         HookCrashers::Characters::CurrentData::Shutdown();
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::Save::RemoveMenuOnlineCompatibilityHook();
