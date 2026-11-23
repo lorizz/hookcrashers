@@ -300,3 +300,23 @@ without requiring mods to link against HookCrashers internals.
 HookCrashers is intended for modding, research, and creative extension of Castle Crashers Remastered.
 
 Do not use HookCrashers to build cheats, trainers, piracy tools, DLC unlockers, or anything designed to give an unfair multiplayer advantage. Mod responsibly and keep backups of original game files and saves.
+
+## Updates and Security
+
+The in-game updater only installs `HookCrashers.asi` builds published on
+[lorizz/hookcrashers-releases](https://github.com/lorizz/hookcrashers-releases).
+Each channel manifest carries the SHA-256 of the release asset, and the updater
+refuses any download whose hash does not match or whose URL points elsewhere.
+Release builds are produced by the GitHub Actions workflow in this repository,
+so every published binary can be traced back to a public commit.
+
+To opt out, set `updates_enabled: false` in `HookCrashers.yaml`.
+
+## License
+
+HookCrashers is free software, licensed under the
+[GNU General Public License v3.0](LICENSE). You can study, modify and
+redistribute it; redistributed or modified versions must stay under the GPL,
+publish their source code and keep the original copyright notices.
+
+Copyright (C) 2024-2026 Alessandro Burza (ilVonBurza / lorizz).

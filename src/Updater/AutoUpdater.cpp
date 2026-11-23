@@ -13,6 +13,7 @@
 #include <cctype>
 #include <cstdio>
 #include <fstream>
+#include <iterator>
 #include <limits>
 #include <sstream>
 #include <string>
@@ -36,8 +37,12 @@ struct UpdateManifest {
     std::string version;
     std::string channel;
     std::string assetUrl;
+    std::string assetSha256;
     std::string notes;
 };
+
+// Updates are only ever installed from the official release mirror.
+constexpr const char* kTrustedAssetPrefix = "https://github.com/lorizz/hookcrashers-releases/releases/download/";
 
 UpdateManifest g_availableManifest;
 std::string g_moduleDirectory;
@@ -246,6 +251,7 @@ bool ParseManifest(const std::string& json, UpdateManifest& manifest) {
     manifest.version = JsonStringValue(json, "version");
     manifest.channel = JsonStringValue(json, "channel");
     manifest.assetUrl = JsonStringValue(json, "asset_url");
+    manifest.assetSha256 = ToLower(JsonStringValue(json, "asset_sha256"));
     manifest.notes = JsonStringValue(json, "notes");
     return !manifest.version.empty() && !manifest.assetUrl.empty();
 }
@@ -331,10 +337,44 @@ bool WriteUpdaterScript(const std::string& moduleDirectory,
     return true;
 }
 
+bool VerifyDownloadedAsset(const std::string& path, const std::string& expectedSha256) {
+    std::ifstream input(path, std::ios::in | std::ios::binary);
+    if (!input) {
+        Core::Logger::Error("Update verification: cannot read downloaded asset");
+        return false;
+    }
+    const std::string data((std::istreambuf_iterator<char>(input)), std::istreambuf_iterator<char>());
+    std::string actual;
+    if (data.empty() || !Sha256Hex(data, actual)) {
+        Core::Logger::Error("Update verification: cannot hash downloaded asset");
+        return false;
+    }
+    if (actual != expectedSha256) {
+        Core::Logger::Error("Update verification failed: expected sha256=%s actual=%s",
+                            expectedSha256.c_str(), actual.c_str());
+        return false;
+    }
+    Core::Logger::Info("Update verification passed sha256=%s", actual.c_str());
+    return true;
+}
+
 bool InstallUpdate(const std::string& moduleDirectory, const UpdateManifest& manifest) {
+    if (manifest.assetUrl.rfind(kTrustedAssetPrefix, 0) != 0) {
+        Core::Logger::Error("Refusing update from untrusted URL '%s'", manifest.assetUrl.c_str());
+        return false;
+    }
+    if (manifest.assetSha256.size() != 64) {
+        Core::Logger::Error("Refusing update: manifest has no valid asset_sha256");
+        return false;
+    }
+
     const std::string downloadedAsi = JoinPath(moduleDirectory, "HookCrashers.asi.update");
     if (!DownloadFile(manifest.assetUrl, downloadedAsi)) {
         Core::Logger::Error("Failed to download update asset '%s'", manifest.assetUrl.c_str());
+        return false;
+    }
+    if (!VerifyDownloadedAsset(downloadedAsi, manifest.assetSha256)) {
+        DeleteFileA(downloadedAsi.c_str());
         return false;
     }
 
