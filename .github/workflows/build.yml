@@ -211,7 +211,7 @@ jobs:
           gh auth setup-git
           rm -rf releases-repo
           gh repo clone "${RELEASES_REPO}" releases-repo
-          ASSET_SHA256="$(sha256sum ../artifact/dist/HookCrashers.asi | cut -d' ' -f1)"
+          ASSET_SHA256="$(sha256sum artifact/dist/HookCrashers.asi | cut -d' ' -f1)"
           cd releases-repo
           cat > "${HC_MANIFEST}" <<EOF
           {

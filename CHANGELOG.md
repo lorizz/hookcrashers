@@ -1,5 +1,25 @@
 # Changelog
 
+## 5.2.0-dev
+
+### Added
+
+- Menu API (experimental): mods can build native in-game menus from Lua (`HC.Menu`) and C++ (`HookCrashers::Menu`) with buttons, On/Off toggles, option choices, submenus, labels and graphics from the mod's own SWF. Menus use the game's own book background, navigation, controller input, sounds, fades and Back button. See `docs/menu-api.md` and `examples/mods/MenuExample`.
+- Menu graphics: `HC.Menu.RegisterGraphic` imports an exported sprite of an uncompressed AS2 SWF into MENU with fresh character ids. Unsupported content (bitmaps, buttons, static text, video, PlaceObject3, compressed or AS3 SWFs) is rejected with a clear log message instead of being imported.
+
+### Changed
+
+- The main-menu handler table now has 64 entries (46 vanilla, 2 online menus, 16 mod menus). The patch lives in a shared module, verifies the original bytes and is used by both the online menus and the Menu API.
+
+### Fixed
+
+- `MenuStructs.h`: `TextMenuItem` owner and callback were swapped (owner is +0x34, callback +0x38, as the native constructor and confirm action use them).
+- Release workflow: the channel-manifest step hashed `../artifact/...` instead of `artifact/...`, so the 5.1.2 release had to be finished by hand. Manifests now get `asset_sha256` automatically.
+
+### Validation
+
+- Offline: menu model (66 checks) and SWF import (29 checks, including the original online selector and lobby sprites) pass under AddressSanitizer/UBSan. Native calling conventions, layouts and callback dispatch were taken from the disassembly of the supported build. In-game behaviour has not been tested yet.
+
 ## 5.1.2 - 2026-11-23
 
 ### Open source and security

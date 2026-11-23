@@ -19,6 +19,8 @@
 #include "SWF/Cok6LoadHook.h"
 #include "Save/MenuOnlineCompatibilityHook.h"
 #include "UI/DebugOverlay.h"
+#include "UI/MenuNative.h"
+#include "UI/MenuTableExpansion.h"
 #include "UI/SplashScreen.h"
 #include "UI/UpdatePromptMenu.h"
 #include "Updater/AutoUpdater.h"
@@ -145,6 +147,9 @@ DWORD WINAPI BootstrapThread(void* parameter) {
     if (!HookCrashers::SWF::Cok6LoadHook::Install(false) || !HookCrashers::Save::SetupMenuOnlineCompatibilityHook()) {
         HookCrashers::Core::Logger::Error("Online compatibility menus could not be installed");
     }
+    if (!HookCrashers::UI::Menus::Native::Install()) {
+        HookCrashers::Core::Logger::Warn("Menu API unavailable for this session; mod menus will not open");
+    }
 
     const HookCrashers::Core::Config::RuntimeConfig config =
         HookCrashers::Core::Config::LoadOrCreate(HookCrashers::Core::Logger::ModuleDirectory());
@@ -238,6 +243,7 @@ BOOL APIENTRY DllMain(HMODULE module, DWORD reason, LPVOID reserved) {
         HookCrashers::Characters::CurrentData::Shutdown();
         HookCrashers::UI::DebugOverlay::Shutdown();
         HookCrashers::Save::RemoveMenuOnlineCompatibilityHook();
+        HookCrashers::UI::MenuTableExpansion::Remove();
         HookCrashers::UI::UpdatePromptMenu::Remove();
         HookCrashers::Localization::Remove();
         HookCrashers::Core::ModLoader::Shutdown(false);

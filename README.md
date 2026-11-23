@@ -282,8 +282,27 @@ HookCrashers::RegisterCharacter(
 ```
 
 The current stable C++ ABI exposes version lookup, logging, character
-registration, and native confirmation prompts. Additional APIs will be added
-without requiring mods to link against HookCrashers internals.
+registration, native confirmation prompts and the Menu API. Additional APIs will
+be added without requiring mods to link against HookCrashers internals.
+
+## Menu API (experimental)
+
+Mods can create native menus without editing `menu.swf`: buttons, On/Off
+toggles, option choices, submenus, labels and graphics from the mod's own SWF.
+The game's own background, navigation, controller input, sounds and Back button
+are used.
+
+```lua
+local menu = HC.Menu.Create("mymod.settings", "My Mod")
+menu:AddToggle("hardcore", "Hardcore mode", false, function(enabled) end)
+menu:AddChoice("speed", "Speed", { "Slow", "Normal", "Fast" }, 2, function(index, text) end)
+menu:AddButton("hello", "Say hello", function() HC.CreatePrompt("Hello!") end)
+menu:Open()
+```
+
+Menus are available while the main menu is loaded. See
+[docs/menu-api.md](docs/menu-api.md) for the Lua and C++ reference, limits and
+SWF graphic requirements, and `examples/mods/MenuExample` for a complete mod.
 
 ## Troubleshooting
 

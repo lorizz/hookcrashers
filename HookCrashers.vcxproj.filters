@@ -195,9 +195,20 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\SWF\OnlineMenuAssets.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\UI\MenuModel.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\UI\MenuNative.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\UI\MenuApi.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\UI\MenuTableExpansion.cpp"><Filter>Source Files</Filter></ClCompile>
+    <ClCompile Include="src\SWF\MenuGraphicAssets.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="src\Save\MenuOnlineCompatibilityHook.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClCompile Include="src\Save\OnlineCompatibilityMode.cpp"><Filter>Source Files</Filter></ClCompile>
     <ClInclude Include="src\SWF\OnlineMenuAssets.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\UI\MenuModel.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\UI\MenuNative.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\UI\MenuApi.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\UI\MenuTableExpansion.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\SWF\MenuGraphicAssets.h"><Filter>Header Files</Filter></ClInclude>
+    <ClInclude Include="src\Game\MenuTable.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="src\Save\MenuOnlineCompatibilityHook.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="src\Save\OnlineCompatibilityMode.h"><Filter>Header Files</Filter></ClInclude>
     <ClInclude Include="src\Game\MenuStructs.h"><Filter>Header Files</Filter></ClInclude>
