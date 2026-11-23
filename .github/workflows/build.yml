@@ -118,14 +118,17 @@ jobs:
     name: Publish update channel
     runs-on: ubuntu-latest
     needs: build
-    # Only owner pushes to main (release) or v5 (dev) publish. Other branches and
-    # pull requests (including forks) only build.
-    if: >-
-      github.event_name == 'push' &&
-      github.repository_owner == 'lorizz' &&
-      (github.ref_name == 'main' || github.ref_name == 'v5')
+    # Channels: a push to main publishes the stable release; a push to any other
+    # branch publishes the dev build (testing channel). Pull requests, forks and
+    # commits whose message contains [skip ci] only build or do not run at all.
+    if: github.event_name == 'push' && github.repository_owner == 'lorizz'
     permissions:
       contents: write
+    # One publish per channel at a time: concurrent pushes to two dev branches
+    # would otherwise race on the shared "dev" release and testing.json.
+    concurrency:
+      group: publish-${{ github.ref_name == 'main' && 'release' || 'dev' }}
+      cancel-in-progress: false
     env:
       HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
       HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
