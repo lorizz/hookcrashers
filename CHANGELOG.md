@@ -1,6 +1,13 @@
 # Changelog
 
-## 5.1.2-dev - 2026-10-28
+## 5.1.2 - 2026-11-23
+
+### Open source and security
+
+- HookCrashers is now open source under the GNU GPL v3.0. The full source code and history are public at `lorizz/hookcrashers`.
+- The in-game updater installs only official builds from `lorizz/hookcrashers-releases`. It checks the SHA-256 published in the channel manifest and rejects any download whose hash or origin does not match.
+- HookCrashers now checks the exact Castle Crashers build (PE timestamp `0x6A4D42BF`) before changing the game. If Steam updates the game, HookCrashers shows a "build not supported" message and leaves the game unchanged, so it cannot corrupt saves or crash on an unknown build.
+- Release builds come from the public GitHub Actions workflow, and every published binary maps to a public commit.
 
 ### Fixed
 

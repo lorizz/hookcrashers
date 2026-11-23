@@ -118,8 +118,12 @@ jobs:
     name: Publish update channel
     runs-on: ubuntu-latest
     needs: build
-    # Only pushes by the owner publish; pull requests (including forks) never reach this job.
-    if: github.event_name == 'push' && github.repository_owner == 'lorizz'
+    # Only owner pushes to main (release) or v5 (dev) publish. Other branches and
+    # pull requests (including forks) only build.
+    if: >-
+      github.event_name == 'push' &&
+      github.repository_owner == 'lorizz' &&
+      (github.ref_name == 'main' || github.ref_name == 'v5')
     permissions:
       contents: write
     env:
