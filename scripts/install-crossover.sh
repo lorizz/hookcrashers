@@ -2,9 +2,9 @@
 set -euo pipefail
 
 REPO="${HOOKCRASHERS_REPO:-lorizz/hookcrashers}"
-TAG="${HOOKCRASHERS_TAG:-v5.0.0-draft}"
+# Empty = latest stable release; "dev" = current development build.
+TAG="${HOOKCRASHERS_TAG:-}"
 ASSET="${HOOKCRASHERS_ASSET:-HookCrashers-v5-dropin.zip}"
-PDB_ASSET="${HOOKCRASHERS_PDB_ASSET:-HookCrashers.pdb}"
 TARGET_DIR="${HOOKCRASHERS_TARGET_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers/drive_c/Program Files (x86)/Steam/steamapps/common/CastleCrashers}"
 BOTTLE_DIR="${HOOKCRASHERS_BOTTLE_DIR:-${HOME}/Library/Application Support/CrossOver/Bottles/Castle Crashers}"
 RESET_SAVE="${HOOKCRASHERS_RESET_SAVE:-0}"
@@ -17,13 +17,13 @@ trap cleanup EXIT
 
 echo "HookCrashers installer"
 echo "Repo:   $REPO"
-echo "Tag:    $TAG"
+echo "Tag:    ${TAG:-latest stable}"
 echo "Target: $TARGET_DIR"
 echo "Bottle: $BOTTLE_DIR"
 echo "Reset save: $RESET_SAVE"
 
 if ! command -v gh >/dev/null 2>&1; then
-    echo "error: GitHub CLI 'gh' is required because the v5 draft is private." >&2
+    echo "error: GitHub CLI 'gh' is required (brew install gh)." >&2
     exit 1
 fi
 
@@ -47,26 +47,22 @@ fi
 
 mkdir -p "$WORK_DIR/download" "$WORK_DIR/extract"
 
-echo "Downloading $ASSET..."
+if [[ -z "$TAG" ]]; then
+    TAG="$(gh release view --repo "$REPO" --json tagName --jq .tagName)"
+    echo "Latest stable release: $TAG"
+fi
+
+echo "Downloading $ASSET ($TAG)..."
 gh release download "$TAG" \
     --repo "$REPO" \
     --pattern "$ASSET" \
     --dir "$WORK_DIR/download" \
     --clobber
 
-echo "Downloading $PDB_ASSET..."
-if ! gh release download "$TAG" \
-    --repo "$REPO" \
-    --pattern "$PDB_ASSET" \
-    --dir "$WORK_DIR/download" \
-    --clobber; then
-    echo "warning: $PDB_ASSET was not downloaded; crash reports will have fewer symbols." >&2
-fi
-
 echo "Extracting..."
 unzip -q "$WORK_DIR/download/$ASSET" -d "$WORK_DIR/extract"
 
-for required in HookCrashers.asi dinput8.dll HookCrashers.yaml mods; do
+for required in HookCrashers.asi dinput8.dll mods; do
     if [[ ! -e "$WORK_DIR/extract/$required" ]]; then
         echo "error: package is missing $required" >&2
         exit 1
@@ -79,18 +75,7 @@ cp "$WORK_DIR/extract/HookCrashers.asi" "$TARGET_DIR/HookCrashers.asi"
 echo "Installing dinput8.dll..."
 cp "$WORK_DIR/extract/dinput8.dll" "$TARGET_DIR/dinput8.dll"
 
-if [[ ! -f "$TARGET_DIR/HookCrashers.yaml" ]]; then
-    echo "Installing HookCrashers.yaml..."
-    cp "$WORK_DIR/extract/HookCrashers.yaml" "$TARGET_DIR/HookCrashers.yaml"
-else
-    echo "Keeping existing HookCrashers.yaml..."
-fi
-
-if [[ -f "$WORK_DIR/download/$PDB_ASSET" ]]; then
-    echo "Installing HookCrashers.pdb..."
-    cp "$WORK_DIR/download/$PDB_ASSET" "$TARGET_DIR/HookCrashers.pdb"
-fi
-
+# HookCrashers.yaml and mods/ are created by HookCrashers on first launch.
 echo "Installing mods..."
 ditto "$WORK_DIR/extract/mods" "$TARGET_DIR/mods"
 find "$TARGET_DIR/mods" -name .DS_Store -type f -delete

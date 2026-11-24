@@ -1,33 +1,107 @@
 # HookCrashers
 
-HookCrashers is an ASI modding platform for **Castle Crashers Remastered**.
+HookCrashers is an open-source ASI modding platform for **Castle Crashers Remastered**.
 
-The current goal is simple: addon character mods should be folder-based and runtime-driven. Mod authors should not have to edit or repack the game's `.pak` files for save layout, localization, lobby portraits, or character roster expansion.
+Mods are folders: they register addon characters, add translations, portraits
+and in-game menus, and HookCrashers applies everything at runtime. Nobody has to
+edit or repack the game's `.pak` files.
 
-HookCrashers currently provides:
+- Lua folder mods (`mods/<mod>/`) and native Win32 ASI mods (`mods/<mod>/*.asi`)
+- Addon characters: save layout expansion, roster and multiplayer sync, lobby portraits
+- Runtime `main.cok6` save-system patch and `lobby.cok6` portrait injection
+- Custom localization in all eleven game languages
+- [Menu API](docs/menu-api.md) for native in-game menus (experimental)
+- In-game prompts, a character data API and update callbacks for native mods
+- Four texture quality presets (Low, Medium, High, Ultra)
+- A larger game memory pool (1 GiB by default) for Ultra graphics
+- Verified in-game updates (stable and testing channels)
 
-- Lua folder mods from `mods/<mod>/`
-- native x86 ASI folder mods from `mods/<mod>/*.asi`
-- addon character registration
-- runtime save layout expansion
-- runtime `main.cok6` ActionScript patching for the save system
-- runtime `lobby.cok6` portrait injection from per-character `portrait.swf` files
-- custom localization from `localizations.json`
-- multiplayer roster table patches for expanded addon slots
-- a C++ API for advanced ASI mods and custom SWF native calls
+## Requirements
 
-## Installation
+- Castle Crashers Remastered on Steam, current build (`castle.exe` PE timestamp
+  `0x6A4D42BF`, July 2026). HookCrashers checks the build before touching the
+  game; on any other build it shows a message and changes nothing.
+- Windows, or macOS/Linux through CrossOver or Wine.
 
-1. Copy `HookCrashers.asi` and its required runtime files into the Castle Crashers Remastered game folder.
-2. Start the game once. HookCrashers will create `HookCrashers.yaml` and `mods` if they do not already exist.
-3. Place folder mods under `mods/<mod>/`.
+## Install
 
-Example layout:
+1. Download **HookCrashers-v5-dropin.zip** from the
+   [latest release](https://github.com/lorizz/hookcrashers/releases/latest).
+2. Extract it into the Castle Crashers folder, the one that contains `castle.exe`
+   (Steam → Castle Crashers → Manage → Browse local files).
+3. Start the game once. HookCrashers creates `HookCrashers.yaml`,
+   `HookCrashers.log` and an empty `mods` folder.
+
+The zip contains `HookCrashers.asi`, `dinput8.dll` (Ultimate ASI Loader, which
+loads every `.asi` in the game folder) and the `mods` folder.
+
+On CrossOver, `scripts/install-crossover.sh` downloads the latest release into
+the default bottle and enables the native `dinput8` override
+(`HOOKCRASHERS_TAG=dev` installs the development build instead).
+
+To uninstall, delete `HookCrashers.asi` and `dinput8.dll` (and `mods`, if you no
+longer need your mods). Your vanilla save is never modified; modded saves are
+separate files (see [Save files](#save-files)).
+
+## Updates and release channels
+
+HookCrashers checks for updates before the main menu opens and asks before
+installing anything. Updates come only from the
+[releases of this repository](https://github.com/lorizz/hookcrashers/releases):
+
+| Channel | Who gets it | Published from |
+|---|---|---|
+| `stable` (default) | everyone | every push to `main` that bumps `VERSION` (`release_<version>`) |
+| `testing` | testers with a testing key | every push to any other branch (`dev` prerelease, version `<VERSION>-dev`) |
+
+Each release carries a channel manifest (`stable.json` or `testing.json`) with
+the SHA-256 of `HookCrashers.asi`. The updater downloads only from
+`github.com/lorizz/hookcrashers/releases/download/` and rejects any file whose
+hash does not match. Every binary is built by the public GitHub Actions workflow
+from a public commit, and each release lists the checksums of all its files.
+
+Set `updates_enabled: false` in `HookCrashers.yaml` to disable update checks.
+
+> Builds up to 5.1.2 read their updates from the retired
+> `lorizz/hookcrashers-releases` repository. It is kept (archived) only to move
+> them to 5.2.0, which reads from this repository.
+
+## Configuration
+
+`HookCrashers.yaml` in the game folder:
+
+```yaml
+updates_enabled: true
+channel: stable
+testing_key: ""
+show_external_console: false
+enable_overlay: true
+overlay_toggle_key: Home
+game_pool_mib: 1024
+```
+
+| Key | Meaning |
+|---|---|
+| `updates_enabled` | Check for HookCrashers updates at startup. |
+| `channel` | `stable` or `testing`. Testing requires a valid `testing_key`; an invalid key resets the channel to stable. |
+| `show_external_console` | Open a separate Windows console with the log. |
+| `enable_overlay` / `overlay_toggle_key` | In-game log overlay (closed at startup); the key toggles it. |
+| `game_pool_mib` | Game memory budget in MiB: `0` disables the expansion, otherwise `576`–`1536`. The vanilla pool is 576 MiB; HookCrashers grows it on demand. |
+
+### Texture quality
+
+Video Settings offers **Low, Medium, High, Ultra**. High restores the per-axis
+texture sizing used before Painter Boss Paradise, Medium keeps the current
+sizing and Ultra keeps its rendering settings (stored as value 3; old Ultra
+configurations are migrated automatically). On 32-bit Windows, High is the
+maximum. These presets are unrelated to the Classic/Fresh multiplayer mode.
+
+## Folder mods
+
+Each folder inside `mods` is a mod with a `manifest.yaml`:
 
 ```text
 CastleCrashers/
-  HookCrashers.asi
-  HookCrashers.yaml
   mods/
     example_mod/
       manifest.yaml
@@ -39,40 +113,6 @@ CastleCrashers/
           portrait.swf
           portrait_classic.swf
 ```
-
-Back up your save data before testing character mods. Addon character order is part of the save mapping, so changing registration order after saves exist can remap addon slots.
-
-## Configuration
-
-`HookCrashers.yaml` is created in the game folder.
-
-```yaml
-updates_enabled: true
-channel: stable
-testing_key: ""
-show_external_console: false
-enable_overlay: true
-overlay_toggle_key: Home
-```
-
-The ImGui log overlay starts closed. Press the configured `overlay_toggle_key` (`Home` by default) to show or hide it. `show_external_console` controls the separate Windows console window.
-
-Save expansion, localization, and runtime SWF patching are driven by the loaded folder mods. Custom localization ids start at the fixed base id `5000`.
-
-## Texture Quality (5.1.2)
-
-Video Settings offers **Low, Medium, High, Ultra**, in that order. High restores
-the per-axis texture sizing used before Painter Boss Paradise; Medium keeps the
-current sizing policy. Ultra retains its existing rendering settings and uses
-value 3 internally. Existing Ultra configurations are migrated automatically.
-On a 32-bit Windows OS, the native Ultra restriction remains and High is the
-maximum. These settings are separate from Classic/Fresh multiplayer mode.
-
-## Folder Mods
-
-Each folder inside `mods` is scanned independently. A mod uses `manifest.yaml` to declare its metadata and Lua entrypoints.
-
-### manifest.yaml
 
 ```yaml
 id: example.character_pack
@@ -86,237 +126,216 @@ entrypoints:
   - scripts/register_character.lua
 ```
 
-### Character registration
+Every file in `entrypoints` runs as Lua 5.4 when the game starts. Example mods
+are in [`examples/mods`](examples/mods).
 
-Every file listed under `entrypoints` is executed as Lua. Register characters in a stable order:
+### Characters
 
 ```lua
-RegisterCharacter(
-    "troll",
-    Enums.Weapon.Pitchfork,
-    Enums.Pet.None,
-    true,
-    false
-)
+RegisterCharacter("troll", Enums.Weapon.Pitchfork, Enums.Pet.None, true, false)
 ```
 
 `RegisterCharacter(id, weapon, pet, initiallyUnlocked, freshOnly)`:
 
-- `id`: stable internal character id. Use lowercase ASCII names without spaces.
-- `weapon`: starting weapon id. Prefer `HC.Enums.Weapon.*`.
-- `pet`: starting animal orb id. Prefer `HC.Enums.Pet.*`.
-- `initiallyUnlocked`: `true` if the character should start unlocked.
-- `freshOnly`: `true` if this character is intended only for the fresh/custom character path. Use `false` when the UI should expose it in both classic and fresh/custom contexts.
+- `id`: stable internal id, lowercase ASCII without spaces.
+- `weapon`, `pet`: starting weapon and animal orb (`HC.Enums.Weapon.*`,
+  `HC.Enums.Pet.*`; full list in [docs/enums.md](docs/enums.md)).
+- `initiallyUnlocked`: the character starts unlocked.
+- `freshOnly`: only for the Fresh/custom character path; use `false` to show it
+  in both Classic and Fresh.
 
-See [docs/enums.md](docs/enums.md) for the complete weapon and pet enum list.
+Registration order matters: addon ids follow it, and it is part of the save
+layout. Changing the order after a save exists remaps addon slots, and every
+player in a multiplayer lobby needs the same mods in the same order.
 
-Registration order matters. HookCrashers assigns addon character ids from the Lua registration order. Every player in a multiplayer lobby must use the same mod set and registration order until mod manifest negotiation is implemented.
+### Save files
 
-#### Save File Name
-
-HookCrashers derives the modded save name automatically from the first loaded mod's manifest `name`. It removes `HookCrashers` case-insensitively, lowercases the result, and sanitizes it. For example, `name: HookCrashers Example Mod` uses:
+Whenever a folder mod is installed, HookCrashers uses a separate save named after
+the first loaded mod's manifest `name` (`HookCrashers` removed, lowercase, only
+letters, digits, `_` and `-`). `name: HookCrashers Example Mod` uses:
 
 ```text
 hc_examplemod.dat
 hc_examplemod.dat.bak
+hcpbp_examplemod.dat   (Painter Boss Paradise settings)
 ```
 
-The vanilla `cc_save.dat` and its backup are never used by a loaded mod. Only lowercase letters, numbers, `_`, and `-` are kept in the manifest name; invalid or empty names fall back to `mod`. Changing the manifest name intentionally creates a separate save namespace.
+The vanilla `cc_save.dat` is never used while a mod is loaded. Back up your
+saves before testing character mods.
 
-### Character Assets
-
-HookCrashers checks the character folder for portrait assets:
+### Portraits
 
 ```text
 mods/example_mod/characters/troll/
-  portrait.swf
-  portrait_classic.swf
+  portrait.swf          Fresh portrait
+  portrait_classic.swf  Classic portrait
 ```
 
-`portrait.swf` is the fresh portrait. `portrait_classic.swf` is the classic portrait.
-Missing files produce a warning and that portrait is not injected; there is no fallback.
+When `lobby.cok6` loads, HookCrashers imports the first `DefineShape` of each
+file with a fresh character id. Classic portraits replace the free frames after
+frame 34; Fresh portraits are inserted after frame 135. Cloned frames keep the
+vanilla transform, so the portrait inherits the stock position and scale. A
+missing file only skips that portrait.
 
-PNG and SVG experiments exist in code, but the supported path for current runtime portrait injection is `portrait.swf`.
+Portrait SWFs must be uncompressed (`FWS`), contain the portrait as one
+`DefineShape`–`DefineShape4` (prefer `DefineShape3` for alpha) and use the
+vanilla portrait coordinate space. Sprites, buttons and scripts inside them are
+ignored.
 
-## Runtime Save System Patch
+### Localization
 
-The save-system SWF patch is automatic. Do not manually replace or edit `f_InitSaveSystem()` in `main.swf` anymore.
-
-When `main.cok6` is loaded, HookCrashers patches the save initialization bytecode before the game parses the SWF. The patched runtime function reads the active save layout from HookCrashers, including character counts, addon counts, item ranges, animal ranges, level ranges, relic ranges, and the fixed `relic_offset` / `weapon_offset` values.
-
-This keeps the SWF, save data, and runtime character table aligned without hardcoding new values into a repacked `main.pak`. The intended long-term workflow is that mods stay folder-based and HookCrashers handles the required runtime patching internally.
-
-HookCrashers writes a debug dump of the patched SWF to:
-
-```text
-CastleCrashers/HookCrashersDumps/main_patched.swf
-```
-
-Use this dump only for inspection. The game consumes the patched buffer directly at runtime.
-
-## Runtime Lobby Portrait Injection
-
-Lobby portraits are also injected at runtime. The intended flow is:
-
-1. A character registers in Lua.
-2. HookCrashers finds `portrait.swf` for fresh mode and `portrait_classic.swf` for classic mode.
-3. When `lobby.cok6` loads, HookCrashers extracts the first `DefineShape` from each available portrait SWF.
-4. The imported shape is assigned a new character id after the vanilla lobby shapes.
-5. Classic portraits replace the free timeline frames after frame 34 without shifting the later timeline.
-6. Fresh portraits are inserted after frame 135, shifting every later frame once per injected portrait.
-7. Each cloned frame keeps the vanilla transform/alignment and swaps only the placed character id to the imported portrait shape.
-
-This means the mod portrait should inherit the same position, scale, and depth behavior as the vanilla portrait frame. The injected shape is appended at runtime; the original `.pak` stays untouched.
-
-HookCrashers writes a debug dump of the patched lobby SWF to:
-
-```text
-CastleCrashers/HookCrashersDumps/lobby_patched.swf
-```
-
-### Portrait SWF Requirements
-
-`portrait.swf` and `portrait_classic.swf` should be tiny uncompressed SWFs containing one portrait shape each.
-
-Requirements:
-
-- Use `FWS`, not `CWS` or `ZWS`.
-- Include exactly one intended `DefineShape`/`DefineShape2`/`DefineShape3`/`DefineShape4` portrait shape.
-- Put the portrait art in the same coordinate space and visual scale as the vanilla lobby portraits.
-- Prefer `DefineShape3` when alpha/RGBA data is needed.
-- Do not rely on frame scripts, sprites, buttons, or timeline behavior inside either file; HookCrashers imports the shape definition, not the whole movie.
-- Keep one portrait per character folder. Shared portrait files are allowed, but shared paths will reuse the same injected definition.
-
-For in-game sprites and animation assets, keep using `main.swf`/game asset authoring for now. The runtime portrait injector only handles lobby portrait shapes.
-
-## Localization
-
-`localizations.json` maps localization ids to translated strings. Supported language keys are `en`, `de`, `fr`, `it`, `ko`, `es`, `zh_cn`, `zh_tw`, `ru`, `ja`, and `pt`.
+`localizations.json` maps ids to text for `en`, `de`, `fr`, `it`, `ko`, `es`,
+`zh_cn`, `zh_tw`, `ru`, `ja` and `pt`; missing translations fall back to English.
 
 ```json
 {
-  "en": {
-    "characters.troll.name": "Troll",
-    "characters.troll.unlock": "Unlocked by Example Character Pack."
-  },
-  "it": {
-    "characters.troll.name": "Troll",
-    "characters.troll.unlock": "Sbloccato da Example Character Pack."
-  }
+  "en": { "characters.troll.name": "Troll", "characters.troll.unlock": "Unlocked by Example Character Pack." },
+  "it": { "characters.troll.name": "Troll", "characters.troll.unlock": "Sbloccato da Example Character Pack." }
 }
 ```
 
-Character localization ids follow `characters.<registered id>.name` and `characters.<registered id>.unlock`. Missing translations fall back to English.
-
-Use a custom localization from ActionScript exactly like the v4 API:
+Characters use `characters.<id>.name` and `characters.<id>.unlock`. From
+ActionScript, `GetLocalization("id")` returns the numeric id (from `5000` up) to
+assign to `ntext`:
 
 ```actionscript
 nameText.ntext = GetLocalization("characters.troll.name");
-unlockText.ntext = GetLocalization("characters.troll.unlock");
 ```
 
-`GetLocalization` returns the numeric localization id assigned by HookCrashers (starting at `5000`). Assign that value to `ntext`; use `text` only for literal strings.
+### Prompts and menus
 
-## Multiplayer Notes
+```lua
+HC.CreatePrompt("Enable hardcore mode?", function() print("yes") end, function() print("no") end)
 
-With addon characters loaded, HookCrashers uses expanded character synchronization
-(HC protocol 6). Joining clients adopt the host's Classic/Fresh mode. Without
-addons, the native synchronization path is retained.
+local menu = HC.Menu.Create("mymod.settings", "My Mod")
+menu:AddToggle("hardcore", "Hardcore mode", false, function(enabled) end)
+menu:AddChoice("speed", "Speed", { "Slow", "Normal", "Fast" }, 2, function(index, text) end)
+menu:Open()
+```
 
-- All modded players must use a compatible HookCrashers build (5.1.1 or 5.1.1-dev),
-  the same folder mods and the same character registration order.
-- Use Play Vanilla to open the native multiplayer flow; installed mods remain loaded.
-- Play Modded - soon is disabled while the custom lobby browser is unfinished.
-- Old HC protocol packets are rejected. Unmodified clients are not guaranteed
-  compatible with addon characters.
+The [Menu API](docs/menu-api.md) builds native menus (buttons, toggles,
+choices, submenus, labels and graphics from your own SWF) with the game's own
+navigation, controller input and sounds. It is experimental. See
+[`examples/mods/MenuExample`](examples/mods/MenuExample).
 
-## C++ ASI API
+## How the runtime patches work
 
-Advanced binary mods use the `HookCrashers-SDK-Win32.zip` asset published with each
-HookCrashers release. It contains `sdk/include/HookCrashers.h` and the Win32/x86
-import library `sdk/lib/HookCrashers.lib`, plus examples and a setup tutorial.
+- **Save system:** when `main.cok6` loads, HookCrashers rewrites the
+  `f_InitSaveSystem` bytecode so it reads the active layout (character, addon,
+  item, animal, level and relic ranges) from HookCrashers. Do not edit
+  `f_InitSaveSystem` in `main.swf` yourself.
+- **Executable patches:** every patch to `castle.exe` is checked against the
+  expected original bytes first; if anything differs, nothing is written.
+- **Debug dumps:** the patched movies are written to
+  `HookCrashersDumps/main_patched.swf` and `lobby_patched.swf` for inspection;
+  the game uses the patched buffers directly.
 
-Native ASIs are folder mods. Do not place an ASI directly in the `mods` root:
+## Native (C++) mods
+
+Each release ships **HookCrashers-SDK-Win32.zip** with `HookCrashers.h`, the
+Win32 import library, examples and the [ASI tutorial](sdk/QUICKSTART-ASI.md).
+Native mods are folder mods too:
 
 ```text
-CastleCrashers/
-  mods/
-    MyNativeMod/
-      manifest.yaml
-      MyNativeMod.asi
+CastleCrashers/mods/MyNativeMod/
+  manifest.yaml
+  MyNativeMod.asi
 ```
-
-HookCrashers loads every `.asi` in the mod folder in case-insensitive filename
-order. The normal DLL `DllMain` runs automatically. A mod can also export the
-optional initialization and shutdown entrypoints:
 
 ```cpp
 #include <HookCrashers.h>
 
 HOOKCRASHERS_MOD_EXPORT bool __stdcall HookCrashersModInit() {
-    HookCrashers::LogInfo("MyNativeMod initialized");
+    HookCrashers::RegisterCharacter("troll", HookCrashers::Enums::Weapon::Pitchfork,
+                                    HookCrashers::Enums::Pet::None, true, false);
     return true;
 }
 
-HOOKCRASHERS_MOD_EXPORT void __stdcall HookCrashersModShutdown() {
-    HookCrashers::LogInfo("MyNativeMod shutting down");
-}
+HOOKCRASHERS_MOD_EXPORT void __stdcall HookCrashersModShutdown() {}
 ```
 
-Build the mod as a **Win32/x86** DLL, change the output extension to `.asi`, add
-the SDK include directory, and link `HookCrashers.lib`. Register characters
-during `DllMain` or `HookCrashersModInit`; that is when HookCrashers associates
-them with the native mod's `characters/<id>/` asset directory.
+Build a **Win32/x86** DLL with the `.asi` extension and link `HookCrashers.lib`.
+Every `.asi` in the mod folder is loaded in filename order. Register characters
+in `DllMain` or `HookCrashersModInit` so their `characters/<id>/` assets are
+found. The C ABI covers version and logging, characters, prompts, menus and the
+[current character data API](docs/current-character-api.md).
 
-Character registration:
+## Multiplayer
 
-```cpp
-#include "HookCrashers.h"
+With addon characters, HookCrashers uses its expanded character sync (protocol
+6): joining players adopt the host's Classic/Fresh mode, and every player needs
+a HookCrashers build with protocol 6 (5.1.1 or later), the same mods and the same
+registration order. Older protocol packets and malformed packets are rejected.
+Without addons, the game's own sync is used.
 
-HookCrashers::RegisterCharacter(
-    "troll",
-    HookCrashers::Enums::Weapon::Pitchfork,
-    HookCrashers::Enums::Pet::None,
-    true,
-    false);
-```
-
-The current stable C++ ABI exposes version lookup, logging, character
-registration, and native confirmation prompts. Additional APIs will be added
-without requiring mods to link against HookCrashers internals.
+Play Vanilla opens the native multiplayer flow with your mods loaded. The modded
+lobby browser (Play Modded) is not available yet. Unmodified players joining an
+addon lobby are not supported.
 
 ## Troubleshooting
 
-- Check `HookCrashers.log` first. Lua syntax errors, registration errors, localization loads, addon character loads, network patch setup, and SWF patch failures are written there.
-- If a mod folder is ignored, make sure it contains a valid `manifest.yaml` and that every declared entrypoint exists.
-- If a native mod is ignored, put it under `mods/<mod-name>/<file>.asi`, compile it for Win32/x86, and check the `Native mod load failed` line for the exact Windows loader error.
-- If the save screen behaves like vanilla, check that `main_patched.swf` is being dumped and that the log reports the `f_InitSaveSystem` runtime patch.
-- If a portrait is missing, check that `portrait.swf` or `portrait_classic.swf` exists, is uncompressed `FWS`, and contains a real `DefineShape` tag.
-- If a portrait appears in the wrong place, inspect `lobby_patched.swf` and confirm classic frames were cloned from frame 34 and fresh frames from frame 135.
-- If multiplayer desyncs, first test with exactly one addon character and identical mod folders on both clients.
+Start with `HookCrashers.log` in the game folder: mod loading, Lua errors,
+patches and update checks are all logged there.
+
+- **"build not supported" at startup:** Steam updated the game; wait for a
+  HookCrashers update. Nothing was changed.
+- **Mod ignored:** check `manifest.yaml` and that every entrypoint exists.
+- **Native mod ignored:** it must be `mods/<mod>/<file>.asi`, built for
+  Win32/x86; the log shows the Windows loader error.
+- **Save screen looks vanilla:** check that `main_patched.swf` is dumped and the
+  log reports the `f_InitSaveSystem` patch.
+- **Portrait missing or misplaced:** check the file name and format above, then
+  inspect `lobby_patched.swf`.
+- **Multiplayer desync:** test with one addon character and identical mod
+  folders on every client.
+
+## Building from source
+
+Requirements: Visual Studio 2022 (MSVC v143, Win32 toolset).
+
+```bat
+git clone https://github.com/lorizz/hookcrashers.git
+cd hookcrashers
+git clone --depth 1 https://github.com/microsoft/Detours.git External\detours
+git clone --depth 1 https://github.com/ocornut/imgui.git External\imgui
+git clone --depth 1 --branch v5.4.7 https://github.com/lua/lua.git ..\External\lua54\lua-5.4.7\src
+```
+
+Build Detours for x86 (`nmake` in `External\detours` from a "x86 Native Tools"
+prompt), then build `HookCrashers.vcxproj` as **Release | Win32**. The CI
+workflow (`.github/workflows/build.yml`) runs the same steps. Offline tests are
+in [`tests`](tests).
+
+### Releasing (maintainers)
+
+1. Bump `VERSION` and add a `## <version> - <date>` section to `CHANGELOG.md`.
+2. Merge into `main`. The workflow publishes `release_<version>` with the
+   drop-in zip, the SDK, checksums and `stable.json`. A push to `main` without a
+   new version publishes nothing.
+3. Any other branch publishes the `dev` prerelease for the testing channel.
+   Commits containing `[skip ci]` do not run the workflow.
+
+## Documentation
+
+- [Menu API](docs/menu-api.md), [current character data API](docs/current-character-api.md),
+  [prompts](docs/prompts.md), [enums](docs/enums.md)
+- Technical notes: [graphics quality](docs/graphics-quality-5.1.2.md),
+  [online menu](docs/online-menu-5.1.1.md), lobby crash investigations
+  ([5.0.67](docs/lobby-crash-5.0.67-dev.md), [5.1.1](docs/lobby-setmember-crash-511.md))
+- [Changelog](CHANGELOG.md)
 
 ## Disclaimer
 
-HookCrashers is intended for modding, research, and creative extension of Castle Crashers Remastered.
-
-Do not use HookCrashers to build cheats, trainers, piracy tools, DLC unlockers, or anything designed to give an unfair multiplayer advantage. Mod responsibly and keep backups of original game files and saves.
-
-## Updates and Security
-
-The in-game updater only installs `HookCrashers.asi` builds published on
-[lorizz/hookcrashers-releases](https://github.com/lorizz/hookcrashers-releases).
-Each channel manifest carries the SHA-256 of the release asset, and the updater
-refuses any download whose hash does not match or whose URL points elsewhere.
-Release builds are produced by the GitHub Actions workflow in this repository,
-so every published binary can be traced back to a public commit.
-
-To opt out, set `updates_enabled: false` in `HookCrashers.yaml`.
+HookCrashers is for modding, research and creative extension of Castle Crashers
+Remastered. Do not use it to build cheats, trainers, piracy tools, DLC unlockers
+or anything that gives an unfair multiplayer advantage. Keep backups of your
+game files and saves.
 
 ## License
 
-HookCrashers is free software, licensed under the
-[GNU General Public License v3.0](LICENSE). You can study, modify and
-redistribute it; redistributed or modified versions must stay under the GPL,
-publish their source code and keep the original copyright notices.
+HookCrashers is free software under the [GNU General Public License v3.0](LICENSE).
+You can study, modify and redistribute it; modified or redistributed versions
+must stay under the GPL, publish their source code and keep the copyright
+notices.
 
 Copyright (C) 2024-2026 Alessandro Burza (ilVonBurza / lorizz).

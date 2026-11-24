@@ -158,6 +158,11 @@
     <ClCompile Include="src\UI\PromptApi.cpp" />
     <ClCompile Include="src\UI\SplashScreen.cpp" />
     <ClCompile Include="src\UI\UpdatePromptMenu.cpp" />
+    <ClCompile Include="src\UI\MenuModel.cpp" />
+    <ClCompile Include="src\UI\MenuNative.cpp" />
+    <ClCompile Include="src\UI\MenuApi.cpp" />
+    <ClCompile Include="src\UI\MenuTableExpansion.cpp" />
+    <ClCompile Include="src\SWF\MenuGraphicAssets.cpp" />
     <ClCompile Include="src\Updater\AutoUpdater.cpp" />
     <ClCompile Include="src\dllmain.cpp" />
   </ItemGroup>
@@ -198,6 +203,12 @@
     <ClInclude Include="src\UI\resource.h" />
     <ClInclude Include="src\UI\SplashScreen.h" />
     <ClInclude Include="src\UI\UpdatePromptMenu.h" />
+    <ClInclude Include="src\UI\MenuModel.h" />
+    <ClInclude Include="src\UI\MenuNative.h" />
+    <ClInclude Include="src\UI\MenuApi.h" />
+    <ClInclude Include="src\UI\MenuTableExpansion.h" />
+    <ClInclude Include="src\SWF\MenuGraphicAssets.h" />
+    <ClInclude Include="src\Game\MenuTable.h" />
     <ClInclude Include="src\Core\Version.h" />
     <ClInclude Include="src\Updater\AutoUpdater.h" />
   </ItemGroup>

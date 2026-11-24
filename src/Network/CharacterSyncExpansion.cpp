@@ -362,6 +362,23 @@ bool TryReadWirePacket(std::uint8_t* payload, ExpandedPacket& packet) {
         return false;
     }
 
+    // Wire framing (see BuildWireMessage): [u16 bodyLength][u8 type][payload...],
+    // bodyLength counting from the type byte. The packet comes from another
+    // player, so never read past what was actually received.
+    constexpr std::size_t kHeaderBytes =
+        1 + kHookCrashersSyncMagic.size() + sizeof(std::uint16_t) * 2 + sizeof(std::uint32_t);
+    std::size_t available = 0;
+    const bool framed = payload[-1] == kCharacterSyncMessageType;
+    if (framed) {
+        const std::uint16_t bodyLength = ReadUnaligned<std::uint16_t>(payload - 3);
+        available = bodyLength > 0 ? bodyLength - 1u : 0u;
+        if (available < kHeaderBytes) {
+            Core::Logger::Warn("Rejected sync packet: %u payload bytes, header needs %u",
+                               static_cast<unsigned>(available), static_cast<unsigned>(kHeaderBytes));
+            return false;
+        }
+    }
+
     const std::uint8_t* cursor = payload + 1;
     if (!std::equal(kHookCrashersSyncMagic.begin(), kHookCrashersSyncMagic.end(), cursor)) {
         return false;
@@ -387,6 +404,12 @@ bool TryReadWirePacket(std::uint8_t* payload, ExpandedPacket& packet) {
                            kHookCrashersSyncVersion,
                            static_cast<unsigned int>(registry.AddonCount()),
                            expectedLayout.packetSize);
+        return false;
+    }
+
+    if (framed && available - kHeaderBytes < packetSize) {
+        Core::Logger::Warn("Rejected HC5 sync packet: truncated body (%u of %u bytes)",
+                           static_cast<unsigned>(available - kHeaderBytes), packetSize);
         return false;
     }
 

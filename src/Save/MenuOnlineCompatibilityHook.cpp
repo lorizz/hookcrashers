@@ -6,6 +6,7 @@
 #include "../Core/Memory.h"
 #include "../SWF/OnlineMenuAssets.h"
 #include "../Game/MenuStructs.h"
+#include "../UI/MenuTableExpansion.h"
 
 
 
@@ -45,8 +46,6 @@ namespace {
     constexpr int kButtonMenuItemSize = 0x60;
     constexpr uintptr_t kButtonMenuItemVtableRva = 0x1D0B98;
     constexpr size_t kMenuHandlerSize = 0x20C;
-    constexpr size_t kOriginalMenuHandlerCount = 46;
-    constexpr size_t kExpandedMenuHandlerCount = 48;
     constexpr uint16_t kPlayWithFriendsBuilderMenuId = 37;
     constexpr uint16_t kPlayWithFriendsMenuId = 37;
     constexpr uint16_t kModeMenuId = 36;
@@ -1010,14 +1009,9 @@ namespace {
         return g_playerLobbiesHandlerBuilt;
     }
     bool PatchMenuBuilderHandlerCount() {
-        const auto base = Core::Memory::GameBase();
-        if (*reinterpret_cast<const unsigned char*>(base+0x1443E0)!=0x68 ||
-            *reinterpret_cast<const uint32_t*>(base+0x1443E1)!=0x5E2C ||
-            *reinterpret_cast<const uint16_t*>(base+0x144413)!=0x2E6A ||
-            *reinterpret_cast<const uint16_t*>(base+0x144415)!=0x07C7 ||
-            *reinterpret_cast<const uint32_t*>(base+0x144417)!=46) return false;
-        return Core::Memory::WriteU32(0x1443E1,4+48*0x20C) &&
-               Core::Memory::WriteU8(0x144414,48) && Core::Memory::WriteU32(0x144417,48);
+        // Shared with the Menu API: grows the table to Game::MenuTable::kTotalCount,
+        // which covers the online selector (46) and lobby browser (47) slots.
+        return HookCrashers::UI::MenuTableExpansion::Install();
     }
 
     int __fastcall DetouredMenuBuilder(uint32_t* self, void*, int param2, int param3) {
@@ -1248,9 +1242,8 @@ void RemoveMenuOnlineCompatibilityHook() {
     DetourDetach(&(PVOID&)g_originalBuildOnlineMenu, DetouredBuildOnlineMenu);
     DetourDetach(&(PVOID&)g_originalMenuBuilder, DetouredMenuBuilder);
     if (DetourTransactionCommit() == NO_ERROR) {
-        Core::Memory::WriteU32(0x1443E1,0x5E2C);
-        Core::Memory::WriteU8(0x144414,46);
-        Core::Memory::WriteU32(0x144417,46);
+        // The handler-table expansion is owned by MenuTableExpansion (also used by
+        // the Menu API) and is restored by its own Remove() during shutdown.
         g_installed = false;
     }
 }

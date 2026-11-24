@@ -3,6 +3,8 @@
 #include "../Core/Logger.h"
 #include "../Core/Memory.h"
 #include "../Core/Version.h"
+#include "../Game/MenuTable.h"
+#include "MenuNative.h"
 #include "../NativeDB/Classes.h"
 #include "../Updater/AutoUpdater.h"
 
@@ -52,7 +54,7 @@ constexpr std::size_t kTextMaxWidthOffset = 0x4E;
 
 constexpr std::uint16_t kConfirmationMenuId = 3;
 constexpr std::uint16_t kMainMenuId = 23;
-constexpr std::uint16_t kMenuStateCount = 48;
+constexpr std::uint16_t kMenuStateCount = Game::MenuTable::kTotalCount;
 constexpr std::uintptr_t kProfileManagerPointerRva = 0x391294;
 
 using MainMenuBuilderFn = void*(__thiscall*)(void* self, void* scene, int flags);
@@ -584,6 +586,9 @@ void* __fastcall HookedMainMenuBuilder(void* self, void*, void* scene, int flags
     void* result = g_originalMainMenuBuilder(self, scene, flags);
     g_mainMenu = self;
     PatchMainMenuVersionText(self);
+    // Menu API first: a queued mod menu opens, then a pending prompt (update
+    // notice or API prompt) shows on top and returns to it when answered.
+    HookCrashers::UI::Menus::Native::OnMainMenuBuilt(self);
 
     if (!g_promptShown) {
         g_promptShown = true;

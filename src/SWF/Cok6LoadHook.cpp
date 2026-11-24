@@ -2,6 +2,7 @@
 
 #include "InitSaveSystemBytecode.h"
 #include "ShapeInjection.h"
+#include "MenuGraphicAssets.h"
 #include "OnlineMenuAssets.h"
 #include "SWFStructures.h"
 #include "../Characters/CharacterRegistry.h"
@@ -1132,6 +1133,7 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     if (menuPath.find("menu") != std::string::npos && menuPath.find("amenu") == std::string::npos &&
         menuPath.find("vignettes") == std::string::npos) {
         OnlineMenuAssets::PatchScene(swfScene);
+        MenuGraphicAssets::PatchScene(swfScene);
     }
     return g_OriginalSWFSceneParseHeader(scene);
 }

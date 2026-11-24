@@ -32,18 +32,25 @@ struct MenuItemBase {
     std::uint32_t fallbackColor; // +0x14
 };
 
+// Verified against the TextMenuItem constructor (RVA 0x153EE0) and the confirm
+// action (RVA 0x152E50), which calls `callback(owner)` as __cdecl.
 struct TextMenuItem {
     MenuItemBase base;
-    std::uint8_t pad_18[0x16];
-    std::uint8_t selectable; // +0x2E
-    std::uint8_t pad_2F[5];
-    MenuCallback callback;   // +0x34
-    void* owner;             // +0x38
-    std::uint32_t field_3C;
-    float scaleX;            // +0x40
-    float scaleY;            // +0x44
-    std::uint32_t alignment; // +0x48
-    std::uint32_t field_4C;
+    std::uint8_t pad_18[0x14];
+    std::uint8_t autoLayout;   // +0x2C, laid out by FinalizeAndAddElement when set
+    std::uint8_t disabled;     // +0x2D
+    std::uint8_t selectable;   // +0x2E
+    std::uint8_t visible;      // +0x2F
+    std::uint8_t pad_30[4];
+    void* owner;               // +0x34, argument passed to callback
+    MenuCallback callback;     // +0x38
+    wchar_t* text;             // +0x3C, allocated with the game allocator
+    float fontScale;           // +0x40
+    float fitScale;            // +0x44
+    std::uint16_t alignment;   // +0x48
+    std::uint16_t textLength;  // +0x4A
+    std::uint16_t visualWidth; // +0x4C
+    std::uint16_t maxWidth;    // +0x4E
 };
 
 struct GraphicMenuItem {
@@ -120,9 +127,14 @@ static_assert(offsetof(MenuHotspot, onSelect) == 0x20);
 static_assert(offsetof(MenuHotspot, onClick) == 0x28);
 static_assert(offsetof(MenuHotspot, flags) == 0x30);
 static_assert(offsetof(MenuItemBase, color) == 0x10);
+static_assert(offsetof(TextMenuItem, autoLayout) == 0x2C);
+static_assert(offsetof(TextMenuItem, disabled) == 0x2D);
 static_assert(offsetof(TextMenuItem, selectable) == 0x2E);
-static_assert(offsetof(TextMenuItem, callback) == 0x34);
-static_assert(offsetof(TextMenuItem, owner) == 0x38);
+static_assert(offsetof(TextMenuItem, visible) == 0x2F);
+static_assert(offsetof(TextMenuItem, owner) == 0x34);
+static_assert(offsetof(TextMenuItem, callback) == 0x38);
+static_assert(offsetof(TextMenuItem, text) == 0x3C);
+static_assert(offsetof(TextMenuItem, maxWidth) == 0x4E);
 static_assert(offsetof(GraphicMenuItem, displayObject) == 0x54);
 static_assert(offsetof(ButtonMenuItem, presetId) == 0x5C);
 static_assert(offsetof(MenuState, menuItemCount) == 0x04);

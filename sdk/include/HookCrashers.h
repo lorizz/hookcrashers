@@ -143,6 +143,17 @@ enum class Pet : std::uint8_t {
 
 namespace HookCrashers {
 using PromptCallback = void(__stdcall*)(void* userData);
+
+// Menu API (see docs/menu-api.md). `value`: 0 for buttons and close, 0/1 for
+// toggles, the 0-based option index for choices. Called on the game thread.
+using MenuCallback = void(__stdcall*)(const char* menuId, const char* itemId, int value, void* userData);
+
+enum class MenuOpenResult : int {
+    Opened = 0,      // shown now
+    Queued = 1,      // shown as soon as the main menu is available
+    Unavailable = 2, // unsupported build or Menu API disabled (see HookCrashers.log)
+    UnknownMenu = 3,
+};
 }
 
 extern "C" {
@@ -161,6 +172,34 @@ HOOKCRASHERS_API bool __stdcall HookCrashers_CreatePrompt(
     HookCrashers::PromptCallback onConfirm,
     HookCrashers::PromptCallback onDecline,
     void* userData);
+
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuCreate(const char* menuId, const char* title);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddButton(
+    const char* menuId, const char* itemId, const char* label,
+    HookCrashers::MenuCallback onClick, void* userData);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddToggle(
+    const char* menuId, const char* itemId, const char* label, bool initial,
+    HookCrashers::MenuCallback onChange, void* userData);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddChoice(
+    const char* menuId, const char* itemId, const char* label,
+    const char* const* options, int optionCount, int initialIndex,
+    HookCrashers::MenuCallback onChange, void* userData);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddSubmenu(
+    const char* menuId, const char* itemId, const char* label, const char* targetMenuId);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddLabel(const char* menuId, const char* itemId, const char* text);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuAddGraphic(
+    const char* menuId, const char* itemId, const char* graphicId, float x, float y);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuSetOnClose(
+    const char* menuId, HookCrashers::MenuCallback onClose, void* userData);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuSetBackground(const char* menuId, bool enabled);
+HOOKCRASHERS_API int __stdcall HookCrashers_MenuOpen(const char* menuId);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuClose();
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuSetItemText(const char* menuId, const char* itemId, const char* text);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuSetItemValue(const char* menuId, const char* itemId, int value);
+HOOKCRASHERS_API int __stdcall HookCrashers_MenuGetItemValue(const char* menuId, const char* itemId);
+HOOKCRASHERS_API bool __stdcall HookCrashers_MenuSetItemEnabled(const char* menuId, const char* itemId, bool enabled);
+HOOKCRASHERS_API bool __stdcall HookCrashers_RegisterMenuGraphic(
+    const char* graphicId, const char* swfPath, const char* exportName);
 }
 
 namespace HookCrashers {
@@ -208,6 +247,54 @@ inline bool CreatePrompt(const char* message,
                          PromptCallback onDecline,
                          void* userData = nullptr) {
     return HookCrashers_CreatePrompt(message, onConfirm, onDecline, userData);
+}
+
+// Thin wrapper over the Menu C API. Ids: letters, digits, '_', '.', '-', ':'
+// (max 64). Text is UTF-8. Build a menu once (e.g. in your mod init), then
+// Open() it from a callback, a prompt or at startup.
+class Menu {
+public:
+    explicit Menu(const char* id) : m_id(id) {}
+
+    bool Create(const char* title) const { return HookCrashers_MenuCreate(m_id, title); }
+    bool AddButton(const char* itemId, const char* label, MenuCallback onClick, void* userData = nullptr) const {
+        return HookCrashers_MenuAddButton(m_id, itemId, label, onClick, userData);
+    }
+    bool AddToggle(const char* itemId, const char* label, bool initial, MenuCallback onChange, void* userData = nullptr) const {
+        return HookCrashers_MenuAddToggle(m_id, itemId, label, initial, onChange, userData);
+    }
+    bool AddChoice(const char* itemId, const char* label, const char* const* options, int optionCount,
+                   int initialIndex, MenuCallback onChange, void* userData = nullptr) const {
+        return HookCrashers_MenuAddChoice(m_id, itemId, label, options, optionCount, initialIndex, onChange, userData);
+    }
+    bool AddSubmenu(const char* itemId, const char* label, const char* targetMenuId) const {
+        return HookCrashers_MenuAddSubmenu(m_id, itemId, label, targetMenuId);
+    }
+    bool AddLabel(const char* itemId, const char* text) const { return HookCrashers_MenuAddLabel(m_id, itemId, text); }
+    bool AddGraphic(const char* itemId, const char* graphicId, float x, float y) const {
+        return HookCrashers_MenuAddGraphic(m_id, itemId, graphicId, x, y);
+    }
+    bool OnClose(MenuCallback onClose, void* userData = nullptr) const {
+        return HookCrashers_MenuSetOnClose(m_id, onClose, userData);
+    }
+    bool SetBackground(bool enabled) const { return HookCrashers_MenuSetBackground(m_id, enabled); }
+    MenuOpenResult Open() const { return static_cast<MenuOpenResult>(HookCrashers_MenuOpen(m_id)); }
+    bool SetText(const char* itemId, const char* text) const { return HookCrashers_MenuSetItemText(m_id, itemId, text); }
+    bool SetValue(const char* itemId, int value) const { return HookCrashers_MenuSetItemValue(m_id, itemId, value); }
+    int GetValue(const char* itemId) const { return HookCrashers_MenuGetItemValue(m_id, itemId); }
+    bool SetEnabled(const char* itemId, bool enabled) const { return HookCrashers_MenuSetItemEnabled(m_id, itemId, enabled); }
+    const char* Id() const { return m_id; }
+
+private:
+    const char* m_id;
+};
+
+inline bool CloseMenu() {
+    return HookCrashers_MenuClose();
+}
+
+inline bool RegisterMenuGraphic(const char* graphicId, const char* swfPath, const char* exportName) {
+    return HookCrashers_RegisterMenuGraphic(graphicId, swfPath, exportName);
 }
 
 } // namespace HookCrashers

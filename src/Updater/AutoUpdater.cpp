@@ -42,7 +42,7 @@ struct UpdateManifest {
 };
 
 // Updates are only ever installed from the official release mirror.
-constexpr const char* kTrustedAssetPrefix = "https://github.com/lorizz/hookcrashers-releases/releases/download/";
+constexpr const char* kTrustedAssetPrefix = "https://github.com/lorizz/hookcrashers/releases/download/";
 
 UpdateManifest g_availableManifest;
 std::string g_moduleDirectory;
@@ -199,10 +199,28 @@ std::string HttpGetText(const char* url) {
         return {};
     }
 
+    // GitHub answers a missing release asset with an HTML 404 page; only a
+    // successful response (after redirects to the asset host) is a manifest.
+    DWORD status = 0;
+    DWORD statusSize = sizeof(status);
+    if (!HttpQueryInfoA(request, HTTP_QUERY_STATUS_CODE | HTTP_QUERY_FLAG_NUMBER, &status, &statusSize, nullptr) ||
+        status != 200) {
+        Core::Logger::Warn("Update manifest request returned HTTP %lu", static_cast<unsigned long>(status));
+        InternetCloseHandle(request);
+        InternetCloseHandle(internet);
+        return {};
+    }
+
     std::string result;
     std::array<char, 4096> buffer {};
     DWORD bytesRead = 0;
+    constexpr std::size_t kMaxManifestBytes = 64 * 1024; // a channel manifest is < 1 KiB
     while (InternetReadFile(request, buffer.data(), static_cast<DWORD>(buffer.size()), &bytesRead) && bytesRead != 0) {
+        if (result.size() + bytesRead > kMaxManifestBytes) {
+            Core::Logger::Warn("Update manifest exceeds %u bytes; ignored", static_cast<unsigned>(kMaxManifestBytes));
+            result.clear();
+            break;
+        }
         result.append(buffer.data(), bytesRead);
     }
 

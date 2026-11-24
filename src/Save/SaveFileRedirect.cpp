@@ -24,6 +24,9 @@ constexpr std::array<std::uintptr_t, 5> kPbpConfigFilenameReferences = {
     0xEA241, 0xEA25D, 0xEA281, 0xEA403, 0x1C46EC
 };
 constexpr std::uintptr_t kVanillaPbpConfigFilenameRva = 0x1CD140;
+// "cc_save.dat" and "cc_save.dat.bak" in .rdata (build 0x6A4D42BF).
+constexpr std::uintptr_t kVanillaMainFilenameRva = 0x1CD124;
+constexpr std::uintptr_t kVanillaBackupFilenameRva = 0x1CD130;
 
 std::string g_SaveFileName = "hc_mod.dat";
 std::string g_BackupFileName = "hc_mod.dat.bak";
@@ -92,6 +95,34 @@ bool AppendPatches(const std::array<std::uintptr_t, N>& references,
         }
         std::memcpy(&patch.original, address, sizeof(patch.original));
         patches.push_back(patch);
+    }
+    return true;
+}
+
+// Like AppendPatches, but every reference must currently point at the vanilla
+// string; otherwise nothing is queued (the vanilla save must never be redirected
+// half-way or through an unrelated pointer).
+template <std::size_t N>
+bool AppendVerifiedPatches(const std::array<std::uintptr_t, N>& references,
+                           std::uintptr_t vanillaStringRva,
+                           std::uint32_t replacement,
+                           const char* label,
+                           std::vector<SavedPatch>& patches) {
+    const auto expected = static_cast<std::uint32_t>(Core::Memory::Va(vanillaStringRva));
+    const std::size_t originalSize = patches.size();
+    if (!AppendPatches(references, replacement, patches)) {
+        return false;
+    }
+    for (std::size_t index = originalSize; index < patches.size(); ++index) {
+        if (patches[index].original != expected) {
+            Core::Logger::Error("Unexpected %s filename reference at rva=0x%08X: expected=%p current=%p",
+                                label,
+                                static_cast<unsigned int>(patches[index].rva),
+                                reinterpret_cast<void*>(static_cast<std::uintptr_t>(expected)),
+                                reinterpret_cast<void*>(static_cast<std::uintptr_t>(patches[index].original)));
+            patches.resize(originalSize);
+            return false;
+        }
     }
     return true;
 }
@@ -166,8 +197,8 @@ bool Install(const std::string& manifestName) {
     patches.reserve(kMainFilenameReferences.size() +
                     kBackupFilenameReferences.size() +
                     kPbpConfigFilenameReferences.size());
-    if (!AppendPatches(kMainFilenameReferences, mainPointer, patches) ||
-        !AppendPatches(kBackupFilenameReferences, backupPointer, patches) ||
+    if (!AppendVerifiedPatches(kMainFilenameReferences, kVanillaMainFilenameRva, mainPointer, "save", patches) ||
+        !AppendVerifiedPatches(kBackupFilenameReferences, kVanillaBackupFilenameRva, backupPointer, "backup", patches) ||
         !AppendPbpConfigPatches(pbpConfigPointer, patches) ||
         !ApplyPatches(patches)) {
         return false;

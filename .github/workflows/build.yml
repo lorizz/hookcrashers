@@ -75,7 +75,9 @@ jobs:
           $ErrorActionPreference = "Stop"
           New-Item -ItemType Directory -Force -Path dist/mods | Out-Null
           Copy-Item Release/HookCrashers.asi dist/HookCrashers.asi
-          Copy-Item examples/mods/TestMod dist/mods/TestMod -Recurse
+          # Ship an empty mods folder: any folder mod switches saves to hc_<mod>.dat,
+          # so example mods (examples/mods) are never installed for players.
+          Set-Content dist/mods/README.txt "Put HookCrashers folder mods here (one folder per mod). See https://github.com/lorizz/hookcrashers#folder-mods"
 
           gh release download v9.7.2 `
             --repo ThirteenAG/Ultimate-ASI-Loader `
@@ -115,27 +117,29 @@ jobs:
           if-no-files-found: error
 
   publish-channel:
-    name: Publish update channel
+    name: Publish release
     runs-on: ubuntu-latest
     needs: build
-    # Only owner pushes to main (release) or v5 (dev) publish. Other branches and
-    # pull requests (including forks) only build.
-    if: >-
-      github.event_name == 'push' &&
-      github.repository_owner == 'lorizz' &&
-      (github.ref_name == 'main' || github.ref_name == 'v5')
+    # Channels: a push to main publishes the stable release; a push to any other
+    # branch publishes the dev build (testing channel). Pull requests, forks and
+    # commits whose message contains [skip ci] only build or do not run at all.
+    if: github.event_name == 'push' && github.repository_owner == 'lorizz'
     permissions:
       contents: write
+    # One publish per channel at a time: concurrent pushes to two dev branches
+    # would otherwise race on the shared "dev" release.
+    concurrency:
+      group: publish-${{ github.ref_name == 'main' && 'stable' || 'dev' }}
+      cancel-in-progress: false
     env:
+      GH_TOKEN: ${{ github.token }}
+      HC_STABLE: ${{ github.ref_name == 'main' && 'true' || 'false' }}
       HC_CHANNEL: ${{ github.ref_name == 'main' && 'release' || 'dev' }}
       HC_MANIFEST: ${{ github.ref_name == 'main' && 'stable.json' || 'testing.json' }}
       HC_VERSION: ${{ needs.build.outputs.version }}
       HC_TAG: ${{ github.ref_name == 'main' && format('release_{0}', needs.build.outputs.version) || 'dev' }}
-      HC_TITLE: ${{ github.ref_name == 'main' && format('HookCrashers {0}', needs.build.outputs.version) || format('HookCrashers dev {0}', needs.build.outputs.version) }}
-      HC_LATEST: ${{ github.ref_name == 'main' && 'true' || 'false' }}
-      RELEASES_REPO: lorizz/hookcrashers-releases
     steps:
-      - name: Checkout private source
+      - name: Checkout source
         uses: actions/checkout@v4
 
       - name: Download build artifact
@@ -144,91 +148,101 @@ jobs:
           name: HookCrashers-v5-win32
           path: artifact
 
-      - name: Prepare release notes
+      - name: Skip already released stable versions
+        id: guard
         shell: bash
         run: |
-          {
-            echo "HookCrashers ${HC_VERSION}"
-            echo
-            echo "Branch: ${GITHUB_REF_NAME}"
-            echo "Commit: ${GITHUB_SHA}"
-            echo
-            awk '/^## /{ if (seen) exit; seen=1; next } seen { print }' CHANGELOG.md
-            echo
-            cat sdk/QUICKSTART-ASI.md
-          } > release-notes.md
+          if [ "${HC_STABLE}" = "true" ] && gh release view "${HC_TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "::warning::${HC_TAG} already exists; nothing published. Bump VERSION to release a new stable build."
+            echo "publish=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "publish=true" >> "$GITHUB_OUTPUT"
+          fi
 
-      - name: Publish private channel release
+      - name: Prepare manifest, checksums and release notes
+        if: steps.guard.outputs.publish == 'true'
         shell: bash
-        env:
-          GH_TOKEN: ${{ github.token }}
         run: |
-          if [ "${HC_CHANNEL}" = "dev" ]; then
-            gh release delete "${HC_TAG}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
-          fi
-          gh release create "${HC_TAG}" \
-            artifact/HookCrashers-v5-dropin.zip \
-            artifact/HookCrashers-SDK-Win32.zip \
-            artifact/dist/HookCrashers.asi \
-            artifact/dist/dinput8.dll \
-            --repo "${GITHUB_REPOSITORY}" \
-            --title "${HC_TITLE}" \
-            --notes-file release-notes.md \
-            --target "${GITHUB_SHA}" \
-            --latest="${HC_LATEST}"
+          set -euo pipefail
+          base="https://github.com/${GITHUB_REPOSITORY}/releases/download/${HC_TAG}"
+          mkdir -p upload
+          cp artifact/HookCrashers-v5-dropin.zip artifact/HookCrashers-SDK-Win32.zip \
+             artifact/dist/HookCrashers.asi artifact/dist/dinput8.dll upload/
+          (cd upload && sha256sum HookCrashers.asi dinput8.dll HookCrashers-v5-dropin.zip HookCrashers-SDK-Win32.zip > SHA256SUMS.txt)
+          asset_sha="$(sha256sum upload/HookCrashers.asi | cut -d' ' -f1)"
 
-      - name: Publish public release mirror
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public release mirror"
-            exit 0
-          fi
-          if [ "${HC_CHANNEL}" = "dev" ]; then
-            gh release delete "${HC_TAG}" --repo "${RELEASES_REPO}" --yes --cleanup-tag || true
-          fi
-          gh release create "${HC_TAG}" \
-            artifact/HookCrashers-v5-dropin.zip \
-            artifact/HookCrashers-SDK-Win32.zip \
-            artifact/dist/HookCrashers.asi \
-            artifact/dist/dinput8.dll \
-            --repo "${RELEASES_REPO}" \
-            --title "${HC_TITLE}" \
-            --notes-file release-notes.md \
-            --latest="${HC_LATEST}"
-
-      - name: Update public channel manifest
-        shell: bash
-        env:
-          GH_TOKEN: ${{ secrets.HOOKCRASHERS_RELEASES_TOKEN }}
-        run: |
-          if [ -z "${GH_TOKEN}" ]; then
-            echo "::warning::HOOKCRASHERS_RELEASES_TOKEN is missing; skipping public channel manifest"
-            exit 0
-          fi
-          gh auth setup-git
-          rm -rf releases-repo
-          gh repo clone "${RELEASES_REPO}" releases-repo
-          ASSET_SHA256="$(sha256sum ../artifact/dist/HookCrashers.asi | cut -d' ' -f1)"
-          cd releases-repo
-          cat > "${HC_MANIFEST}" <<EOF
+          # Read by the in-game updater (src/Core/Version.h). Only builds from
+          # this repository's releases with a matching SHA-256 are installed.
+          cat > "upload/${HC_MANIFEST}" <<EOF
           {
             "name": "HookCrashers",
             "channel": "${HC_CHANNEL}",
             "version": "${HC_VERSION}",
             "commit": "${GITHUB_SHA}",
-            "asset_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers.asi",
-            "asset_sha256": "${ASSET_SHA256}",
-            "dropin_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-v5-dropin.zip",
-            "sdk_url": "https://github.com/${RELEASES_REPO}/releases/download/${HC_TAG}/HookCrashers-SDK-Win32.zip",
-            "notes": "See the ${HC_TAG} release page for patch notes."
+            "asset_url": "${base}/HookCrashers.asi",
+            "asset_sha256": "${asset_sha}",
+            "dropin_url": "${base}/HookCrashers-v5-dropin.zip",
+            "sdk_url": "${base}/HookCrashers-SDK-Win32.zip",
+            "notes": "https://github.com/${GITHUB_REPOSITORY}/releases/tag/${HC_TAG}"
           }
           EOF
-          cp ../release-notes.md "${HC_CHANNEL}-patch-notes.md"
-          git config user.name "HookCrashers Bot"
-          git config user.email "hookcrashers-bot@users.noreply.github.com"
-          git add "${HC_MANIFEST}" "${HC_CHANNEL}-patch-notes.md"
-          git commit -m "Update ${HC_CHANNEL} channel to ${HC_VERSION}" || exit 0
-          git push
+
+          if [ "${HC_STABLE}" = "true" ]; then
+            changes="$(awk -v v="${HC_VERSION}" '$0 ~ "^## "v"( |$)" { seen=1; next } /^## / { if (seen) exit } seen { print }' CHANGELOG.md)"
+            if [ -z "${changes//[[:space:]]/}" ]; then
+              echo "::error::CHANGELOG.md has no '## ${HC_VERSION}' section; add it before releasing."
+              exit 1
+            fi
+          else
+            changes="$(awk '/^## / { if (seen) exit; seen=1; next } seen { print }' CHANGELOG.md)"
+          fi
+
+          {
+            if [ "${HC_STABLE}" = "true" ]; then
+              echo "Stable release. Installed copies update themselves on the next launch."
+            else
+              echo "> **Development build** from \`${GITHUB_REF_NAME}\` (\`${GITHUB_SHA::7}\`), published to the testing channel only."
+              echo "> It may be unfinished; keep a backup of your saves."
+            fi
+            echo
+            echo "## Install"
+            echo
+            echo "1. Download **HookCrashers-v5-dropin.zip** and extract it into the Castle Crashers folder (the one containing \`castle.exe\`)."
+            echo "2. Start the game once. HookCrashers creates \`HookCrashers.yaml\` and the \`mods\` folder."
+            echo
+            echo "Requires the current Steam build of Castle Crashers Remastered (\`castle.exe\` timestamp \`0x6A4D42BF\`)."
+            echo
+            echo "## Changes"
+            echo
+            echo "${changes}"
+            echo
+            echo "## Files"
+            echo
+            echo "| File | SHA-256 |"
+            echo "|---|---|"
+            while read -r hash file; do echo "| \`${file}\` | \`${hash}\` |"; done < upload/SHA256SUMS.txt
+            echo
+            echo "Native mod authors: **HookCrashers-SDK-Win32.zip** contains the headers, import library, examples and \`QUICKSTART-ASI.md\`."
+          } > release-notes.md
+
+      - name: Publish release
+        if: steps.guard.outputs.publish == 'true'
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "${HC_STABLE}" = "true" ]; then
+            title="HookCrashers ${HC_VERSION}"
+            flags=(--latest)
+          else
+            # The dev release is recreated on every push and never becomes "latest",
+            # which is what the stable channel manifest URL resolves to.
+            gh release delete "${HC_TAG}" --repo "${GITHUB_REPOSITORY}" --yes --cleanup-tag || true
+            title="HookCrashers ${HC_VERSION} (dev, ${GITHUB_REF_NAME})"
+            flags=(--prerelease --latest=false)
+          fi
+          gh release create "${HC_TAG}" upload/* \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "${title}" \
+            --notes-file release-notes.md \
+            --target "${GITHUB_SHA}" \
+            "${flags[@]}"
