@@ -1,32 +1,58 @@
 # Changelog
 
-## 5.2.0-dev
+All notable changes to HookCrashers. Stable releases are listed as
+`## <version> - <date>`. `-dev` entries were development builds published to
+the testing channel. The workflow uses the section matching `VERSION` as the
+release notes.
+
+## 5.2.0 - Unreleased
 
 ### Added
 
-- Menu API (experimental): mods can build native in-game menus from Lua (`HC.Menu`) and C++ (`HookCrashers::Menu`) with buttons, On/Off toggles, option choices, submenus, labels and graphics from the mod's own SWF. Menus use the game's own book background, navigation, controller input, sounds, fades and Back button. See `docs/menu-api.md` and `examples/mods/MenuExample`.
-- Menu graphics: `HC.Menu.RegisterGraphic` imports an exported sprite of an uncompressed AS2 SWF into MENU with fresh character ids. Unsupported content (bitmaps, buttons, static text, video, PlaceObject3, compressed or AS3 SWFs) is rejected with a clear log message instead of being imported.
+- **Menu API (experimental):** mods build native in-game menus from Lua (`HC.Menu`) and C++ (`HookCrashers::Menu`). Menus can contain buttons, On/Off toggles, option choices, submenus, labels and graphics from the mod's own SWF. They use the game's own book background, navigation, controller input, sounds, fades and Back button. See `docs/menu-api.md` and `examples/mods/MenuExample`.
+- **Menu graphics:** `HC.Menu.RegisterGraphic` imports an exported sprite of an uncompressed AS2 SWF into MENU with fresh character ids. Unsupported content (bitmaps, buttons, static text, video, PlaceObject3, compressed or AS3 SWFs) is rejected with a log message.
+- **Release checksums:** each release lists the SHA-256 of every file and attaches `SHA256SUMS.txt`.
 
 ### Changed
 
-- The main-menu handler table now has 64 entries (46 vanilla, 2 online menus, 16 mod menus). The patch lives in a shared module, verifies the original bytes and is used by both the online menus and the Menu API.
+- **Releases moved to `lorizz/hookcrashers`.** Builds and update manifests are published only in this repository, and `lorizz/hookcrashers-releases` is retired.
+  - The updater reads `stable.json` from the latest release and `testing.json` from the `dev` prerelease.
+  - It installs only files downloaded from this repository's releases.
+  - Installs up to 5.1.2 are moved to 5.2.0 by a one-time migration release (`scripts/publish-legacy-bridge.sh`).
+- **Release channels:** a push to `main` publishes the stable release when `VERSION` changes, and a push to any other branch publishes the `dev` prerelease (testing channel). Publishes on the same channel run one at a time.
+- **Drop-in zip:** it no longer contains `mods/TestMod`. That mod enabled a test character and moved saves to `hc_testmod.dat` for everyone who installed HookCrashers. The example mods stay in `examples/mods`.
+- **Menu table:** the main-menu handler table now has 64 entries (46 vanilla, 2 online menus, 16 mod menus). A single module patches it after checking the original bytes, for both the online menus and the Menu API.
+- **`NativeDB/Natives.h`:**
+  - removed 38 entries that were macOS offsets or mid-function addresses (calling them crashed the game);
+  - corrected `CC_WriteSaveFile` (0xE9280), `CC_SyncCharacterListFromSave` (0x85B90), `CC_TextMenuItemCtor` (0x153EE0) and `CC_TextMenuItemSetLocalizedText` (0x154210).
+
+  Every remaining entry is a verified function entry point.
+- **Documentation:** `README.md` was rewritten (install, channels, configuration, building and releasing).
 
 ### Fixed
 
-- `MenuStructs.h`: `TextMenuItem` owner and callback were swapped (owner is +0x34, callback +0x38, as the native constructor and confirm action use them).
-- Release workflow: the channel-manifest step hashed `../artifact/...` instead of `artifact/...`, so the 5.1.2 release had to be finished by hand. Manifests now get `asset_sha256` automatically.
-- Character expansion wrote `-networkBase` one byte too far (0x8D2D6 instead of 0x8D2D5): it replaced the opcode of `cmp ecx, eax` in the lobby skin lookup with `loopne`, corrupting that function whenever addon characters were registered. It now patches the `lea ecx, [edi-0x20]` immediate as intended.
-- Character expansion verifies the original bytes of all 79 constants and code patches before writing any of them; on a mismatch nothing is written. Values from an earlier install are accepted, so a Lua `InstallCharacterExpansion` followed by the automatic install still works.
-- A second `CharacterExpansion::Install` no longer detours `CC_CreateDefaultSave`/`CC_SanitizeCharacterSaveSlots` again (the hooks ran twice). The two stats-iterator bytes that were written twice now have a single owner; the result is unchanged.
-- Save redirect: the 11 `cc_save.dat`/`cc_save.dat.bak` references are verified to point at the vanilla strings before redirecting (previously only the PBP config references were).
-- Network: incoming HC5 sync packets are bounds-checked against the received message length before the roster body is copied; a truncated or malformed packet from another player is rejected instead of reading past the buffer.
-- Updater: the channel manifest download is capped at 64 KiB.
-- `NativeDB/Natives.h`: removed 38 entries that were macOS offsets or mid-function addresses (calling them crashed the game) and corrected `CC_WriteSaveFile` (0xE9280), `CC_SyncCharacterListFromSave` (0x85B90), `CC_TextMenuItemCtor` (0x153EE0) and `CC_TextMenuItemSetLocalizedText` (0x154210). Every remaining entry is a verified function entry point.
-- Menu graphics are imported only into the stock MENU movie (the one exporting `playwithfriends`), never into other movies whose path contains "menu".
+- **Lobby skin lookup corrupted with addons registered:** character expansion wrote `-networkBase` to 0x8D2D6, one byte too far. That byte is the opcode of the `cmp ecx, eax` that follows, which became `loopne` in the lobby skin lookup. It now patches the `lea ecx, [edi-0x20]` immediate at 0x8D2D5.
+- **Double save hooks:** a second `CharacterExpansion::Install` no longer detours `CC_CreateDefaultSave` and `CC_SanitizeCharacterSaveSlots` again; before, the hooks ran twice. The two stats-iterator bytes that were written twice now have a single owner, and the result is unchanged.
+- **`MenuStructs.h`:** the `TextMenuItem` owner and callback offsets were swapped. Owner is +0x34 and callback +0x38.
+- **Release workflow:**
+  - the manifest step hashed `../artifact/...` instead of `artifact/...`, so the 5.1.2 release had to be finished by hand;
+  - `scripts/install-crossover.sh` looked for the removed `v5.0.0-draft` tag and for a `HookCrashers.yaml` that the zip does not contain. It now installs the latest release (or `HOOKCRASHERS_TAG=dev`).
+- **Updater:** a missing manifest (HTTP error page) is no longer parsed as a manifest.
+- **Menu graphics:** they are imported only into the stock MENU movie (the one exporting `playwithfriends`).
+
+### Security
+
+- **Character expansion:** the original bytes of all 79 constant and code patches are checked before any of them is written. If anything differs, nothing is written. Values from an earlier install are accepted, so a Lua `InstallCharacterExpansion` followed by the automatic install still works.
+- **Save redirect:** the 11 `cc_save.dat` and `cc_save.dat.bak` references are checked to point at the vanilla strings before they are redirected. Before, only the PBP config references were checked.
+- **Multiplayer sync:** incoming HC5 packets are checked against the received message length before the roster body is copied. A truncated or malformed packet from another player is rejected instead of being read past the end of the buffer.
+- **Updater:** manifest downloads are limited to 64 KiB.
 
 ### Validation
 
-- Offline: menu model (66 checks) and SWF import (29 checks, including the original online selector and lobby sprites) pass under AddressSanitizer/UBSan. Native calling conventions, layouts and callback dispatch were taken from the disassembly of the supported build. In-game behaviour has not been tested yet.
+- **Offline tests:** the menu model (66 checks) and SWF import (31 checks, including the original online selector and lobby sprites) pass under AddressSanitizer/UBSan.
+- **Character expansion patches:** replayed against the 5.1.2 code with 0, 1 and 5 addons. All 77 constant addresses end with the same values, except the 0x8D2D5 fix.
+- **Build:** the MSVC Win32 build passes in CI.
+- **Not tested in game yet:** the Menu API, the packet bounds check and the new update source.
 
 ## 5.1.2 - 2026-11-23
 
@@ -192,6 +218,7 @@
 - Restored the vanilla menu return target after closing the updater prompt, so the Classic/Fresh selector only appears when requested by the game.
 - Right-aligned custom version text against the game's original bottom-right anchor and adjusted multiline vertical placement.
 - Added bounds checks before inserting custom localization strings into the SWF string table.
+
 ## 5.0.1 - 2026-08-02
 
 ### Added
