@@ -5,7 +5,7 @@ All notable changes to HookCrashers. Stable releases are listed as
 the testing channel. The workflow uses the section matching `VERSION` as the
 release notes.
 
-## 5.2.0 - Unreleased
+## 5.2.0 - 2026-11-24
 
 ### Added
 
