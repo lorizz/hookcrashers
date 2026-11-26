@@ -58,6 +58,7 @@ struct Item {
     std::string graphic;               // Graphic: registered graphic id
     float x = 0.0f;                    // Graphic: position in menu coordinates
     float y = 0.0f;
+    std::uint32_t color = 0;           // 0xRRGGBBAA text color, 0 = game default (grey when disabled)
     ItemCallback onActivate;
 };
 
@@ -67,6 +68,7 @@ struct Menu {
     std::vector<Item> items;
     CloseCallback onClose;
     bool background = true;            // native "bookbg" backdrop
+    bool backButton = true;            // Back button + Back key; false: the menu can only be left from its items
     std::uint32_t revision = 1;        // bumped on structural changes (rebuild needed)
 };
 
@@ -86,12 +88,14 @@ public:
     Result AddItem(const std::string& menuId, Item item);
     Result SetTitle(const std::string& menuId, const std::string& title);
     Result SetBackground(const std::string& menuId, bool enabled);
+    Result SetBackButton(const std::string& menuId, bool enabled);
     Result SetOnClose(const std::string& menuId, CloseCallback onClose);
 
     // Live updates: text/value/enabled do not require a rebuild.
     Result SetItemText(const std::string& menuId, const std::string& itemId, const std::string& text);
     Result SetItemValue(const std::string& menuId, const std::string& itemId, int value);
     Result SetItemEnabled(const std::string& menuId, const std::string& itemId, bool enabled);
+    Result SetItemColor(const std::string& menuId, const std::string& itemId, std::uint32_t rgba);
     // Choice/Toggle labels. Same option count: live update; a different count
     // is structural and bumps the revision (the menu is rebuilt on next open).
     Result SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options);

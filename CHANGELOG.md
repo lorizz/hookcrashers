@@ -5,6 +5,22 @@ All notable changes to HookCrashers. Stable releases are listed as
 the testing channel. The workflow uses the section matching `VERSION` as the
 release notes.
 
+## 5.3.0 - Unreleased
+
+### Added
+
+- **Save slots:** up to 10 modded saves (`hc_slot1.dat` … `hc_slot10.dat`), each with a metadata file (`hc_slotN.meta`), all synced by Steam Cloud.
+  - A slot screen opens before the main menu on every launch with mods. You pick a slot with left/right, see when it was last played and with which mods, then Play/Continue, start a new game in an empty slot, open Mod Info, import the vanilla save or delete a slot.
+  - Switching slots reloads the save without restarting the game. HookCrashers checks that the game really reloaded the slot, and cancels the switch otherwise, so one slot is never written over another.
+  - **Mod Info** lists the mods a slot was last played with: OK, different version, missing, or new since then.
+  - **Import vanilla save:** copies `cc_save.dat` into an empty slot and adds the addon characters. `cc_save.dat` itself is only read, never written.
+  - Deleting a slot moves its files to `hc_trash_slotN.*`; the slot in use cannot be deleted.
+- **Character remapping:** each slot remembers which addon character is in which save position. When mods are added, removed or reordered, the save is rearranged by character name, so no character takes another's progress. Characters of removed mods are kept in the slot metadata and come back when the mod is reinstalled. The file before a rearrangement is kept as `hc_slotN.dat.old`.
+
+### Changed
+
+- **Save file names:** saves no longer depend on the first mod's manifest name. On the first launch the save used until 5.2.0 (`hc_<manifest>.dat`) is copied into slot 1, and the original file is kept. The PBP config is now `hcpbp.dat` (copied from `hcpbp_<manifest>.dat` when present).
+
 ## 5.2.0 - 2026-11-24
 
 ### Added

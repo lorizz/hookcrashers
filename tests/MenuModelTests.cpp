@@ -104,6 +104,19 @@ int main() {
         Check(registry.SetItemOptions("mod.main", "difficulty", {"Easy", "Normal", "Hard"}) == Result::Ok, "options restored");
     }
 
+    {
+        Menu before;
+        registry.Snapshot("mod.main", before);
+        Check(registry.SetItemColor("mod.main", "play", 0x40D040FFu) == Result::Ok, "item color");
+        Check(registry.SetItemColor("mod.main", "logo", 1) == Result::WrongKind, "graphics have no text color");
+        Check(registry.SetBackButton("mod.main", false) == Result::Ok, "back button off");
+        Menu after;
+        registry.Snapshot("mod.main", after);
+        Check(after.items[0].color == 0x40D040FFu && !after.backButton, "color and back flag stored");
+        Check(after.revision > before.revision, "back button change is structural");
+        registry.SetBackButton("mod.main", true);
+    }
+
     int value = -1;
     Check(registry.GetItemValue("mod.main", "difficulty", value) == Result::Ok && value == 0, "get value");
     Check(registry.CommitValue("mod.main", 2, 1, stored) == Result::Ok && stored.value == 1, "native change committed");

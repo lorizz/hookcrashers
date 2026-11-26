@@ -77,6 +77,15 @@ constexpr std::size_t kStateExtraAction = 0x1CC;
 constexpr std::size_t kStateInit = 0x1D0;
 constexpr std::size_t kStatePreUpdate = 0x1D4;
 constexpr std::size_t kStateReturnTarget = 0x1DA;
+constexpr std::size_t kStateInputEnabled = 0x15;     // set to 1 by the fade-in (0x1539E0) when it completes
+constexpr std::size_t kStatePendingAction = 0x18;
+constexpr std::size_t kStateInputBlocked = 0x1F0;    // u8, input ignored while non-zero (0x152D10)
+constexpr std::size_t kStateFlashTime = 0x1F8;       // confirm flash timer (0x153910)
+constexpr std::size_t kStateFadeDirection = 0x201;   // i8: 1 fade in, -1 fade out, 0 idle
+constexpr std::size_t kStateFadeAlpha = 0x204;       // float 0..1, copied to every item's alpha
+constexpr std::size_t kItemColor = 0x10;             // u32 0xRRGGBBAA, selected item is animated by the menu
+constexpr std::size_t kItemFallbackColor = 0x14;
+constexpr std::uint32_t kDisabledColor = 0x8A8A8AFFu;
 
 constexpr std::size_t kItemDisabled = 0x2D;
 constexpr std::size_t kItemText = 0x3C;
@@ -96,7 +105,7 @@ constexpr int kButtonItemSize = 0x60;
 constexpr int kBookBackgroundDepth = 2003;            // shared by the native book menus
 constexpr int kGraphicDepthBase = 11000;              // + slot * 16 + n, clear of native/online depths
 constexpr std::uint16_t kTitleMaxWidth = 64;
-constexpr std::uint16_t kItemMaxWidthUnits = 56;
+constexpr std::uint16_t kItemMaxWidthUnits = 44;  // longer text is scaled down to fit
 
 using SetMenuStateFn = void(__thiscall*)(void* mainMenu, std::int16_t id, void* state);
 using TextItemCtorFn = void*(__thiscall*)(void* item, void* owner, void* callback, std::uint32_t locId,
@@ -159,6 +168,7 @@ struct SlotState {
     bool built = false;
     std::vector<int> nativeToItem;    // menuItems index -> model item index (-1: title/label-less)
     std::vector<void*> itemObjects;   // model item index -> native object
+    std::vector<std::uint32_t> defaultColors; // model item index -> native color at build time
 };
 
 std::atomic<bool> g_available {false};
@@ -445,12 +455,29 @@ void __cdecl BackTrampoline(void* owner) {
 void ApplyLiveState(std::size_t slot, const Menu& menu);
 void ProcessRequests();
 
+void StartFadeIn(void* handler) {
+    Field<std::uint8_t>(handler, kStateInputEnabled) = 0;
+    Field<std::uint32_t>(handler, kStatePendingAction) = 0;
+    Field<std::uint8_t>(handler, kStateInputBlocked) = 0;
+    Field<float>(handler, kStateFlashTime) = 0.0f;
+    Field<std::int8_t>(handler, kStateFadeDirection) = 1;
+    Field<float>(handler, kStateFadeAlpha) = 0.0f;
+}
+
 void __cdecl UpdateTrampoline(void* owner) {
-    if (owner == g_mainMenu) ProcessRequests();
+    if (owner != g_mainMenu) return;
+    // Menus re-entered through a plain SetMenuState (Back from a submenu, a
+    // prompt returning here) get no fade-in and would ignore input forever.
+    void* handler = Field<void*>(owner, kMainCurrentHandler);
+    if (SlotOfHandler(handler) >= 0 && Field<std::uint8_t>(handler, kStateInputEnabled) == 0 &&
+        Field<std::int8_t>(handler, kStateFadeDirection) == 0 && Field<float>(handler, kStateFlashTime) == 0.0f) {
+        StartFadeIn(handler);
+    }
+    ProcessRequests();
 }
 
 // --- Building ---------------------------------------------------------------------
-void ResetHandler(void* handler) {
+void ResetHandler(void* handler, bool backButton) {
     void* confirmation = static_cast<std::uint8_t*>(g_table) + Table::kConfirmationMenuId * Table::kHandlerSize;
     // Handlers in the expanded slots were built by the native MenuState
     // constructor; reuse the stock book-menu transition flags.
@@ -467,7 +494,7 @@ void ResetHandler(void* handler) {
     std::memset(&Field<std::uint8_t>(handler, kStateButtons), 0, 8 * sizeof(void*));
     Field<void*>(handler, kStateOwner) = g_mainMenu;
     Field<void*>(handler, kStateConfirmOverride) = nullptr;
-    Field<void*>(handler, kStateBack) = reinterpret_cast<void*>(&BackTrampoline);
+    Field<void*>(handler, kStateBack) = backButton ? reinterpret_cast<void*>(&BackTrampoline) : nullptr;
     for (std::size_t offset = kStateAltActions; offset < kStateUpdate; offset += 4) Field<void*>(handler, offset) = nullptr;
     Field<void*>(handler, kStateUpdate) = reinterpret_cast<void*>(&UpdateTrampoline);
     Field<void*>(handler, kStateExtraAction) = nullptr;
@@ -482,9 +509,10 @@ bool Build(std::size_t slot, const Menu& menu) {
         Core::Logger::Error("Menu API: slot %u is not a native MenuState", static_cast<unsigned>(SlotMenuId(slot)));
         return false;
     }
-    ResetHandler(handler);
+    ResetHandler(handler, menu.backButton);
     state.nativeToItem.clear();
     state.itemObjects.assign(menu.items.size(), nullptr);
+    state.defaultColors.assign(menu.items.size(), 0);
 
     auto recordText = [&](int itemIndex) {
         const std::uint16_t count = Field<std::uint16_t>(handler, kStateMenuItemCount);
@@ -553,8 +581,9 @@ bool Build(std::size_t slot, const Menu& menu) {
         }
         }
         state.itemObjects[i] = object;
+        if (object && item.kind != ItemKind::Graphic) state.defaultColors[i] = Field<std::uint32_t>(object, kItemColor);
     }
-    CreateBackButton(g_mainMenu, handler);
+    if (menu.backButton) CreateBackButton(g_mainMenu, handler);
 
     state.mainMenu = g_mainMenu;
     state.revision = menu.revision;
@@ -575,6 +604,12 @@ void ApplyLiveState(std::size_t slot, const Menu& menu) {
         if (!object || item.kind == ItemKind::Graphic) continue;
         SetItemText(object, item.label, 0);
         if (IsSelectable(item)) Field<std::uint8_t>(object, kItemDisabled) = item.enabled ? 0 : 1;
+        std::uint32_t color = item.color;
+        if (!color) color = (IsSelectable(item) && !item.enabled) ? kDisabledColor : state.defaultColors[i];
+        if (color) {
+            Field<std::uint32_t>(object, kItemColor) = color;
+            Field<std::uint32_t>(object, kItemFallbackColor) = color;
+        }
         if (item.kind == ItemKind::Toggle || item.kind == ItemKind::Choice) {
             if (Field<std::uint16_t>(object, kSelectorOptionCount) == item.options.size()) {
                 for (std::size_t o = 0; o < item.options.size(); ++o) SetSelectorOption(object, o, item.options[o]);
@@ -599,9 +634,8 @@ bool OpenNow(const std::string& menuId) {
             state.built = false;
             return false;
         }
-    } else {
-        ApplyLiveState(static_cast<std::size_t>(slot), menu);
     }
+    ApplyLiveState(static_cast<std::size_t>(slot), menu);
     {
         std::lock_guard<std::mutex> lock(g_requestLock);
         g_dirty.erase(menuId);
@@ -622,6 +656,9 @@ bool OpenNow(const std::string& menuId) {
         Field<std::uint16_t>(handler, kStateReturnTarget) =
             active < Table::kTotalCount ? active : Table::kMainMenuId;
     }
+    // Stock menus accept input only after their fade-in completes (0x1539E0 sets
+    // +0x15); a freshly built handler has no fade running, so start one.
+    StartFadeIn(handler);
     NativeFn<SetMenuStateFn>(kSetMenuStateRva)(g_mainMenu, static_cast<std::int16_t>(self), handler);
     Core::Logger::Info("Menu API: opened '%s' (return to %u)", menuId.c_str(),
                        static_cast<unsigned>(Field<std::uint16_t>(handler, kStateReturnTarget)));

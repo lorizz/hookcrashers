@@ -191,6 +191,11 @@ graphics, `+0x184` buttons), owner `+0x1AC`, confirm override `+0x1B0`, Back
 `+0x1B4`, extra buttons `+0x1B8..+0x1C4`, per-frame update `+0x1C8`, init
 `+0x1D0`, pre-update `+0x1D4`, return menu id `+0x1DA`.
 
+Input: the menu handles keyboard/controller only while `+0x15` is set; the
+fade-in (`0x1539E0`, `+0x201` = 1, alpha `+0x204`) sets it when it completes,
+and Confirm/Back clear it. HookCrashers starts that fade-in whenever a mod menu
+becomes current.
+
 Item fields: position `+0x04/+0x08`, alpha `+0x0C`, color `+0x10`, fallback
 color `+0x14`, autoLayout `+0x2C`, disabled `+0x2D`, selectable `+0x2E`, visible
 `+0x2F`, owner `+0x34`, callback `+0x38`, text `+0x3C` (game-allocated
