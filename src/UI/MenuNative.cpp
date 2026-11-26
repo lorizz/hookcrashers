@@ -80,6 +80,7 @@ constexpr std::size_t kStatePreUpdate = 0x1D4;
 constexpr std::size_t kStateReturnTarget = 0x1DA;
 constexpr std::size_t kStateInputEnabled = 0x15;     // set to 1 by the fade-in (0x1539E0) when it completes
 constexpr std::size_t kStatePendingAction = 0x18;
+constexpr std::size_t kStateInputPlayer = 0x10;      // i16, see UpdateTrampoline
 constexpr std::size_t kStateInputBlocked = 0x1F0;    // u8, input ignored while non-zero (0x152D10)
 constexpr std::size_t kStateFlashTime = 0x1F8;       // confirm flash timer (0x153910)
 constexpr std::size_t kStateFadeDirection = 0x201;   // i8: 1 fade in, -1 fade out, 0 idle
@@ -485,7 +486,20 @@ void LogHandlerState(void* handler, const char* why) {
 
 void __cdecl UpdateTrampoline(void* owner) {
     if (owner != g_mainMenu) return;
-    LogHandlerState(Field<void*>(owner, kMainCurrentHandler), "tick");
+    {
+        // Input is read for the player at +0x10 (0x1518C0): -2 any controller,
+        // -3 any signed-in player, 0..3 one player. SetMenuState copies it from
+        // the previous menu, which before "press start" may hold none of these,
+        // and then every key is ignored.
+        void* current = Field<void*>(owner, kMainCurrentHandler);
+        if (SlotOfHandler(current) >= 0) {
+            const std::int16_t player = Field<std::int16_t>(current, kStateInputPlayer);
+            if (player != -2 && player != -3 && (player < 0 || player > 3)) {
+                Field<std::int16_t>(current, kStateInputPlayer) = -2;
+            }
+            LogHandlerState(current, "tick");
+        }
+    }
     // Menus re-entered through a plain SetMenuState (Back from a submenu, a
     // prompt returning here) get no fade-in and would ignore input forever.
     void* handler = Field<void*>(owner, kMainCurrentHandler);
