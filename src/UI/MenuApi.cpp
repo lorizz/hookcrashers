@@ -151,6 +151,10 @@ bool SetItemText(const std::string& menuId, const std::string& itemId, const std
     return Live(Registry::Instance().SetItemText(menuId, itemId, text), "SetItemText", menuId, itemId);
 }
 
+bool SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options) {
+    return Live(Registry::Instance().SetItemOptions(menuId, itemId, std::move(options)), "SetItemOptions", menuId, itemId);
+}
+
 bool SetItemValue(const std::string& menuId, const std::string& itemId, int value) {
     return Live(Registry::Instance().SetItemValue(menuId, itemId, value), "SetItemValue", menuId, itemId);
 }

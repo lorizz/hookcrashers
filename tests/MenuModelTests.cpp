@@ -89,6 +89,21 @@ int main() {
     Check(snapshot.revision == beforeLive, "live updates do not force a rebuild");
     Check(snapshot.items[0].label == "Play now" && !snapshot.items[0].enabled, "live updates stored");
 
+    {
+        Menu before;
+        registry.Snapshot("mod.main", before);
+        Check(registry.SetItemOptions("mod.main", "difficulty", {"E", "N", "H"}) == Result::Ok, "same-count options update");
+        Menu after;
+        registry.Snapshot("mod.main", after);
+        Check(after.revision == before.revision && after.items[2].options[1] == "N", "same-count options are live");
+        Check(registry.SetItemOptions("mod.main", "difficulty", {"Easy", "Normal", "Hard", "Insane"}) == Result::Ok, "options grow");
+        registry.Snapshot("mod.main", after);
+        Check(after.revision > before.revision, "option count change is structural");
+        Check(registry.SetItemOptions("mod.main", "play", {"x"}) == Result::WrongKind, "buttons have no options");
+        Check(registry.SetItemOptions("mod.main", "god", {"a", "b", "c"}) == Result::InvalidArgument, "toggle needs two labels");
+        Check(registry.SetItemOptions("mod.main", "difficulty", {"Easy", "Normal", "Hard"}) == Result::Ok, "options restored");
+    }
+
     int value = -1;
     Check(registry.GetItemValue("mod.main", "difficulty", value) == Result::Ok && value == 0, "get value");
     Check(registry.CommitValue("mod.main", 2, 1, stored) == Result::Ok && stored.value == 1, "native change committed");

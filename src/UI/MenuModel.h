@@ -92,6 +92,9 @@ public:
     Result SetItemText(const std::string& menuId, const std::string& itemId, const std::string& text);
     Result SetItemValue(const std::string& menuId, const std::string& itemId, int value);
     Result SetItemEnabled(const std::string& menuId, const std::string& itemId, bool enabled);
+    // Choice/Toggle labels. Same option count: live update; a different count
+    // is structural and bumps the revision (the menu is rebuilt on next open).
+    Result SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options);
     Result GetItemValue(const std::string& menuId, const std::string& itemId, int& value) const;
 
     // Thread-safe copies for the native builder and for dispatch.

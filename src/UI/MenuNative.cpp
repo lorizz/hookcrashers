@@ -576,6 +576,9 @@ void ApplyLiveState(std::size_t slot, const Menu& menu) {
         SetItemText(object, item.label, 0);
         if (IsSelectable(item)) Field<std::uint8_t>(object, kItemDisabled) = item.enabled ? 0 : 1;
         if (item.kind == ItemKind::Toggle || item.kind == ItemKind::Choice) {
+            if (Field<std::uint16_t>(object, kSelectorOptionCount) == item.options.size()) {
+                for (std::size_t o = 0; o < item.options.size(); ++o) SetSelectorOption(object, o, item.options[o]);
+            }
             Field<std::uint16_t>(object, kSelectorIndex) = static_cast<std::uint16_t>(item.value);
         }
     }

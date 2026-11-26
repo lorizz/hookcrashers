@@ -27,6 +27,7 @@ bool Close();
 std::string CurrentMenuId();
 
 bool SetItemText(const std::string& menuId, const std::string& itemId, const std::string& text);
+bool SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options);
 bool SetItemValue(const std::string& menuId, const std::string& itemId, int value);
 bool GetItemValue(const std::string& menuId, const std::string& itemId, int& value);
 bool SetItemEnabled(const std::string& menuId, const std::string& itemId, bool enabled);

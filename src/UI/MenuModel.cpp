@@ -228,6 +228,25 @@ Result Registry::SetItemEnabled(const std::string& menuId, const std::string& it
     return Result::Ok;
 }
 
+Result Registry::SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options) {
+    if (options.empty() || options.size() > kMaxOptions) return Result::InvalidArgument;
+    for (const std::string& option : options) {
+        if (option.empty() || !ValidText(option)) return Result::InvalidArgument;
+    }
+    std::lock_guard<std::mutex> lock(m_lock);
+    Menu* menu = FindMenu(menuId);
+    if (!menu) return Result::UnknownMenu;
+    Item* item = FindItem(*menu, itemId);
+    if (!item) return Result::UnknownItem;
+    if (item->kind != ItemKind::Toggle && item->kind != ItemKind::Choice) return Result::WrongKind;
+    if (item->kind == ItemKind::Toggle && options.size() != 2) return Result::InvalidArgument;
+    const bool structural = options.size() != item->options.size();
+    item->options = std::move(options);
+    item->value = NormalizeValue(*item, item->value);
+    if (structural) ++menu->revision;
+    return Result::Ok;
+}
+
 Result Registry::GetItemValue(const std::string& menuId, const std::string& itemId, int& value) const {
     std::lock_guard<std::mutex> lock(m_lock);
     const Menu* menu = FindMenu(menuId);

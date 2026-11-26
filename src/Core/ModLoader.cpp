@@ -39,6 +39,7 @@ struct NativeModule {
 
 std::vector<NativeModule> g_nativeModules;
 std::string g_currentNativeModDirectory;
+std::vector<LoadedMod> g_LoadedMods;
 
 std::string JoinPath(const std::string& a, const std::string& b) {
     if (a.empty()) {
@@ -711,8 +712,13 @@ const std::string& CurrentNativeModDirectory() {
     return g_currentNativeModDirectory;
 }
 
+const std::vector<LoadedMod>& LoadedMods() {
+    return g_LoadedMods;
+}
+
 LoadResult LoadAll(const std::string& rootDirectory) {
     Shutdown();
+    g_LoadedMods.clear();
     LoadResult result;
     const std::string modsDirectory = JoinPath(rootDirectory, "mods");
     Logger::Info("Scanning mods directory: %s", modsDirectory.c_str());
@@ -761,10 +767,12 @@ LoadResult LoadAll(const std::string& rootDirectory) {
 
         std::vector<std::string> entrypoints;
         std::string modVersion;
+        std::string displayName = modName;
         const std::string manifestPath = JoinPath(modDirectory, "manifest.yaml");
         if (FileExists(manifestPath)) {
             Logger::Info("Reading manifest: %s", manifestPath.c_str());
             const std::string manifestName = ReadManifestName(manifestPath);
+            if (!manifestName.empty()) displayName = manifestName;
             if (manifestName.empty()) {
                 Logger::Warn("Manifest has no usable name: %s", manifestPath.c_str());
             } else if (result.manifestName.empty()) {
@@ -780,6 +788,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
         } else {
             Logger::Warn("Mod has no manifest.yaml: %s", modDirectory.c_str());
         }
+        g_LoadedMods.push_back({modName, displayName, modVersion});
 
         const std::string localizationPath = JoinPath(modDirectory, "localizations.json");
         if (FileExists(localizationPath)) {
