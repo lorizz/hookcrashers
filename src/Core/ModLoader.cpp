@@ -760,6 +760,7 @@ LoadResult LoadAll(const std::string& rootDirectory) {
     });
 
     for (const std::string& modName : modNames) {
+        const int addonsBefore = Characters::Registry::Instance().AddonCount();
 
         ++result.modsFound;
         const std::string modDirectory = JoinPath(modsDirectory, modName);
@@ -788,7 +789,6 @@ LoadResult LoadAll(const std::string& rootDirectory) {
         } else {
             Logger::Warn("Mod has no manifest.yaml: %s", modDirectory.c_str());
         }
-        g_LoadedMods.push_back({modName, displayName, modVersion});
 
         const std::string localizationPath = JoinPath(modDirectory, "localizations.json");
         if (FileExists(localizationPath)) {
@@ -824,6 +824,8 @@ LoadResult LoadAll(const std::string& rootDirectory) {
             ++result.scriptsRun;
             result.charactersRegistered += ExecuteScript(script, modDirectory, modVersion);
         }
+        const int addonsAdded = (std::max)(0, Characters::Registry::Instance().AddonCount() - addonsBefore);
+        g_LoadedMods.push_back({modName, displayName, modVersion, addonsAdded});
     }
 
     Logger::Info("Mod scan complete: mods=%d nativeModules=%d scripts=%d characters=%d manifestName='%s'",

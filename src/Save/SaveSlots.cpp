@@ -304,6 +304,26 @@ bool Initialize() {
         ImportLegacySave();
     }
     g_active = configured ? configured : 1;
+    if (g_slots[g_active].used && IsBlocked(CompareMods(g_slots[g_active].meta.mods, CurrentMods()))) {
+        // Never load (or remap) a slot whose character mods are gone or changed:
+        // fall back to another playable slot, or an empty one, and leave it untouched.
+        const int blocked = g_active;
+        int fallback = 0;
+        for (int index = 1; index <= kMaxSlots && !fallback; ++index) {
+            if (g_slots[index].used && !IsBlocked(CompareMods(g_slots[index].meta.mods, CurrentMods()))) fallback = index;
+        }
+        for (int index = 1; index <= kMaxSlots && !fallback; ++index) {
+            if (!g_slots[index].used) fallback = index;
+        }
+        if (!fallback) {
+            Core::Logger::Error("SaveSlots: every slot is locked by missing character mods; save slots disabled");
+            SaveFileRedirect::SetSlotFileNames("hc_locked.dat", "hc_locked.dat.bak");
+            return false;
+        }
+        g_active = fallback;
+        Core::Logger::Warn("SaveSlots: slot %d is locked (character mods missing or changed); starting on slot %d",
+                           blocked, g_active);
+    }
     g_activeSavedMods = g_slots[g_active].meta.mods;
     WriteConfig();
     if (!SaveFileRedirect::SetSlotFileNames(SaveFileName(g_active), BackupFileName(g_active))) {
@@ -476,7 +496,7 @@ bool IsReady() {
 
 std::vector<ModEntry> CurrentMods() {
     std::vector<ModEntry> mods;
-    for (const auto& mod : Core::ModLoader::LoadedMods()) mods.push_back({mod.name, mod.version});
+    for (const auto& mod : Core::ModLoader::LoadedMods()) mods.push_back({mod.name, mod.version, mod.characters > 0});
     return mods;
 }
 
@@ -495,6 +515,7 @@ std::vector<SlotInfo> List() {
         if (slot.used) {
             info.mods = CompareMods(info.active ? g_activeSavedMods : slot.meta.mods, current);
             info.summary = Summarize(info.mods);
+            info.blocked = !info.active && IsBlocked(info.mods);
         }
         list.push_back(std::move(info));
     }
@@ -519,6 +540,10 @@ bool Activate(int index, std::string& error) {
         return false;
     }
     if (index == g_active) return true;
+    if (g_slots[index].used && IsBlocked(CompareMods(g_slots[index].meta.mods, CurrentMods()))) {
+        error = "this slot needs mods that are missing or changed";
+        return false;
+    }
 
     std::size_t bufferSize = 0;
     std::uint8_t* buffer = GameSaveBuffer(bufferSize);

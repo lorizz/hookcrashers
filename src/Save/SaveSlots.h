@@ -30,6 +30,7 @@ struct SlotInfo {
     SlotMeta meta;
     std::vector<ModComparison> mods;
     ModSummary summary;
+    bool blocked = false;   // played with a character mod that is now missing or changed
 };
 
 // Game thread.

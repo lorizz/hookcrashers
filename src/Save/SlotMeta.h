@@ -28,7 +28,11 @@ constexpr std::size_t kMaxNameBytes = 48;
 struct ModEntry {
     std::string name;
     std::string version;
-    bool operator==(const ModEntry& other) const { return name == other.name && version == other.version; }
+    bool touchesSave = false; // registers characters: the save cannot be loaded without it
+    bool operator==(const ModEntry& other) const {
+        return name == other.name && version == other.version && touchesSave == other.touchesSave;
+    }
+    bool operator!=(const ModEntry& other) const { return !(*this == other); }
 };
 
 struct SlotMeta {
@@ -62,6 +66,7 @@ struct ModComparison {
     std::string savedVersion;
     std::string currentVersion;
     ModState state = ModState::Match;
+    bool touchesSave = false;
 };
 
 struct ModSummary {
@@ -73,6 +78,10 @@ struct ModSummary {
 
 std::vector<ModComparison> CompareMods(const std::vector<ModEntry>& saved, const std::vector<ModEntry>& current);
 ModSummary Summarize(const std::vector<ModComparison>& comparison);
+// A slot played with a save-changing mod (characters) that is now missing or
+// has another version must not be loaded.
+bool IsBlocking(const ModComparison& entry);
+bool IsBlocked(const std::vector<ModComparison>& comparison);
 
 // UTF-8 safe truncation used for names coming from files or the user.
 std::string ClampUtf8(const std::string& text, std::size_t maxBytes);

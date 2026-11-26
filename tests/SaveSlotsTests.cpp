@@ -183,7 +183,7 @@ int main() {
         meta.hcVersion = "5.3.0";
         meta.layoutKnown = true;
         meta.characters = {"Knight", "Knight#2"};
-        meta.mods = {{"Test Mod", "1.0.0"}, {"Other", "2.1"}};
+        meta.mods = {{"Test Mod", "1.0.0", true}, {"Other", "2.1", false}};
         Layout::CharacterBytes bytes {};
         bytes[0] = 0x80; bytes[47] = 0xFF;
         meta.stash["Gone"] = bytes;
@@ -207,6 +207,17 @@ int main() {
               cmp[1].currentVersion == "2" && cmp[2].state == Slots::ModState::Missing && cmp[3].state == Slots::ModState::Added,
               "mod comparison states");
         Check(sum.match == 1 && sum.outdated == 1 && sum.missing == 1 && sum.added == 1, "summary");
+        Check(!Slots::IsBlocked(cmp), "mods without characters never block");
+    }
+    {
+        using Slots::IsBlocked;
+        using Slots::CompareMods;
+        const Slots::ModEntry chars {"Chars", "1", true};
+        Check(IsBlocked(CompareMods({chars}, {})), "missing character mod blocks");
+        Check(IsBlocked(CompareMods({chars}, {{"Chars", "2", true}})), "changed character mod blocks");
+        Check(!IsBlocked(CompareMods({chars}, {chars})), "same character mod is fine");
+        Check(!IsBlocked(CompareMods({}, {chars})), "adding a character mod is fine");
+        Check(!IsBlocked(CompareMods({{"Lua", "1", false}}, {})), "missing plain mod is only informative");
     }
 
     // --- optional: real executable + real vanilla save ---

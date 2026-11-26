@@ -83,7 +83,7 @@ std::string Serialize(const SlotMeta& meta) {
         out << "char=" << Clean(character) << '\n';
     }
     for (const ModEntry& mod : meta.mods) {
-        out << "mod=" << Clean(mod.name) << '\t' << Clean(mod.version) << '\n';
+        out << "mod=" << Clean(mod.name) << '\t' << Clean(mod.version) << (mod.touchesSave ? "\tsave" : "") << '\n';
     }
     for (const auto& [key, bytes] : meta.stash) {
         out << "stash=" << Clean(key) << '\t' << ToHex(bytes) << '\n';
@@ -121,7 +121,13 @@ bool Parse(const std::string& text, SlotMeta& meta) {
             parsed.characters.push_back(value);
         } else if (key == "mod") {
             ModEntry mod;
-            if (SplitTab(value, mod.name, mod.version) && !mod.name.empty()) parsed.mods.push_back(mod);
+            std::string rest;
+            if (SplitTab(value, mod.name, rest) && !mod.name.empty()) {
+                std::string flags;
+                if (!SplitTab(rest, mod.version, flags)) mod.version = rest;
+                mod.touchesSave = flags == "save";
+                parsed.mods.push_back(mod);
+            }
         } else if (key == "stash") {
             std::string name, hex;
             Layout::CharacterBytes bytes {};
@@ -151,12 +157,14 @@ std::vector<ModComparison> CompareMods(const std::vector<ModEntry>& saved, const
         ModComparison entry;
         entry.name = mod.name;
         entry.savedVersion = mod.version;
+        entry.touchesSave = mod.touchesSave;
         const auto found = std::find_if(current.begin(), current.end(),
                                         [&](const ModEntry& c) { return c.name == mod.name; });
         if (found == current.end()) {
             entry.state = ModState::Missing;
         } else {
             entry.currentVersion = found->version;
+            entry.touchesSave = mod.touchesSave || found->touchesSave;
             entry.state = found->version == mod.version ? ModState::Match : ModState::Outdated;
         }
         result.push_back(entry);
@@ -168,6 +176,7 @@ std::vector<ModComparison> CompareMods(const std::vector<ModEntry>& saved, const
             ModComparison entry;
             entry.name = mod.name;
             entry.currentVersion = mod.version;
+            entry.touchesSave = mod.touchesSave;
             entry.state = ModState::Added;
             result.push_back(entry);
         }
@@ -186,6 +195,14 @@ ModSummary Summarize(const std::vector<ModComparison>& comparison) {
         }
     }
     return summary;
+}
+
+bool IsBlocking(const ModComparison& entry) {
+    return entry.touchesSave && (entry.state == ModState::Missing || entry.state == ModState::Outdated);
+}
+
+bool IsBlocked(const std::vector<ModComparison>& comparison) {
+    return std::any_of(comparison.begin(), comparison.end(), IsBlocking);
 }
 
 } // namespace HookCrashers::Save::Slots
