@@ -20,6 +20,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -326,23 +327,24 @@ std::string BuildTagSummary(const SWFBufferView& view) {
     return text;
 }
 
-// Writes the decrypted menu movie once per launch when diagnostics\dump_menu
-// exists (no build flag needed); used to study and edit MENU offline.
-void DumpMenuMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
-    static bool done = false;
-    if (done || !scene || !scene->swfBuffer) return;
+// Writes every decrypted movie once per launch when diagnostics\dump_menu
+// exists (no build flag needed); used to study and edit the movies offline.
+void DumpMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
+    static std::set<std::string> done;
+    if (!scene || !scene->swfBuffer || done.count(swfPath)) return;
     const std::string flag = Core::Logger::ModuleDirectory() + "\\diagnostics\\dump_menu";
     if (GetFileAttributesA(flag.c_str()) == INVALID_FILE_ATTRIBUTES) return;
     const SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
     if (!view.valid || view.fileLength == 0 || view.fileLength > 64u * 1024u * 1024u) return;
-    done = true;
+    done.insert(swfPath);
+    std::string name;
+    for (const char ch : swfPath) name.push_back((ch == '\\' || ch == '/' || ch == ':') ? '_' : ch);
     const std::string directory = RuntimeDumpDirectory();
     EnsureDirectoryExists(directory);
-    const std::string out = directory + "\\menu_runtime_original.swf";
+    const std::string out = directory + "\\movie_" + name + ".swf";
     std::ofstream file(out, std::ios::out | std::ios::binary | std::ios::trunc);
     file.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(view.fileLength));
-    Core::Logger::Warn("Diagnostic menu dump wrote '%s' bytes=%u path='%s'", out.c_str(),
-                       static_cast<unsigned>(view.fileLength), swfPath.c_str());
+    Core::Logger::Warn("Diagnostic movie dump wrote '%s' bytes=%u", out.c_str(), static_cast<unsigned>(view.fileLength));
 }
 
 void DumpLobbyRuntimeCok6(SWFScene* scene, const std::string& swfPath, const char* stage) {
@@ -1147,11 +1149,11 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
         std::lock_guard<std::mutex> lock(g_OwnedPatchedBuffersMutex);
         g_OwnedPatchedBuffers.push_back(std::move(finalBuffer));
     }
+    DumpMovieIfRequested(swfScene, g_CurrentCok6Path);
     std::string menuPath = g_CurrentCok6Path;
     std::transform(menuPath.begin(),menuPath.end(),menuPath.begin(),[](unsigned char c){ return static_cast<char>(std::tolower(c)); });
     if (menuPath.find("menu") != std::string::npos && menuPath.find("amenu") == std::string::npos &&
         menuPath.find("vignettes") == std::string::npos) {
-        DumpMenuMovieIfRequested(swfScene, g_CurrentCok6Path);
         OnlineMenuAssets::PatchScene(swfScene);
         MenuGraphicAssets::PatchScene(swfScene);
     }
