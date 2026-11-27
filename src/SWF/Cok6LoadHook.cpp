@@ -335,7 +335,23 @@ void DumpMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
     const std::string flag = Core::Logger::ModuleDirectory() + "\\diagnostics\\dump_menu";
     if (GetFileAttributesA(flag.c_str()) == INVALID_FILE_ATTRIBUTES) return;
     const SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
-    if (!view.valid || view.fileLength == 0 || view.fileLength > 64u * 1024u * 1024u) return;
+    if (!view.valid || view.compressed || !view.tags) return;
+    // The engine does not keep the header FileLength in sync with the data
+    // (MENU continues well past it), so follow the tags up to End instead.
+    std::size_t length = 0;
+    {
+        const std::uint8_t* cursor = view.tags;
+        const std::uint8_t* limit = view.base + 256u * 1024u * 1024u;
+        Tag tag;
+        while (ReadTag(cursor, limit, tag)) {
+            cursor = tag.next;
+            if (tag.code == kTagEnd) {
+                length = static_cast<std::size_t>(cursor - view.base);
+                break;
+            }
+        }
+    }
+    if (!length) return;
     done.insert(swfPath);
     std::string name;
     for (const char ch : swfPath) name.push_back((ch == '\\' || ch == '/' || ch == ':') ? '_' : ch);
@@ -343,8 +359,9 @@ void DumpMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
     EnsureDirectoryExists(directory);
     const std::string out = directory + "\\movie_" + name + ".swf";
     std::ofstream file(out, std::ios::out | std::ios::binary | std::ios::trunc);
-    file.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(view.fileLength));
-    Core::Logger::Warn("Diagnostic movie dump wrote '%s' bytes=%u", out.c_str(), static_cast<unsigned>(view.fileLength));
+    file.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(length));
+    Core::Logger::Warn("Diagnostic movie dump wrote '%s' bytes=%u headerLength=%u", out.c_str(),
+                       static_cast<unsigned>(length), static_cast<unsigned>(view.fileLength));
 }
 
 void DumpLobbyRuntimeCok6(SWFScene* scene, const std::string& swfPath, const char* stage) {
