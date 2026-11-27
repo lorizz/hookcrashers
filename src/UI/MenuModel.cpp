@@ -186,6 +186,17 @@ Result Registry::SetBackground(const std::string& menuId, bool enabled) {
     return Result::Ok;
 }
 
+Result Registry::SetBackButton(const std::string& menuId, bool enabled) {
+    std::lock_guard<std::mutex> lock(m_lock);
+    Menu* menu = FindMenu(menuId);
+    if (!menu) return Result::UnknownMenu;
+    if (menu->backButton != enabled) {
+        menu->backButton = enabled;
+        ++menu->revision;
+    }
+    return Result::Ok;
+}
+
 Result Registry::SetOnClose(const std::string& menuId, CloseCallback onClose) {
     std::lock_guard<std::mutex> lock(m_lock);
     Menu* menu = FindMenu(menuId);
@@ -225,6 +236,36 @@ Result Registry::SetItemEnabled(const std::string& menuId, const std::string& it
     if (!item) return Result::UnknownItem;
     if (!IsSelectable(*item)) return Result::WrongKind;
     item->enabled = enabled;
+    return Result::Ok;
+}
+
+Result Registry::SetItemColor(const std::string& menuId, const std::string& itemId, std::uint32_t rgba) {
+    std::lock_guard<std::mutex> lock(m_lock);
+    Menu* menu = FindMenu(menuId);
+    if (!menu) return Result::UnknownMenu;
+    Item* item = FindItem(*menu, itemId);
+    if (!item) return Result::UnknownItem;
+    if (item->kind == ItemKind::Graphic) return Result::WrongKind;
+    item->color = rgba;
+    return Result::Ok;
+}
+
+Result Registry::SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options) {
+    if (options.empty() || options.size() > kMaxOptions) return Result::InvalidArgument;
+    for (const std::string& option : options) {
+        if (option.empty() || !ValidText(option)) return Result::InvalidArgument;
+    }
+    std::lock_guard<std::mutex> lock(m_lock);
+    Menu* menu = FindMenu(menuId);
+    if (!menu) return Result::UnknownMenu;
+    Item* item = FindItem(*menu, itemId);
+    if (!item) return Result::UnknownItem;
+    if (item->kind != ItemKind::Toggle && item->kind != ItemKind::Choice) return Result::WrongKind;
+    if (item->kind == ItemKind::Toggle && options.size() != 2) return Result::InvalidArgument;
+    const bool structural = options.size() != item->options.size();
+    item->options = std::move(options);
+    item->value = NormalizeValue(*item, item->value);
+    if (structural) ++menu->revision;
     return Result::Ok;
 }
 

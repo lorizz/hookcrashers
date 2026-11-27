@@ -185,6 +185,16 @@ void InitializeExpandedDefaultCharacterData(void* saveBuffer) {
     }
 }
 
+} // namespace
+
+void InitializeAddonCharacter(void* character, int addonIndex) {
+    if (!character || addonIndex < 0) return;
+    InitializeCharacterData(*static_cast<NativeDB::CC_CharacterData*>(character),
+                            static_cast<std::uint32_t>(NativeDB::kVanillaBaseCharacterCount + addonIndex));
+}
+
+namespace {
+
 template <typename T, std::size_t N>
 bool AnyNonZero(const std::array<T, N>& values) {
     for (const auto value : values) {

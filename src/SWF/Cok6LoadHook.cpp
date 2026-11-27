@@ -3,6 +3,8 @@
 #include "InitSaveSystemBytecode.h"
 #include "ShapeInjection.h"
 #include "MenuGraphicAssets.h"
+#include "SaveSlotButtonAsset.h"
+#include "../Save/SaveSlots.h"
 #include "OnlineMenuAssets.h"
 #include "SWFStructures.h"
 #include "../Characters/CharacterRegistry.h"
@@ -20,6 +22,7 @@
 #include <iterator>
 #include <memory>
 #include <mutex>
+#include <set>
 #include <string>
 #include <vector>
 
@@ -324,6 +327,43 @@ std::string BuildTagSummary(const SWFBufferView& view) {
     std::snprintf(line, sizeof(line), "tag_count=%d castle_tag142=%d castle_tag148=%d\n", index, tag142Count, tag148Count);
     text += line;
     return text;
+}
+
+// Writes every decrypted movie once per launch when diagnostics\dump_menu
+// exists (no build flag needed); used to study and edit the movies offline.
+void DumpMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
+    static std::set<std::string> done;
+    if (!scene || !scene->swfBuffer || done.count(swfPath)) return;
+    const std::string flag = Core::Logger::ModuleDirectory() + "\\diagnostics\\dump_menu";
+    if (GetFileAttributesA(flag.c_str()) == INVALID_FILE_ATTRIBUTES) return;
+    const SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+    if (!view.valid || view.compressed || !view.tags) return;
+    // The engine does not keep the header FileLength in sync with the data
+    // (MENU continues well past it), so follow the tags up to End instead.
+    std::size_t length = 0;
+    {
+        const std::uint8_t* cursor = view.tags;
+        const std::uint8_t* limit = view.base + 256u * 1024u * 1024u;
+        Tag tag;
+        while (ReadTag(cursor, limit, tag)) {
+            cursor = tag.next;
+            if (tag.code == kTagEnd) {
+                length = static_cast<std::size_t>(cursor - view.base);
+                break;
+            }
+        }
+    }
+    if (!length) return;
+    done.insert(swfPath);
+    std::string name;
+    for (const char ch : swfPath) name.push_back((ch == '\\' || ch == '/' || ch == ':') ? '_' : ch);
+    const std::string directory = RuntimeDumpDirectory();
+    EnsureDirectoryExists(directory);
+    const std::string out = directory + "\\movie_" + name + ".swf";
+    std::ofstream file(out, std::ios::out | std::ios::binary | std::ios::trunc);
+    file.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(length));
+    Core::Logger::Warn("Diagnostic movie dump wrote '%s' bytes=%u headerLength=%u", out.c_str(),
+                       static_cast<unsigned>(length), static_cast<unsigned>(view.fileLength));
 }
 
 void DumpLobbyRuntimeCok6(SWFScene* scene, const std::string& swfPath, const char* stage) {
@@ -1128,12 +1168,14 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
         std::lock_guard<std::mutex> lock(g_OwnedPatchedBuffersMutex);
         g_OwnedPatchedBuffers.push_back(std::move(finalBuffer));
     }
+    DumpMovieIfRequested(swfScene, g_CurrentCok6Path);
     std::string menuPath = g_CurrentCok6Path;
     std::transform(menuPath.begin(),menuPath.end(),menuPath.begin(),[](unsigned char c){ return static_cast<char>(std::tolower(c)); });
     if (menuPath.find("menu") != std::string::npos && menuPath.find("amenu") == std::string::npos &&
         menuPath.find("vignettes") == std::string::npos) {
         OnlineMenuAssets::PatchScene(swfScene);
         MenuGraphicAssets::PatchScene(swfScene);
+        if (Save::Slots::IsInstalled()) SaveSlotButtonAsset::PatchScene(swfScene);
     }
     return g_OriginalSWFSceneParseHeader(scene);
 }

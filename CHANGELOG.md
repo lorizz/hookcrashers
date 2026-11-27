@@ -5,6 +5,29 @@ All notable changes to HookCrashers. Stable releases are listed as
 the testing channel. The workflow uses the section matching `VERSION` as the
 release notes.
 
+## 5.3.0 - 2026-11-27
+
+### Added
+
+- **Save slots:** up to 10 modded saves (`hc_slot1.dat` … `hc_slot10.dat`), each with a metadata file (`hc_slotN.meta`), all synced by Steam Cloud.
+  - A slot screen opens before the main menu on every launch with mods. You pick a slot with left/right, see when it was last played and with which mods, then Play/Continue, start a new game in an empty slot, open Mod Info, import the vanilla save or delete a slot.
+  - Switching slots reloads the save without restarting the game. HookCrashers checks that the game really reloaded the slot, and cancels the switch otherwise, so one slot is never written over another.
+  - **Mod Info** lists the mods a slot was last played with, colored: green (same version), orange (other version or missing, no effect on the save), red (save mod missing or changed: slot locked), blue (new since then).
+  - The slot screen and Mod Info are translated into the 11 game languages.
+  - **Import vanilla save:** copies `cc_save.dat` into an empty slot and adds the addon characters. `cc_save.dat` itself is only read, never written.
+  - Deleting a slot moves its files to `hc_trash_slotN.*`; the slot in use cannot be deleted.
+- **Save slots button in the main menu:** the row with the green Options (wrench) button and the red button now has three buttons; the new teal one on the right, with a save icon, opens the slot screen at any time. Left/right cycle through the three buttons, the mouse works too. The MENU movie is changed in memory when it loads (the game files are not modified), and only if it matches the supported build.
+- **Locked slots:** mods that register characters change the save layout, so HookCrashers records them as save mods. A slot played with a save mod that is now missing or has another version shows as locked (red) and cannot be loaded; if it was the active slot, the game starts on another slot and the locked one is not loaded or changed. Mods that do not touch the save are only listed in Mod Info.
+- **Character remapping:** each slot remembers which addon character is in which save position. When character mods are added or reordered, the save is rearranged by character name, so no character takes another's progress. The file before a rearrangement is kept as `hc_slotN.dat.old`.
+### Fixed
+
+- **Slot screen after deleting a slot:** the cursor stays on the deleted (now empty) slot, on the slot selector, instead of jumping to the active slot with the cursor on a greyed-out Delete that blocked the menu. Mod menus never keep the cursor on a disabled item.
+- **Menu API input:** mod menus could be shown but ignored every key and controller button. They now start the game's fade-in (input is enabled when it ends) and read input from any controller when the menu they replace had no player assigned.
+
+### Changed
+
+- **Save file names:** saves no longer depend on the first mod's manifest name. On the first launch the save used until 5.2.0 (`hc_<manifest>.dat`) is copied into slot 1, and the original file is kept. The PBP config is now `hcpbp.dat` (copied from `hcpbp_<manifest>.dat` when present).
+
 ## 5.2.0 - 2026-11-24
 
 ### Added

@@ -15,6 +15,8 @@
 #include "NativeDB/Natives.h"
 #include "Localization/LocalizationSystem.h"
 #include "Save/SaveFileRedirect.h"
+#include "Save/SaveSlots.h"
+#include "UI/SaveSlotMenu.h"
 #include "SWF/SWFStringTableExpansion.h"
 #include "SWF/Cok6LoadHook.h"
 #include "Save/MenuOnlineCompatibilityHook.h"
@@ -176,7 +178,7 @@ DWORD WINAPI BootstrapThread(void* parameter) {
                                     HookCrashers::Characters::Registry::Instance().AddonCount());
 
     if (loadResult.modsFound > 0 &&
-        !HookCrashers::Save::SaveFileRedirect::Install(loadResult.manifestName)) {
+        !HookCrashers::Save::Slots::Install(loadResult.manifestName)) {
         HookCrashers::Core::Logger::Error("Save filename redirect failed; refusing to continue with modded saves");
         MessageBoxA(nullptr,
                     "HookCrashers could not isolate the modded save. The vanilla cc_save.dat was not touched.",
@@ -197,6 +199,10 @@ DWORD WINAPI BootstrapThread(void* parameter) {
         }
     } else {
         HookCrashers::Core::Logger::Warn("No addon characters registered; character expansion was not installed");
+    }
+
+    if (HookCrashers::Save::Slots::IsInstalled() && !HookCrashers::UI::SaveSlotMenu::Install()) {
+        HookCrashers::Core::Logger::Warn("Save slot menu unavailable; the last used slot stays active");
     }
 
     if (config.enableOverlay) {

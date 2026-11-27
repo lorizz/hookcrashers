@@ -4,6 +4,7 @@
 #include "../Core/Memory.h"
 #include "../Core/Version.h"
 #include "../Game/MenuTable.h"
+#include "MainMenuSlotButton.h"
 #include "MenuNative.h"
 #include "../NativeDB/Classes.h"
 #include "../Updater/AutoUpdater.h"
@@ -589,6 +590,7 @@ void* __fastcall HookedMainMenuBuilder(void* self, void*, void* scene, int flags
     // Menu API first: a queued mod menu opens, then a pending prompt (update
     // notice or API prompt) shows on top and returns to it when answered.
     HookCrashers::UI::Menus::Native::OnMainMenuBuilt(self);
+    HookCrashers::UI::MainMenuSlotButton::OnMainMenuBuilt(self);
 
     if (!g_promptShown) {
         g_promptShown = true;

@@ -28,10 +28,27 @@ constexpr std::uintptr_t kVanillaPbpConfigFilenameRva = 0x1CD140;
 constexpr std::uintptr_t kVanillaMainFilenameRva = 0x1CD124;
 constexpr std::uintptr_t kVanillaBackupFilenameRva = 0x1CD130;
 
-std::string g_SaveFileName = "hc_mod.dat";
-std::string g_BackupFileName = "hc_mod.dat.bak";
-std::string g_PbpConfigFileName = "hcpbp_mod.dat";
+// The game keeps raw pointers to these buffers (patched into its code), so they
+// never move; SetSlotFileNames() rewrites them in place for a hot slot switch.
+constexpr std::size_t kNameCapacity = 64;
+char g_MainName[kNameCapacity] = "hc_mod.dat";
+char g_BackupName[kNameCapacity] = "hc_mod.dat.bak";
+char g_PbpName[kNameCapacity] = "hcpbp_mod.dat";
+std::string g_SaveFileName = g_MainName;
+std::string g_BackupFileName = g_BackupName;
+std::string g_PbpConfigFileName = g_PbpName;
 bool g_Installed = false;
+
+bool CopyName(char (&target)[kNameCapacity], const std::string& value) {
+    if (value.empty() || value.size() >= kNameCapacity) {
+        Core::Logger::Error("Save filename '%s' does not fit the %u-byte buffer",
+                            value.c_str(), static_cast<unsigned>(kNameCapacity));
+        return false;
+    }
+    std::memset(target, 0, kNameCapacity);
+    std::memcpy(target, value.data(), value.size());
+    return true;
+}
 
 std::string SanitizeManifestName(const std::string& input) {
     constexpr char kHookCrashers[] = "hookcrashers";
@@ -170,7 +187,7 @@ bool AppendPbpConfigPatches(std::uint32_t replacement,
 
 } // namespace
 
-bool Install(const std::string& manifestName) {
+bool Install(const std::string& mainName, const std::string& backupName, const std::string& pbpName) {
     if (g_Installed) {
         Core::Logger::Info("Save filename redirect already installed: main='%s' backup='%s' pbp='%s'",
                            g_SaveFileName.c_str(),
@@ -179,17 +196,19 @@ bool Install(const std::string& manifestName) {
         return true;
     }
 
-    const std::string saveName = SanitizeManifestName(manifestName);
-    g_SaveFileName = "hc_" + saveName + ".dat";
-    g_BackupFileName = g_SaveFileName + ".bak";
-    g_PbpConfigFileName = "hcpbp_" + saveName + ".dat";
+    if (!CopyName(g_MainName, mainName) || !CopyName(g_BackupName, backupName) || !CopyName(g_PbpName, pbpName)) {
+        return false;
+    }
+    g_SaveFileName = mainName;
+    g_BackupFileName = backupName;
+    g_PbpConfigFileName = pbpName;
 
     std::uint32_t mainPointer = 0;
     std::uint32_t backupPointer = 0;
     std::uint32_t pbpConfigPointer = 0;
-    if (!PointerValue(g_SaveFileName.c_str(), mainPointer) ||
-        !PointerValue(g_BackupFileName.c_str(), backupPointer) ||
-        !PointerValue(g_PbpConfigFileName.c_str(), pbpConfigPointer)) {
+    if (!PointerValue(g_MainName, mainPointer) ||
+        !PointerValue(g_BackupName, backupPointer) ||
+        !PointerValue(g_PbpName, pbpConfigPointer)) {
         return false;
     }
 
@@ -205,12 +224,32 @@ bool Install(const std::string& manifestName) {
     }
 
     g_Installed = true;
-    Core::Logger::Info("Save filename redirect installed from manifest name '%s': main='%s' backup='%s' pbp='%s'",
-                       manifestName.c_str(),
+    Core::Logger::Info("Save filename redirect installed: main='%s' backup='%s' pbp='%s'",
                        g_SaveFileName.c_str(),
                        g_BackupFileName.c_str(),
                        g_PbpConfigFileName.c_str());
     return true;
+}
+
+bool SetSlotFileNames(const std::string& mainName, const std::string& backupName) {
+    if (!g_Installed) return false;
+    char main[kNameCapacity];
+    char backup[kNameCapacity];
+    if (!CopyName(main, mainName) || !CopyName(backup, backupName)) return false;
+    std::memcpy(g_MainName, main, kNameCapacity);
+    std::memcpy(g_BackupName, backup, kNameCapacity);
+    g_SaveFileName = mainName;
+    g_BackupFileName = backupName;
+    Core::Logger::Info("Save filename redirect now targets main='%s' backup='%s'", mainName.c_str(), backupName.c_str());
+    return true;
+}
+
+std::string LegacyManifestSaveName(const std::string& manifestName) {
+    return "hc_" + SanitizeManifestName(manifestName) + ".dat";
+}
+
+std::string LegacyManifestPbpName(const std::string& manifestName) {
+    return "hcpbp_" + SanitizeManifestName(manifestName) + ".dat";
 }
 
 const std::string& SaveFileName() {

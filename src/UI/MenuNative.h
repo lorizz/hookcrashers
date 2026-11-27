@@ -1,5 +1,6 @@
 #pragma once
 
+#include <cstddef>
 #include <string>
 
 // Game-side half of the Menu API: builds Menus::Menu definitions into native
@@ -29,5 +30,14 @@ std::string CurrentMenuId();     // "" when no mod menu is showing
 // Live updates (text/value/enabled) are applied on the next game-thread tick
 // of the visible menu, or when the menu is next opened.
 void MarkDirty(const std::string& menuId);
+// Moves the cursor of a built mod menu to `itemId` (game thread). The menu need
+// not be the current one: the selection is kept when it is shown again.
+bool SelectItem(const std::string& menuId, const std::string& itemId);
+
+// Helpers for patching native menus (game thread, verified build only).
+void* AllocateGameMemory(std::size_t bytes);
+// Adds a native TextMenuItem without text (like the main menu's own entries)
+// whose confirm calls `callback(owner)`. Returns the item or nullptr.
+void* AddHiddenTextItem(void* state, void* owner, void* callback);
 
 } // namespace HookCrashers::UI::Menus::Native

@@ -151,6 +151,18 @@ bool SetItemText(const std::string& menuId, const std::string& itemId, const std
     return Live(Registry::Instance().SetItemText(menuId, itemId, text), "SetItemText", menuId, itemId);
 }
 
+bool SetItemColor(const std::string& menuId, const std::string& itemId, std::uint32_t rgba) {
+    return Live(Registry::Instance().SetItemColor(menuId, itemId, rgba), "SetItemColor", menuId, itemId);
+}
+
+bool SetBackButton(const std::string& menuId, bool enabled) {
+    return Report(Registry::Instance().SetBackButton(menuId, enabled), "SetBackButton", menuId);
+}
+
+bool SetItemOptions(const std::string& menuId, const std::string& itemId, std::vector<std::string> options) {
+    return Live(Registry::Instance().SetItemOptions(menuId, itemId, std::move(options)), "SetItemOptions", menuId, itemId);
+}
+
 bool SetItemValue(const std::string& menuId, const std::string& itemId, int value) {
     return Live(Registry::Instance().SetItemValue(menuId, itemId, value), "SetItemValue", menuId, itemId);
 }
