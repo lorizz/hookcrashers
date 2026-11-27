@@ -445,11 +445,11 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
                 if (options.icon) place(kDepthSlotsIcon, iconId, red.tx + kSlotsIconDx, red.ty + kSlotsIconDy);
             }
             if (keep) resolved.insert(resolved.end(), menu + t.begin, menu + t.end);
-            if (t.code == kTagRemoveObject2 && frame == 8 && t.end - t.payload == 2 &&
-                U16(menu + t.payload) == kDepthHighlight) {
-                place(kDepthHighlight, kNarrowHighlight, narrow.tx, narrow.ty, narrow.hasRatio ? 7 : -1);
-            }
             if (frameEnd) ++frame;
+            // Item 8 (the new button) shows frame 9; frame 8 already removed the highlight.
+            if (frameEnd && frame == 9) {
+                place(kDepthHighlight, kNarrowHighlight, narrow.tx, narrow.ty, narrow.hasRatio ? 8 : -1);
+            }
         }
     }
 

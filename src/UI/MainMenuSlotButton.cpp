@@ -33,7 +33,9 @@ constexpr std::size_t kItemColor = 0x10, kItemFallbackColor = 0x14;
 constexpr std::uint32_t kSelectedColor = 0xFFFF00FFu, kIdleColor = 0x777777FFu;
 constexpr std::size_t kHotspotSize = 0x34;
 constexpr unsigned kMaxHotspots = 10;
-constexpr std::uint16_t kGreen = 3, kRed = 4, kSlots = 7;
+// Items 0-6 are the buttons, 7 is the version text (not selectable), 8 is new.
+constexpr std::uint16_t kGreen = 3, kRed = 4, kSlots = 8;
+constexpr std::uint16_t kStockItems = 8, kStockHotspots = 8;
 constexpr int kAnyPlayer = -2;
 
 using PressedFn = std::uint8_t(__thiscall*)(void* state, int player);
@@ -134,7 +136,7 @@ void OnMainMenuBuilt(void* mainMenu) {
     const auto preUpdate = reinterpret_cast<PreUpdateFn>(Core::Memory::Va(kMainPreUpdateRva));
     const std::uint16_t items = Field<std::uint16_t>(state, kStateItemCount);
     const std::uint16_t hotspots = Field<std::uint16_t>(state, kStateHotspotCount);
-    if (Field<PreUpdateFn>(state, kStatePreUpdate) != preUpdate || items != 7 || hotspots != 7 ||
+    if (Field<PreUpdateFn>(state, kStatePreUpdate) != preUpdate || items != kStockItems || hotspots != kStockHotspots ||
         hotspots >= kMaxHotspots) {
         Core::Logger::Warn("Main menu: unexpected layout (items=%u hotspots=%u); save slots button not added",
                            items, hotspots);

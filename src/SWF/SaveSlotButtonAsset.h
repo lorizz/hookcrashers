@@ -10,7 +10,8 @@
 // The green and teal buttons are recolored copies of the red button shape, the
 // save-slot icon is a new white shape in the style of the other row icons. The
 // highlight frames follow the selection: frame 4 = green (item 3), frame 5 =
-// red (item 4), frame 8 = save slots (item 7, added by MainMenuSlotButton).
+// red (item 4), frame 9 = save slots (item 8, added by MainMenuSlotButton;
+// item 7 is the version text).
 // Every original placement is checked first; on any mismatch nothing changes.
 #include <cstddef>
 #include <cstdint>
