@@ -3,6 +3,8 @@
 #include "InitSaveSystemBytecode.h"
 #include "ShapeInjection.h"
 #include "MenuGraphicAssets.h"
+#include "SaveSlotButtonAsset.h"
+#include "../Save/SaveSlots.h"
 #include "OnlineMenuAssets.h"
 #include "SWFStructures.h"
 #include "../Characters/CharacterRegistry.h"
@@ -1173,6 +1175,7 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
         menuPath.find("vignettes") == std::string::npos) {
         OnlineMenuAssets::PatchScene(swfScene);
         MenuGraphicAssets::PatchScene(swfScene);
+        if (Save::Slots::IsInstalled()) SaveSlotButtonAsset::PatchScene(swfScene);
     }
     return g_OriginalSWFSceneParseHeader(scene);
 }

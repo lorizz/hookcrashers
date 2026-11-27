@@ -135,6 +135,8 @@
     <ClCompile Include="src\Save\SlotMeta.cpp" />
     <ClCompile Include="src\Save\SaveSlots.cpp" />
     <ClCompile Include="src\UI\SaveSlotMenu.cpp" />
+    <ClCompile Include="src\SWF\SaveSlotButtonAsset.cpp" />
+    <ClCompile Include="src\UI\MainMenuSlotButton.cpp" />
     <ClCompile Include="src\Characters\CharacterApi.cpp" />
     <ClCompile Include="src\Characters\CurrentCharacterData.cpp" />
     <ClCompile Include="src\Characters\CharacterExpansion.cpp" />

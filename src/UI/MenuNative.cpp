@@ -783,4 +783,18 @@ void MarkDirty(const std::string& menuId) {
     g_dirty.insert(menuId);
 }
 
+void* AllocateGameMemory(std::size_t bytes) {
+    return g_available ? AllocateGame(bytes) : nullptr;
+}
+
+void* AddHiddenTextItem(void* state, void* owner, void* callback) {
+    if (!g_available || !state) return nullptr;
+    void* item = AllocateGame(kTextItemSize);
+    if (!item) return nullptr;
+    NativeFn<TextItemCtorFn>(kTextItemCtorRva)(item, owner, callback, 0, 0, 0);
+    Field<std::uint16_t>(item, 0x48) = 1; // same alignment as the stock main-menu entries
+    FinalizeItem(state, nullptr, item);
+    return item;
+}
+
 } // namespace HookCrashers::UI::Menus::Native
