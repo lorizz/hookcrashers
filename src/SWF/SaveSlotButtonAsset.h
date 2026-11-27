@@ -26,7 +26,12 @@ struct RowLayout {
 RowLayout Layout();
 
 // Pure transform; `availableBytes` is the physical movie size (tags up to End).
-bool Build(const std::uint8_t* menu, std::size_t availableBytes, std::vector<std::uint8_t>& output, std::string& error);
+struct Options {
+    bool icon = true;       // new floppy icon shape
+    bool newShapes = true;  // recolored button shapes (false: reuse the red sprite)
+};
+bool Build(const std::uint8_t* menu, std::size_t availableBytes, std::vector<std::uint8_t>& output, std::string& error,
+           const Options& options = {});
 
 // Game side: patches the MENU scene buffer before it is parsed.
 bool PatchScene(void* scene);

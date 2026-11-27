@@ -325,7 +325,8 @@ RowLayout Layout() {
     return {25.5f, 106.0f, 110.8f, 192.0f, 198.5f, 279.5f};
 }
 
-bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t>& output, std::string& error) {
+bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t>& output, std::string& error,
+           const Options& options) {
     if (!menu || bytes < 13 || bytes > kLimit || std::memcmp(menu, "FWS", 3) != 0) {
         error = "not an uncompressed SWF";
         return false;
@@ -407,7 +408,7 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
                     place(kDepthRed, kRedButtonSprite, red.tx - kStepTwips, red.ty);
                     keep = false;
                 } else if (pl.simple && frame == 1 && pl.depth == kDepthGreen && pl.character == kGreenButtonSprite) {
-                    place(kDepthGreen, greenId, red.tx + kGreenShift, red.ty);
+                    place(kDepthGreen, options.newShapes ? greenId : kRedButtonSprite, red.tx + kGreenShift, red.ty);
                     keep = false;
                 } else if (pl.simple && frame == 1 && pl.depth == kDepthRedIcon && pl.character == kRedIcon) {
                     place(kDepthRedIcon, kRedIcon, redIcon.tx - kStepTwips, redIcon.ty);
@@ -427,8 +428,8 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
             }
             const bool frameEnd = t.code == kTagShowFrame || t.code == kTagCastleFrame;
             if (frameEnd && frame == 1) {
-                place(kDepthSlots, slotsId, red.tx, red.ty);
-                place(kDepthSlotsIcon, iconId, red.tx + kSlotsIconDx, red.ty + kSlotsIconDy);
+                place(kDepthSlots, options.newShapes ? slotsId : kRedButtonSprite, red.tx, red.ty);
+                if (options.icon) place(kDepthSlotsIcon, iconId, red.tx + kSlotsIconDx, red.ty + kSlotsIconDy);
             }
             if (keep) resolved.insert(resolved.end(), menu + t.begin, menu + t.end);
             if (t.code == kTagRemoveObject2 && frame == 8 && t.end - t.payload == 2 &&
@@ -449,9 +450,11 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
     output.clear();
     output.reserve(bytes + resolved.size() + greenShape.size() * 2 + 512);
     output.insert(output.end(), menu, menu + sprite.begin);
-    PutTag(output, 2, greenShape);
-    PutTag(output, 2, slotsShape);
-    PutTag(output, 2, SlotIconShape(iconId));
+    if (options.newShapes) {
+        PutTag(output, 2, greenShape);
+        PutTag(output, 2, slotsShape);
+    }
+    if (options.icon) PutTag(output, 2, SlotIconShape(iconId));
     PutTag(output, kTagDefineSprite, resolved);
     output.insert(output.end(), menu + sprite.end, menu + bytes);
     return true;
@@ -486,7 +489,20 @@ bool PatchScene(void* rawScene) {
     if (!bytes) return false;
     auto patched = std::make_unique<std::vector<std::uint8_t>>();
     std::string error;
-    if (!Build(scene->swfBuffer, bytes, *patched, error)) {
+    // Diagnostics switches (files in diagnostics\): slotbtn_off, slotbtn_noicon, slotbtn_noshapes.
+    auto flag = [](const char* name) {
+        const std::string path = Core::Logger::ModuleDirectory() + "\\diagnostics\\" + name;
+        return GetFileAttributesA(path.c_str()) != INVALID_FILE_ATTRIBUTES;
+    };
+    if (flag("slotbtn_off")) {
+        Core::Logger::Warn("Save slot button: disabled by diagnostics\\slotbtn_off");
+        return false;
+    }
+    Options options;
+    options.icon = !flag("slotbtn_noicon");
+    options.newShapes = !flag("slotbtn_noshapes");
+    Core::Logger::Info("Save slot button: options icon=%d newShapes=%d", options.icon ? 1 : 0, options.newShapes ? 1 : 0);
+    if (!Build(scene->swfBuffer, bytes, *patched, error, options)) {
         Core::Logger::Warn("Save slot button: MENU not patched (%s)", error.c_str());
         return false;
     }
