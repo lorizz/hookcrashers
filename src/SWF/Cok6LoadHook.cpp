@@ -326,6 +326,25 @@ std::string BuildTagSummary(const SWFBufferView& view) {
     return text;
 }
 
+// Writes the decrypted menu movie once per launch when diagnostics\dump_menu
+// exists (no build flag needed); used to study and edit MENU offline.
+void DumpMenuMovieIfRequested(SWFScene* scene, const std::string& swfPath) {
+    static bool done = false;
+    if (done || !scene || !scene->swfBuffer) return;
+    const std::string flag = Core::Logger::ModuleDirectory() + "\\diagnostics\\dump_menu";
+    if (GetFileAttributesA(flag.c_str()) == INVALID_FILE_ATTRIBUTES) return;
+    const SWFBufferView view = MakeSWFBufferView(scene->swfBuffer);
+    if (!view.valid || view.fileLength == 0 || view.fileLength > 64u * 1024u * 1024u) return;
+    done = true;
+    const std::string directory = RuntimeDumpDirectory();
+    EnsureDirectoryExists(directory);
+    const std::string out = directory + "\\menu_runtime_original.swf";
+    std::ofstream file(out, std::ios::out | std::ios::binary | std::ios::trunc);
+    file.write(reinterpret_cast<const char*>(view.base), static_cast<std::streamsize>(view.fileLength));
+    Core::Logger::Warn("Diagnostic menu dump wrote '%s' bytes=%u path='%s'", out.c_str(),
+                       static_cast<unsigned>(view.fileLength), swfPath.c_str());
+}
+
 void DumpLobbyRuntimeCok6(SWFScene* scene, const std::string& swfPath, const char* stage) {
 #if HC_ENABLE_LOBBY_COK6_RUNTIME_DUMP
     if (!scene || !scene->swfBuffer || !PathContainsLobby(swfPath)) {
@@ -1132,6 +1151,7 @@ int __fastcall DetouredSWFSceneParseHeader(int scene, void*) {
     std::transform(menuPath.begin(),menuPath.end(),menuPath.begin(),[](unsigned char c){ return static_cast<char>(std::tolower(c)); });
     if (menuPath.find("menu") != std::string::npos && menuPath.find("amenu") == std::string::npos &&
         menuPath.find("vignettes") == std::string::npos) {
+        DumpMenuMovieIfRequested(swfScene, g_CurrentCok6Path);
         OnlineMenuAssets::PatchScene(swfScene);
         MenuGraphicAssets::PatchScene(swfScene);
     }
