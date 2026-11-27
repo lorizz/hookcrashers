@@ -43,6 +43,14 @@ registered and, if they differ, rebuilds the file (`src/Save/SaveLayout.cpp`):
 - new characters get their default data;
 - the workshop characters and keybinds move after the addons.
 
+## Locked slots
+
+Mods that register addon characters are stored in the metadata with a `save`
+flag (`mod=Name\tversion\tsave`). When one of them is missing or has another
+version, the slot is locked: the menu does not offer Play and the slot is
+never loaded or remapped. Adding character mods is allowed (the new
+characters get default data); mods without characters never lock a slot.
+
 ## Switching slots
 
 The game reads the save once at startup. To change slot, HookCrashers points the redirected

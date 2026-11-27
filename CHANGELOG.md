@@ -12,10 +12,15 @@ release notes.
 - **Save slots:** up to 10 modded saves (`hc_slot1.dat` … `hc_slot10.dat`), each with a metadata file (`hc_slotN.meta`), all synced by Steam Cloud.
   - A slot screen opens before the main menu on every launch with mods. You pick a slot with left/right, see when it was last played and with which mods, then Play/Continue, start a new game in an empty slot, open Mod Info, import the vanilla save or delete a slot.
   - Switching slots reloads the save without restarting the game. HookCrashers checks that the game really reloaded the slot, and cancels the switch otherwise, so one slot is never written over another.
-  - **Mod Info** lists the mods a slot was last played with: OK, different version, missing, or new since then.
+  - **Mod Info** lists the mods a slot was last played with, colored: green (same version), orange (other version or missing, no effect on the save), red (save mod missing or changed: slot locked), blue (new since then).
+  - The slot screen and Mod Info are translated into the 11 game languages.
   - **Import vanilla save:** copies `cc_save.dat` into an empty slot and adds the addon characters. `cc_save.dat` itself is only read, never written.
   - Deleting a slot moves its files to `hc_trash_slotN.*`; the slot in use cannot be deleted.
-- **Character remapping:** each slot remembers which addon character is in which save position. When mods are added, removed or reordered, the save is rearranged by character name, so no character takes another's progress. Characters of removed mods are kept in the slot metadata and come back when the mod is reinstalled. The file before a rearrangement is kept as `hc_slotN.dat.old`.
+- **Locked slots:** mods that register characters change the save layout, so HookCrashers records them as save mods. A slot played with a save mod that is now missing or has another version shows as locked (red) and cannot be loaded; if it was the active slot, the game starts on another slot and the locked one is not loaded or changed. Mods that do not touch the save are only listed in Mod Info.
+- **Character remapping:** each slot remembers which addon character is in which save position. When character mods are added or reordered, the save is rearranged by character name, so no character takes another's progress. The file before a rearrangement is kept as `hc_slotN.dat.old`.
+### Fixed
+
+- **Menu API input:** mod menus could be shown but ignored every key and controller button. They now start the game's fade-in (input is enabled when it ends) and read input from any controller when the menu they replace had no player assigned.
 
 ### Changed
 

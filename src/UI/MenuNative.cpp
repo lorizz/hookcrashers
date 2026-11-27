@@ -403,7 +403,6 @@ bool ResolveSelected(void* owner, int& slot, int& itemIndex, void*& handler) {
 }
 
 void __cdecl ActivateTrampoline(void* owner) {
-    Core::Logger::Info("Menu API: activate callback owner=%p", owner);
     int slot = -1, itemIndex = -1;
     void* handler = nullptr;
     if (!ResolveSelected(owner, slot, itemIndex, handler)) return;
@@ -467,23 +466,6 @@ void StartFadeIn(void* handler) {
     Field<float>(handler, kStateFadeAlpha) = 0.0f;
 }
 
-// Diagnostics: logs the input-related state of the current mod menu whenever it changes.
-void LogHandlerState(void* handler, const char* why) {
-    static std::string last;
-    char line[256];
-    std::snprintf(line, sizeof(line),
-                  "in=%u fadeDir=%d alpha=%.2f flash=%.2f action=%u blocked=%u player=%d prev=%d sel=%u keep=%u flags=0x%X active=%u",
-                  Field<std::uint8_t>(handler, kStateInputEnabled), Field<std::int8_t>(handler, kStateFadeDirection),
-                  Field<float>(handler, kStateFadeAlpha), Field<float>(handler, kStateFlashTime),
-                  Field<std::uint32_t>(handler, kStatePendingAction), Field<std::uint8_t>(handler, kStateInputBlocked),
-                  Field<std::int16_t>(handler, 0x10), Field<std::int16_t>(handler, 0x0E),
-                  Field<std::uint16_t>(handler, kStateSelected), Field<std::uint8_t>(handler, kStateKeepSelection),
-                  Field<std::uint16_t>(handler, kStateTransitionFlags), Field<std::uint16_t>(g_mainMenu, kMainActiveId));
-    if (last == line) return;
-    last = line;
-    Core::Logger::Info("Menu API state (%s): %s", why, line);
-}
-
 void __cdecl UpdateTrampoline(void* owner) {
     if (owner != g_mainMenu) return;
     {
@@ -497,7 +479,6 @@ void __cdecl UpdateTrampoline(void* owner) {
             if (player != -2 && player != -3 && (player < 0 || player > 3)) {
                 Field<std::int16_t>(current, kStateInputPlayer) = -2;
             }
-            LogHandlerState(current, "tick");
         }
     }
     // Menus re-entered through a plain SetMenuState (Back from a submenu, a
@@ -692,10 +673,6 @@ bool OpenNow(const std::string& menuId) {
     }
     // Stock menus accept input only after their fade-in completes (0x1539E0 sets
     // +0x15); a freshly built handler has no fade running, so start one.
-    {
-        void* confirmation = static_cast<std::uint8_t*>(g_table) + Table::kConfirmationMenuId * Table::kHandlerSize;
-        LogHandlerState(confirmation, "stock confirmation");
-    }
     StartFadeIn(handler);
     NativeFn<SetMenuStateFn>(kSetMenuStateRva)(g_mainMenu, static_cast<std::int16_t>(self), handler);
     Core::Logger::Info("Menu API: opened '%s' (return to %u)", menuId.c_str(),
