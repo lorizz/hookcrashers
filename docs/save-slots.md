@@ -59,3 +59,22 @@ again from the menu, on the game thread. Before the call it puts a sentinel in
 the game's save buffer; after it, the buffer must hold exactly the expected
 bytes (or a newly created default save). Otherwise the switch is cancelled and
 the previous buffer and filename are restored.
+
+## Main menu button
+
+`src/SWF/SaveSlotButtonAsset.cpp` changes the MENU movie in memory when it is
+loaded. The main menu's `buttonchoices` sprite shows frame `selected + 1`;
+items 3 (green Options) and 4 (red) share a row. The patch:
+
+- adds recolored copies of the red button shape (green and teal) and a white
+  save icon, then a new `buttonchoices` with three 81 px buttons, highlights on
+  frames 4, 5 and 9, all appended before End with their own export (the stock
+  export is renamed in place and `FileLength` is updated);
+- `src/UI/MainMenuSlotButton.cpp` adds main-menu item 8 (item 7 is the
+  version text) and its mouse hotspot, narrows the hotspots of items 3 and 4
+  and replaces the menu pre-update so left/right cycle 3 -> 4 -> 8.
+
+Every original value is checked first; with another game build nothing is
+patched. `diagnostics\dump_menu` makes HookCrashers write every decrypted
+movie to `diagnostics\swf_runtime\` (the SWF `FileLength` of MENU is stale,
+the dump follows the tags to End).
