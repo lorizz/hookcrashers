@@ -30,6 +30,9 @@ std::string CurrentMenuId();     // "" when no mod menu is showing
 // Live updates (text/value/enabled) are applied on the next game-thread tick
 // of the visible menu, or when the menu is next opened.
 void MarkDirty(const std::string& menuId);
+// Moves the cursor of a built mod menu to `itemId` (game thread). The menu need
+// not be the current one: the selection is kept when it is shown again.
+bool SelectItem(const std::string& menuId, const std::string& itemId);
 
 // Helpers for patching native menus (game thread, verified build only).
 void* AllocateGameMemory(std::size_t bytes);

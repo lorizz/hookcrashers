@@ -171,6 +171,7 @@ struct SlotState {
     std::vector<int> nativeToItem;    // menuItems index -> model item index (-1: title/label-less)
     std::vector<void*> itemObjects;   // model item index -> native object
     std::vector<std::uint32_t> defaultColors; // model item index -> native color at build time
+    std::vector<bool> selectable;             // model item index -> button/toggle/choice/submenu
 };
 
 std::atomic<bool> g_available {false};
@@ -466,6 +467,50 @@ void StartFadeIn(void* handler) {
     Field<float>(handler, kStateFadeAlpha) = 0.0f;
 }
 
+bool NativeIndexUsable(std::size_t slot, const Menu& menu, std::uint16_t native) {
+    const SlotState& state = g_slots[slot];
+    if (native >= state.nativeToItem.size()) return false;
+    const int index = state.nativeToItem[native];
+    if (index < 0 || static_cast<std::size_t>(index) >= menu.items.size() || !IsSelectable(menu.items[index])) return false;
+    void* object = state.itemObjects[static_cast<std::size_t>(index)];
+    return object && Field<std::uint8_t>(object, kItemDisabled) == 0;
+}
+
+void SetSelection(std::size_t slot, void* handler, std::uint16_t native, const Menu& menu) {
+    Field<std::uint16_t>(handler, kStateSelected) = native;
+    ApplyLiveState(slot, menu); // restores the colors of the previously highlighted item
+}
+
+// A disabled or non-selectable item under the cursor leaves the menu with
+// nothing to confirm (e.g. Delete greyed out after deleting a slot): move the
+// cursor to the first usable item.
+void KeepSelectionUsable(void* handler) {
+    const int slot = SlotOfHandler(handler);
+    if (slot < 0 || !g_slots[slot].built || g_slots[slot].mainMenu != g_mainMenu) return;
+    {
+        // Fast path, every frame: the cursor is on an enabled selectable item.
+        const SlotState& state = g_slots[slot];
+        const std::uint16_t selected = Field<std::uint16_t>(handler, kStateSelected);
+        const int index = selected < state.nativeToItem.size() ? state.nativeToItem[selected] : -1;
+        if (index >= 0 && static_cast<std::size_t>(index) < state.selectable.size() && state.selectable[index] &&
+            state.itemObjects[static_cast<std::size_t>(index)] &&
+            Field<std::uint8_t>(state.itemObjects[static_cast<std::size_t>(index)], kItemDisabled) == 0) {
+            return;
+        }
+    }
+    Menu menu;
+    if (!Registry::Instance().Snapshot(g_slots[slot].menuId, menu) || menu.revision != g_slots[slot].revision) return;
+    const std::uint16_t selected = Field<std::uint16_t>(handler, kStateSelected);
+    if (NativeIndexUsable(static_cast<std::size_t>(slot), menu, selected)) return;
+    const auto count = static_cast<std::uint16_t>(g_slots[slot].nativeToItem.size());
+    for (std::uint16_t native = 0; native < count; ++native) {
+        if (NativeIndexUsable(static_cast<std::size_t>(slot), menu, native)) {
+            SetSelection(static_cast<std::size_t>(slot), handler, native, menu);
+            return;
+        }
+    }
+}
+
 void __cdecl UpdateTrampoline(void* owner) {
     if (owner != g_mainMenu) return;
     {
@@ -484,6 +529,7 @@ void __cdecl UpdateTrampoline(void* owner) {
     // Menus re-entered through a plain SetMenuState (Back from a submenu, a
     // prompt returning here) get no fade-in and would ignore input forever.
     void* handler = Field<void*>(owner, kMainCurrentHandler);
+    KeepSelectionUsable(handler);
     if (SlotOfHandler(handler) >= 0 && Field<std::uint8_t>(handler, kStateInputEnabled) == 0 &&
         Field<std::int8_t>(handler, kStateFadeDirection) == 0 && Field<float>(handler, kStateFlashTime) == 0.0f) {
         StartFadeIn(handler);
@@ -528,6 +574,8 @@ bool Build(std::size_t slot, const Menu& menu) {
     state.nativeToItem.clear();
     state.itemObjects.assign(menu.items.size(), nullptr);
     state.defaultColors.assign(menu.items.size(), 0);
+    state.selectable.assign(menu.items.size(), false);
+    for (std::size_t i = 0; i < menu.items.size(); ++i) state.selectable[i] = IsSelectable(menu.items[i]);
 
     auto recordText = [&](int itemIndex) {
         const std::uint16_t count = Field<std::uint16_t>(handler, kStateMenuItemCount);
@@ -795,6 +843,24 @@ void* AddHiddenTextItem(void* state, void* owner, void* callback) {
     Field<std::uint16_t>(item, 0x48) = 1; // same alignment as the stock main-menu entries
     FinalizeItem(state, nullptr, item);
     return item;
+}
+
+bool SelectItem(const std::string& menuId, const std::string& itemId) {
+    if (!g_available || !OnGameThread() || !MainMenuAlive(g_mainMenu)) return false;
+    const int slot = SlotFor(menuId, false);
+    if (slot < 0 || !g_slots[slot].built || g_slots[slot].mainMenu != g_mainMenu) return false;
+    Menu menu;
+    if (!Registry::Instance().Snapshot(menuId, menu) || menu.revision != g_slots[slot].revision) return false;
+    const auto& map = g_slots[slot].nativeToItem;
+    for (std::size_t native = 0; native < map.size(); ++native) {
+        const int index = map[native];
+        if (index >= 0 && static_cast<std::size_t>(index) < menu.items.size() && menu.items[index].id == itemId) {
+            SetSelection(static_cast<std::size_t>(slot), HandlerFor(static_cast<std::size_t>(slot)),
+                         static_cast<std::uint16_t>(native), menu);
+            return true;
+        }
+    }
+    return false;
 }
 
 } // namespace HookCrashers::UI::Menus::Native

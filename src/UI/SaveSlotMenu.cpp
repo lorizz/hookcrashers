@@ -66,6 +66,7 @@ const char* const kTexts[11][kTextCount] = {
 
 int g_language = 0;
 int g_selected = 1;
+bool g_followActive = true; // slot list changes move the selector to the active slot
 
 const char* T(Text id) {
     return kTexts[g_language][id];
@@ -179,7 +180,14 @@ void OnDelete(int) {
     const int index = g_selected;
     UpdatePromptMenu::CreatePrompt(T(kConfirmDelete), [index]() {
         std::string error;
-        if (!Slots::Delete(index, error)) ShowError(error);
+        // Stay on the slot that was just emptied, cursor back on the selector.
+        g_followActive = false;
+        const bool deleted = Slots::Delete(index, error);
+        g_followActive = true;
+        g_selected = index;
+        Refresh();
+        Menus::Native::SelectItem(kMenu, "slot");
+        if (!deleted) ShowError(error);
     }, {});
 }
 
@@ -248,7 +256,7 @@ bool Install() {
         return false;
     }
     Slots::SetChangedCallback([]() {
-        g_selected = Slots::ActiveSlot();
+        if (g_followActive) g_selected = Slots::ActiveSlot();
         Refresh();
     });
     const auto result = Menus::Api::Open(kMenu);
