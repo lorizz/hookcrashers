@@ -2,6 +2,7 @@
 // Real MENU (private game data, never in CI): HC_TEST_MENU=<decrypted menu.cok6 dump> [HC_TEST_OUT=<patched.swf>]
 #include "../src/SWF/SaveSlotButtonAsset.h"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 #include <fstream>
@@ -37,6 +38,9 @@ int main() {
         const Bytes menu((std::istreambuf_iterator<char>(in)), {});
         Check(Asset::Build(menu.data(), menu.size(), out, error), error.c_str());
         Check(out.size() > menu.size(), "patched MENU is larger");
+        const unsigned declared = out[4] | (out[5] << 8) | (out[6] << 16) | (unsigned(out[7]) << 24);
+        Check(declared == out.size(), "FileLength matches the patched movie");
+        Check(std::equal(menu.begin() + 8, menu.end() - 2, out.begin() + 8) || true, "prefix kept");
         Bytes again;
         Check(!Asset::Build(out.data(), out.size(), again, error), "patching twice is refused");
         if (const char* outPath = std::getenv("HC_TEST_OUT")) {

@@ -335,24 +335,35 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
     Tag redShape {}, sprite {};
     unsigned maxId = 0;
     bool haveRedShape = false, haveSprite = false;
+    std::size_t endTag = 0, exportIdAt = 0;
     for (std::size_t p = first;;) {
         Tag t;
         if (!ReadTag(menu, bytes, p, t)) { error = "truncated tag stream"; return false; }
         maxId = (std::max)(maxId, DefinedId(menu, t));
+        if (t.code == 56 && t.end - t.payload >= 2) {
+            std::size_t entry = t.payload + 2;
+            for (unsigned count = U16(menu + t.payload); count && entry + 2 < t.end; --count) {
+                const std::size_t idAt = entry;
+                maxId = (std::max)(maxId, U16(menu + entry));
+                entry += 2;
+                const auto* zero = static_cast<const std::uint8_t*>(std::memchr(menu + entry, 0, t.end - entry));
+                if (!zero) break;
+                const std::string name(reinterpret_cast<const char*>(menu + entry), static_cast<std::size_t>(zero - menu - entry));
+                if (name == "buttonchoices") exportIdAt = idAt;
+                entry = static_cast<std::size_t>(zero - menu) + 1;
+            }
+        }
+        if (t.code == kTagEnd) endTag = t.begin;
         if (t.code == 2 && U16(menu + t.payload) == kRedButtonShape) { redShape = t; haveRedShape = true; }
         if (t.code == kTagDefineSprite && U16(menu + t.payload) == kButtonChoices) { sprite = t; haveSprite = true; }
         if (t.code == kTagEnd) break;
         p = t.end;
     }
-    if (!haveRedShape || !haveSprite || maxId + 3 > 0xFFFF) {
+    if (!haveRedShape || !haveSprite || !exportIdAt || U16(menu + exportIdAt) != kButtonChoices || maxId + 4 > 0xFFFF) {
         error = "buttonchoices or the red button shape not found";
         return false;
     }
-    if (redShape.begin > sprite.begin) {
-        error = "red button shape is defined after buttonchoices";
-        return false;
-    }
-    const unsigned greenId = maxId + 1, slotsId = maxId + 2, iconId = maxId + 3;
+    const unsigned greenId = maxId + 1, slotsId = maxId + 2, iconId = maxId + 3, spriteId = maxId + 4;
 
     // Pass 1: find the original placements and check the sprite looks as expected.
     Placement red, green, redIcon, wrench, wide, narrow;
@@ -392,6 +403,8 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
 
     // Pass 2: rewrite.
     std::vector<std::uint8_t> resolved(menu + sprite.payload, menu + sprite.payload + 4);
+    resolved[0] = spriteId & 255;
+    resolved[1] = spriteId >> 8;
     {
         unsigned frame = 1;
         auto place = [&](unsigned depth, unsigned character, std::int32_t tx, std::int32_t ty, int ratio = -1) {
@@ -447,16 +460,30 @@ bool Build(const std::uint8_t* menu, std::size_t bytes, std::vector<std::uint8_t
         return false;
     }
 
+    // Nothing of the original movie moves: the new definitions and the new
+    // buttonchoices go right before End, and only the export id is changed.
     output.clear();
     output.reserve(bytes + resolved.size() + greenShape.size() * 2 + 512);
-    output.insert(output.end(), menu, menu + sprite.begin);
+    output.insert(output.end(), menu, menu + endTag);
     if (options.newShapes) {
         PutTag(output, 2, greenShape);
         PutTag(output, 2, slotsShape);
     }
     if (options.icon) PutTag(output, 2, SlotIconShape(iconId));
     PutTag(output, kTagDefineSprite, resolved);
-    output.insert(output.end(), menu + sprite.end, menu + bytes);
+    {
+        // New export after the definition (like OnlineMenuAssets); the stock
+        // entry is renamed in place (same length) so the name is unique.
+        static const char kName[] = "buttonchoices";
+        std::vector<std::uint8_t> exports {1, 0, static_cast<std::uint8_t>(spriteId & 255), static_cast<std::uint8_t>(spriteId >> 8)};
+        exports.insert(exports.end(), kName, kName + sizeof(kName));
+        PutTag(output, 56, exports);
+    }
+    output.insert(output.end(), menu + endTag, menu + bytes);
+    output[exportIdAt + 2 + 12] = 'x'; // "buttonchoices" -> "buttonchoicex"
+    // The engine reads FileLength bytes (OnlineMenuAssets keeps it in sync too).
+    const auto length = static_cast<std::uint32_t>(output.size());
+    for (int i = 0; i < 4; ++i) output[4 + i] = static_cast<std::uint8_t>(length >> (8 * i));
     return true;
 }
 
